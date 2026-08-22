@@ -9,9 +9,14 @@ Status: Draft. Do not mark a task complete without running its stated verificati
   - Verify: focused Codable/settings tests plus existing settings fixture tests.
   - Files: `FineTune/Settings/SettingsManager.swift`, one focused type file under `FineTune/Settings/Types/`, tests.
 
+- [ ] Task: Register Simplified Chinese as a project localization
+  - Acceptance: Xcode project `knownRegions` contains `zh-Hans` while English remains the development region.
+  - Verify: inspect `project.pbxproj`, build, and inspect the built app localization resources.
+  - Files: `FineTune.xcodeproj/project.pbxproj`.
+
 - [ ] Task: Add native localization catalog
   - Acceptance: `FineTune/Localizable.xcstrings` contains English source localization and Simplified Chinese localization and is included in the app target.
-  - Verify: build and inspect catalog/resource inclusion.
+  - Verify: build and inspect catalog/resource inclusion in the built product.
   - Files: `FineTune/Localizable.xcstrings`.
 
 - [ ] Task: Propagate selected locale to both SwiftUI roots
@@ -126,7 +131,7 @@ Status: Draft. Do not mark a task complete without running its stated verificati
 
 - [ ] Task: Localize FineTune-owned AppKit strings
   - Acceptance: window title and AutoEQ file-panel custom message follow selected app language.
-  - Verify: open Settings and file panel in both languages.
+  - Verify: open Settings and file panel in both languages; separately record system-owned file-panel chrome language.
   - Files: relevant AppKit bridge/menu popup files, localization helper/catalog.
 
 - [ ] Task: Localize FineTune-generated notifications and lower-layer user-facing errors
@@ -146,13 +151,23 @@ Status: Draft. Do not mark a task complete without running its stated verificati
   - Verify: documented scan results plus review of String Catalog extraction/build feedback.
   - Files: no behavior change required; add documentation/tests only if useful.
 
+- [ ] Task: Verify built Simplified Chinese localization registration
+  - Acceptance: `zh-Hans` is registered in the Xcode project and expected Chinese application and InfoPlist localization resources exist in the built app.
+  - Verify: inspect project metadata and built bundle, not source files alone.
+  - Files: documentation only unless a registration/resource inclusion defect is found.
+
 - [ ] Task: Verify Sparkle 2.8.1 language behavior
   - Acceptance: standard updater language behavior is recorded for English/Chinese FineTune selection against relevant macOS app-language combinations.
   - Verify: actual updater-window test, not inference.
   - Files: documentation only unless a separately approved custom user driver is required.
 
+- [ ] Task: Verify dependency/system-owned controls
+  - Acceptance: `KeyboardShortcuts.Recorder`, macOS privacy prompts and standard `NSOpenPanel` chrome behavior are recorded when FineTune language differs from macOS application language.
+  - Verify: actual UI observation in the relevant states.
+  - Files: documentation only unless separately approved replacement UI is required.
+
 - [ ] Task: Perform Chinese layout/adversarial review
-  - Acceptance: no clipping, overlap, unintended truncation, unreadable line wrapping or English remnants in all supported first-party surfaces.
+  - Acceptance: no clipping, overlap, unintended truncation, unreadable line wrapping or English remnants in all supported FineTune-owned surfaces.
   - Verify: Settings all tabs plus popup Compact/Comfortable/Spacious, Output/Input, edit mode, EQ/AutoEQ/detail/error states.
   - Files: only corrective UI/localization changes found by review.
 
