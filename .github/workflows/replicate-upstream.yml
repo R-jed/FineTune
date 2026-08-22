@@ -1,4 +1,4 @@
-name: Replicate upstream repository
+name: Replicate upstream snapshot
 
 on:
   pull_request:
@@ -11,16 +11,27 @@ permissions:
 
 jobs:
   replicate:
-    if: github.repository == 'R-jed/FineTune' && github.head_ref == 'replication-bootstrap'
+    if: github.repository == 'R-jed/FineTune' && github.head_ref == 'replication-snapshot'
     runs-on: ubuntu-latest
     steps:
-      - name: Mirror ronitsingh10/FineTune
+      - name: Copy upstream main snapshot except workflow files
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TARGET_REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
-          git clone --mirror https://github.com/ronitsingh10/FineTune.git /tmp/FineTune.git
-          cd /tmp/FineTune.git
-          git remote set-url --push origin "https://x-access-token:${GH_TOKEN}@github.com/${TARGET_REPOSITORY}.git"
-          git push --mirror origin
+          git clone --depth 1 https://github.com/ronitsingh10/FineTune.git /tmp/upstream
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/${TARGET_REPOSITORY}.git" /tmp/target
+          cd /tmp/target
+          git checkout main
+          rsync -a --delete --exclude='.git/' --exclude='.github/workflows/' /tmp/upstream/ /tmp/target/
+          rm -f .replica-bootstrap .replication-trigger
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          if git diff --cached --quiet; then
+            echo 'No snapshot changes to commit.'
+            exit 0
+          fi
+          git commit -m 'chore: replicate ronitsingh10/FineTune main snapshot at 2285279d'
+          git push origin main
