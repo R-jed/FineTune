@@ -1,0 +1,25 @@
+name: Replicate upstream repository
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  replicate:
+    if: github.repository == 'R-jed/FineTune'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mirror ronitsingh10/FineTune
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TARGET_REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          git clone --mirror https://github.com/ronitsingh10/FineTune.git /tmp/FineTune.git
+          cd /tmp/FineTune.git
+          git remote set-url --push origin "https://x-access-token:${GH_TOKEN}@github.com/${TARGET_REPOSITORY}.git"
+          git push --mirror origin
