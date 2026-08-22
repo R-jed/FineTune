@@ -25,6 +25,7 @@ The selected language should apply immediately to FineTune-owned UI without requ
 - The Settings window is a SwiftUI `TabView` with General, Audio, Shortcuts, Updates, and About tabs.
 - The menu bar popup is another independent SwiftUI root.
 - The project uses Xcode file-system-synchronized groups for `FineTune/`, so application resources added under that directory are picked up by the target without hand-maintaining normal PBX file references.
+- The Xcode project development region is English and `knownRegions` currently contains only `en` and `Base`. Shipping Simplified Chinese therefore requires adding `zh-Hans` to the project localization regions and verifying the built bundle.
 - `Info.plist` contains English privacy usage descriptions for audio capture, microphone, and Bluetooth.
 - Sparkle 2.8.1 owns its standard updater window through `SPUStandardUpdaterController`.
 
@@ -54,12 +55,14 @@ Several settings/command enums also mix stable internal values with English pres
 
 FineTune can control the locale of its own SwiftUI hierarchy and can explicitly resolve localized resources for its own AppKit/string surfaces.
 
-Two surfaces are not fully controlled by FineTune's SwiftUI locale override:
+The following surfaces are not fully controlled by FineTune's SwiftUI locale override:
 
 1. macOS-owned privacy permission dialogs. Their usage-description strings can and must be localized in the application bundle, but the system chooses which localization to present.
-2. Sparkle's standard updater UI. Sparkle ships its own localizations and the framework historically delegates language choice to macOS. A SwiftUI environment locale override does not prove that the standard updater window will switch with FineTune's in-app selector.
+2. macOS-owned standard file-panel chrome. FineTune can localize its custom `NSOpenPanel.message`, while system buttons and other standard file-panel text follow macOS application-language behavior.
+3. Sparkle's standard updater UI. Sparkle ships its own localizations and the framework historically delegates language choice to macOS. A SwiftUI environment locale override does not prove that the standard updater window will switch with FineTune's in-app selector.
+4. Dependency-owned UI such as `KeyboardShortcuts.Recorder` may have its own localization behavior and must be observed in the selected-language smoke test rather than assumed to inherit FineTune's locale.
 
-The implementation must verify Sparkle 2.8.1 behavior. If the standard updater cannot follow the selected in-app language, do not claim that dependency-owned updater UI switches dynamically. A custom Sparkle user driver is a separate scope decision because it materially increases maintenance and update-security surface area.
+The implementation must verify dependency/system behavior. If Sparkle's standard updater cannot follow the selected in-app language, do not claim that dependency-owned updater UI switches dynamically. A custom Sparkle user driver is a separate scope decision because it materially increases maintenance and update-security surface area.
 
 ## Technical Direction
 
@@ -75,6 +78,8 @@ Languages:
 
 - English as development/source language
 - Simplified Chinese (`zh-Hans`)
+
+Add `zh-Hans` to the Xcode project's known localization regions. Because the target uses a file-system-synchronized root group, keep normal application localization resources under `FineTune/` and verify target inclusion from the built product instead of adding manual PBX file references unless Xcode actually requires one.
 
 For localized `Info.plist` privacy strings, use a supported localized InfoPlist resource under the application target so macOS can select the correct usage descriptions.
 
@@ -220,9 +225,11 @@ xcodebuild test \
 Expected additions/changes are intentionally localized to the existing ownership boundaries:
 
 ```text
+FineTune.xcodeproj/
+  project.pbxproj                    # add zh-Hans to known localization regions
 FineTune/
   Localizable.xcstrings             # FineTune-owned UI strings
-  zh-Hans.lproj/                    # Info.plist localization resource if required
+  zh-Hans.lproj/                    # localized Info.plist resource
   Settings/
     SettingsManager.swift           # persisted AppLanguage field
     Types/                           # AppLanguage and localized presentation resources
@@ -274,19 +281,22 @@ Verify at minimum in both English and Simplified Chinese:
 - empty/ignored-app states
 - update settings/status
 - About tab
-- file import panel message
+- file import panel custom message
 - FineTune-generated notification content
 
-Check for clipping, truncation, overlap, broken line wrapping, and English leftovers.
+Check for clipping, truncation, overlap, broken line wrapping, and English leftovers in FineTune-owned UI.
 
 ### Dependency/system verification
 
 Explicitly verify:
 
+- Xcode project includes `zh-Hans` as a known localization and the built bundle contains the expected Chinese resources
 - Sparkle 2.8.1 update window language when FineTune's in-app language differs from macOS application language
+- `KeyboardShortcuts.Recorder` visible UI in both language selections
 - macOS privacy prompt behavior with localized InfoPlist resources
+- macOS standard file-panel chrome when FineTune's selected language differs from macOS application language
 
-Record these results. Do not infer behavior from the main SwiftUI locale.
+Record these results. Do not infer dependency/system behavior from the main SwiftUI locale.
 
 ## Boundaries
 
@@ -296,6 +306,7 @@ Record these results. Do not infer behavior from the main SwiftUI locale.
 - Keep persistence identifiers stable.
 - Use native Apple localization resources/APIs.
 - Keep English fully functional as the source language.
+- Register Simplified Chinese as a project localization and verify the built resource bundle.
 - Translate accessibility labels, help text, errors, empty states, and notifications, not only visible primary labels.
 - Run full tests and build before merge.
 - Perform a manual English-versus-Chinese UI review before merge.
@@ -303,6 +314,8 @@ Record these results. Do not infer behavior from the main SwiftUI locale.
 ### Ask before expanding scope
 
 - Replacing Sparkle's standard updater user driver with a custom updater UI.
+- Replacing macOS standard file panels with custom file-picker UI solely to force an in-app language override.
+- Forking or replacing third-party UI solely to force an in-app language override.
 - Changing update/signing/appcast behavior.
 - Renaming the FineTune product.
 - Adding languages beyond English and Simplified Chinese.
@@ -316,6 +329,7 @@ Record these results. Do not infer behavior from the main SwiftUI locale.
 - Translate user-provided/system-provided names.
 - Implement localization with view-by-view `if language == ...` conditionals.
 - Claim complete Chinese coverage without running the coverage and visual checks.
+- Describe system/dependency-owned chrome as dynamically controlled by FineTune unless actual verification proves it.
 
 ## Success Criteria
 
@@ -331,7 +345,8 @@ The feature is complete only when all of the following are true:
 8. Full test suite passes without weakening existing tests.
 9. Debug build succeeds using the repository's CI build command.
 10. A final source scan finds no unexplained first-party English-only user-facing literals in production Swift code.
-11. Sparkle and macOS-owned surface behavior has been tested and documented accurately; unsupported dynamic override behavior is not hidden.
+11. The Xcode project and built application bundle contain `zh-Hans` localization resources, including localized privacy usage descriptions.
+12. Sparkle, KeyboardShortcuts, file-panel chrome, and macOS-owned permission behavior have been tested and documented accurately; unsupported dynamic override behavior is not hidden.
 
 ## Risks and Mitigations
 
@@ -347,9 +362,13 @@ Mitigation: stable raw values plus separate localized display resources, with Co
 
 Mitigation: one persisted `AppLanguage`, one locale-resolution path, both SwiftUI roots wired to it, and a centralized resolver for non-SwiftUI surfaces.
 
-### Risk: dependency-owned updater does not follow in-app locale
+### Risk: Chinese resources exist in source but are not registered/shipped
 
-Mitigation: explicit Sparkle 2.8.1 verification before calling the feature complete; keep custom user driver as a separately approved option.
+Mitigation: add `zh-Hans` to project localization regions and inspect the built application bundle during verification.
+
+### Risk: dependency/system-owned UI does not follow in-app locale
+
+Mitigation: explicit Sparkle 2.8.1, KeyboardShortcuts, file-panel and privacy-prompt verification before calling the feature complete; keep custom replacements as separately approved scope.
 
 ### Risk: incomplete string inventory
 
@@ -369,4 +388,4 @@ Mitigation: combine String Catalog extraction/build feedback with a source audit
 
 ## Open Decision Before Implementation
 
-The only material scope decision that may emerge from implementation verification is Sparkle's dependency-owned update window. The default plan is to localize every FineTune-owned surface and test Sparkle 2.8.1. If Sparkle does not follow the in-app language selector, replacing its standard UI with a custom user driver requires explicit approval because that is a separate update-system feature, not a translation-only change.
+The material scope decision most likely to emerge from verification is dependency/system-owned UI. The default plan is to localize every FineTune-owned surface and bundle resource, then test Sparkle 2.8.1, KeyboardShortcuts, standard file-panel chrome, and macOS privacy prompts. If any of those do not follow the in-app selector, replacing their standard UI requires explicit approval because that expands the feature beyond FineTune-owned localization.
