@@ -1,16 +1,17 @@
 name: Replicate upstream repository
 
 on:
-  push:
-    branches:
-      - main
+  issues:
+    types:
+      - opened
+  workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
   replicate:
-    if: github.repository == 'R-jed/FineTune'
+    if: github.repository == 'R-jed/FineTune' && github.event.issue.title == '[replication bootstrap] mirror ronitsingh10/FineTune'
     runs-on: ubuntu-latest
     steps:
       - name: Mirror ronitsingh10/FineTune
