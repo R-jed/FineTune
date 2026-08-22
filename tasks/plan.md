@@ -31,7 +31,7 @@ Settings surfaces       popup/common surfaces
         coverage + layout verification
                   |
                   v
-          Sparkle boundary verdict
+    dependency/system boundary verdict
 ```
 
 The order is intentional. Translating views before fixing the shared presentation boundaries would create rework and leave hidden English strings behind.
@@ -44,6 +44,7 @@ The order is intentional. Translating views before fixing the shared presentatio
 - Add `language` to `AppSettings`, default `.system`.
 - Decode with `decodeIfPresent` for backward compatibility.
 - Add a single locale-resolution API for the selected language.
+- Add `zh-Hans` to the Xcode project's known localization regions. The project currently declares only `en` and `Base`.
 - Add `FineTune/Localizable.xcstrings` with English source and Simplified Chinese target language.
 - Wire the resolved locale into the Settings root and menu bar popup root.
 - Add a small deferred-localization resolver for FineTune-owned non-SwiftUI boundaries only if required.
@@ -53,8 +54,9 @@ The order is intentional. Translating views before fixing the shared presentatio
 - Existing settings fixtures decode unchanged.
 - New language setting round-trips through settings persistence.
 - All pre-existing raw values remain byte-for-byte compatible.
+- Project localization metadata contains `zh-Hans`.
 - A minimal test view/resource resolves a known key differently under `en` and `zh-Hans`.
-- Build succeeds before moving on.
+- Build succeeds and the built app bundle contains the expected localization resources before moving on.
 
 ## Phase 2: Repair Localizable Presentation Boundaries
 
@@ -193,12 +195,15 @@ Add Simplified Chinese InfoPlist localization for:
 
 Keep the product name `FineTune` unchanged.
 
+Do not attempt to force the standard macOS file panel's own buttons/chrome into the selected in-app language. The custom panel message is FineTune-owned; standard file-panel controls are system-owned and must be documented from actual behavior.
+
 ### Verification checkpoint
 
 - Explicit locale resolver produces correct English/Chinese strings for AppKit boundaries.
 - Bundle contains the expected Simplified Chinese InfoPlist localization.
 - Trigger or inspect FineTune notification content in both languages.
 - Trigger AutoEQ file picker from each language and verify its custom message.
+- Record the language used by system-owned file-panel controls.
 
 ## Phase 7: Localization Completeness Guard
 
@@ -227,6 +232,14 @@ Add tests that exercise a representative set of resources from every major UI ar
 
 ## Phase 8: Dependency and Platform Boundary Verification
 
+### Built localization registration
+
+Verify:
+
+- Xcode project `knownRegions` includes `zh-Hans`.
+- Built application bundle contains expected English and Simplified Chinese localization resources.
+- Simplified Chinese InfoPlist privacy strings are present in the built product.
+
 ### Sparkle 2.8.1
 
 Test the standard updater window under these combinations:
@@ -239,9 +252,15 @@ Record whether Sparkle follows FineTune's selector or macOS application language
 
 If Sparkle cannot follow the in-app selector, stop at the documented boundary and request explicit approval before replacing the standard `SPUStandardUpdaterController` user driver. Do not expand update-system scope automatically.
 
-### macOS privacy prompts
+### KeyboardShortcuts
+
+Inspect the visible `KeyboardShortcuts.Recorder` UI under English and Simplified Chinese selection. Record whether any dependency-owned labels or menus follow FineTune's selected locale or macOS application language. Do not fork/replace the dependency solely for language control without approval.
+
+### macOS privacy prompts and standard panels
 
 Verify the localized privacy strings are present in the built application bundle. The system owns language selection for its permission UI, so document the observed behavior accurately.
+
+Also record the standard `NSOpenPanel` chrome language when FineTune's selected language differs from macOS application language. Only FineTune's custom message is expected to be directly controlled by the in-app locale resolver.
 
 ## Phase 9: Full Regression and Review
 
@@ -278,6 +297,7 @@ Compare against `main` and challenge these failure modes:
 - language change accidentally modifies stored settings identifiers
 - old settings file fails to decode
 - one of the two SwiftUI roots remains on the old language
+- Chinese resources exist in source but are absent from the built bundle
 - custom component still treats localized resource as plain nonlocalizable String
 - English appears in Chinese mode because it comes from a lower layer
 - Chinese is applied to user/device/profile names that must remain untouched
@@ -285,6 +305,7 @@ Compare against `main` and challenge these failure modes:
 - update timestamps use the wrong locale
 - tooltip/accessibility text remains English
 - fixed layouts clip or overlap
+- dependency/system-owned UI is incorrectly described as controlled by FineTune
 - audio/routing/hotkey behavior changes despite presentation-only scope
 
 ### Merge criteria
@@ -294,9 +315,10 @@ Merge only when:
 - all Required review findings are resolved
 - tests pass
 - build passes
-- both languages have completed UI smoke review
+- `zh-Hans` is registered and shipped in the built application
+- both languages have completed FineTune-owned UI smoke review
 - final diff contains no unrelated release/signing/repository-link changes
-- Sparkle/system-owned localization limitations are documented from actual verification
+- dependency/system-owned localization limitations are documented from actual verification
 
 ## Change Sizing and Commit Strategy
 
