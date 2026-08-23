@@ -38,7 +38,7 @@ struct DeviceRow: View {
     let onAutoEQSelect: ((AutoEQProfile?) -> Void)?
     let onAutoEQImport: (() -> Void)?
     let onAutoEQToggleFavorite: ((String) -> Void)?
-    let autoEQImportError: String?
+    let autoEQImportError: LocalizedStringResource?
     let autoEQPreampEnabled: Bool
     let onAutoEQPreampToggle: (() -> Void)?
     let isFocused: Bool
@@ -90,7 +90,7 @@ struct DeviceRow: View {
         onAutoEQSelect: ((AutoEQProfile?) -> Void)? = nil,
         onAutoEQImport: (() -> Void)? = nil,
         onAutoEQToggleFavorite: ((String) -> Void)? = nil,
-        autoEQImportError: String? = nil,
+        autoEQImportError: LocalizedStringResource? = nil,
         autoEQPreampEnabled: Bool = true,
         onAutoEQPreampToggle: (() -> Void)? = nil,
         isFocused: Bool = false,
