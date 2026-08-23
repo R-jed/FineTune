@@ -1,5 +1,6 @@
 // FineTune/Views/MenuBarPopupView.swift
 import AudioToolbox
+import Foundation
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -255,11 +256,19 @@ struct MenuBarPopupView: View {
 
     // MARK: - Edit Priority Button
 
+    private var editPriorityTitle: LocalizedStringResource {
+        isEditingDevicePriority ? "Done reordering" : "Reorder devices"
+    }
+
     /// Edit priority button — pencil ↔ checkmark, styled to match settingsButton
     private var editPriorityButton: some View {
-        Button(isEditingDevicePriority ? "Done reordering" : "Reorder devices",
-               systemImage: isEditingDevicePriority ? "checkmark" : "pencil") {
+        Button {
             toggleDevicePriorityEdit()
+        } label: {
+            Label(
+                editPriorityTitle,
+                systemImage: isEditingDevicePriority ? "checkmark" : "pencil"
+            )
         }
         .labelStyle(.iconOnly)
         .buttonStyle(.plain)
@@ -272,7 +281,7 @@ struct MenuBarPopupView: View {
         )
         .contentShape(Rectangle())
         .animation(.spring(response: 0.3, dampingFraction: 0.75), value: isEditingDevicePriority)
-        .help(isEditingDevicePriority ? "Done reordering" : "Reorder devices")
+        .help(editPriorityTitle)
     }
 
     // MARK: - Settings Button
@@ -387,21 +396,21 @@ struct MenuBarPopupView: View {
     // MARK: - Default Devices Status
 
     /// Name of the current default output device
-    private var defaultOutputDeviceName: String {
+    private var defaultOutputDeviceName: Text {
         guard let uid = deviceVolumeMonitor.defaultDeviceUID,
               let device = sortedDevices.first(where: { $0.uid == uid }) else {
-            return "No Output"
+            return Text("No Output")
         }
-        return device.name
+        return Text(verbatim: device.name)
     }
 
     /// Name of the current default input device
-    private var defaultInputDeviceName: String {
+    private var defaultInputDeviceName: Text {
         guard let uid = deviceVolumeMonitor.defaultInputDeviceUID,
               let device = sortedInputDevices.first(where: { $0.uid == uid }) else {
-            return "No Input"
+            return Text("No Input")
         }
-        return device.name
+        return Text(verbatim: device.name)
     }
 
     /// Subtle display of both default devices in header
@@ -411,7 +420,7 @@ struct MenuBarPopupView: View {
             HStack(spacing: 3) {
                 Image(systemName: "speaker.wave.2.fill")
                     .font(.system(size: 9))
-                Text(defaultOutputDeviceName)
+                defaultOutputDeviceName
                     .lineLimit(1)
                     .truncationMode(.middle)
             }
@@ -423,7 +432,7 @@ struct MenuBarPopupView: View {
             HStack(spacing: 3) {
                 Image(systemName: "mic.fill")
                     .font(.system(size: 9))
-                Text(defaultInputDeviceName)
+                defaultInputDeviceName
                     .lineLimit(1)
                     .truncationMode(.middle)
             }
@@ -728,7 +737,7 @@ struct MenuBarPopupView: View {
 
                 let ignoredCount = audioEngine.settingsManager.getIgnoredAppInfo().count
                 if ignoredCount > 0 {
-                    Text("\(ignoredCount) ignored · edit to manage")
+                    (Text(verbatim: "\(ignoredCount) ") + Text("ignored · edit to manage"))
                         .font(DesignTokens.Typography.caption)
                         .foregroundStyle(DesignTokens.Colors.textTertiary)
                 }
@@ -745,7 +754,7 @@ struct MenuBarPopupView: View {
             Spacer()
             let ignoredCount = audioEngine.settingsManager.getIgnoredAppInfo().count
             if ignoredCount > 0 && !isEditingDevicePriority {
-                Text("\(ignoredCount) ignored")
+                (Text(verbatim: "\(ignoredCount) ") + Text("ignored"))
                     .font(DesignTokens.Typography.caption)
                     .foregroundStyle(DesignTokens.Colors.textTertiary)
             }
