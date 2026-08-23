@@ -15,10 +15,10 @@ enum EQPickerSection: Identifiable, Hashable {
         }
     }
 
-    var title: String {
+    var title: Text {
         switch self {
-        case .myPresets: return "My Presets"
-        case .builtIn(let cat): return cat.rawValue
+        case .myPresets: return Text("My Presets")
+        case .builtIn(let cat): return Text(cat.displayName)
         }
     }
 }
@@ -45,6 +45,13 @@ struct EQPickerItem: Identifiable, Hashable {
     }
 
     var isUserPreset: Bool { userPresetID != nil }
+
+    var displayName: Text {
+        if let builtInPreset {
+            return Text(builtInPreset.displayName)
+        }
+        return Text(verbatim: name)
+    }
 
     static func == (lhs: EQPickerItem, rhs: EQPickerItem) -> Bool { lhs.id == rhs.id }
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
@@ -98,7 +105,11 @@ struct EQPresetPicker: View {
             popoverWidth: 170,
             onSelect: handleSelect
         ) { selected in
-            Text(selected?.name ?? "Custom")
+            if let selected {
+                selected.displayName
+            } else {
+                Text("Custom")
+            }
         } itemContent: { item, isSelected in
             if item.isUserPreset {
                 UserPresetItemView(
@@ -121,7 +132,7 @@ private struct BuiltInPresetItemView: View {
 
     var body: some View {
         HStack(spacing: DesignTokens.Spacing.xs) {
-            Text(item.name)
+            item.displayName
                 .lineLimit(1)
             Spacer(minLength: DesignTokens.Spacing.xs)
             if isSelected {
@@ -144,7 +155,7 @@ private struct UserPresetItemView: View {
 
     var body: some View {
         HStack(spacing: DesignTokens.Spacing.xs) {
-            Text(item.name)
+            Text(verbatim: item.name)
                 .lineLimit(1)
             Spacer(minLength: DesignTokens.Spacing.xs)
             if isSelected {

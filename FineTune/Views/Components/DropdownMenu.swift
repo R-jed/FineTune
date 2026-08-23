@@ -195,7 +195,7 @@ struct GroupedDropdownMenu<Section: Identifiable & Hashable, Item: Identifiable,
 
     let sections: [Section]
     let itemsForSection: (Section) -> [Item]
-    let sectionTitle: (Section) -> String
+    let sectionTitle: (Section) -> Text
     let selectedItem: Item?
     let maxHeight: CGFloat
     let width: CGFloat
@@ -299,7 +299,7 @@ private struct GroupedDropdownContentView<Section: Identifiable & Hashable, Item
 
     let sections: [Section]
     let itemsForSection: (Section) -> [Item]
-    let sectionTitle: (Section) -> String
+    let sectionTitle: (Section) -> Text
     let selectedItem: Item?
     let width: CGFloat
     let maxHeight: CGFloat
@@ -314,7 +314,7 @@ private struct GroupedDropdownContentView<Section: Identifiable & Hashable, Item
             VStack(alignment: .leading, spacing: 2) {
                 ForEach(sections) { section in
                     // Section header
-                    Text(sectionTitle(section))
+                    sectionTitle(section)
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(.secondary)
                         .padding(.horizontal, 10)

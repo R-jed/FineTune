@@ -39,6 +39,16 @@ enum EQPreset: String, CaseIterable, Identifiable {
         case media = "Media"
 
         var id: String { rawValue }
+
+        var displayName: LocalizedStringResource {
+            switch self {
+            case .utility: return "Utility"
+            case .speech: return "Speech"
+            case .listening: return "Listening"
+            case .music: return "Music"
+            case .media: return "Media"
+            }
+        }
     }
 
     var category: Category {
@@ -61,6 +71,31 @@ enum EQPreset: String, CaseIterable, Identifiable {
     }
 
     var name: String {
+        switch self {
+        case .flat: return "Flat"
+        case .bassBoost: return "Bass Boost"
+        case .bassCut: return "Bass Cut"
+        case .trebleBoost: return "Treble Boost"
+        case .vocalClarity: return "Vocal Clarity"
+        case .podcast: return "Podcast"
+        case .spokenWord: return "Spoken Word"
+        case .loudness: return "Loudness"
+        case .lateNight: return "Late Night"
+        case .smallSpeakers: return "Small Speakers"
+        case .rock: return "Rock"
+        case .pop: return "Pop"
+        case .electronic: return "Electronic"
+        case .jazz: return "Jazz"
+        case .classical: return "Classical"
+        case .hipHop: return "Hip-Hop"
+        case .rnb: return "R&B"
+        case .deep: return "Deep"
+        case .acoustic: return "Acoustic"
+        case .movie: return "Movie"
+        }
+    }
+
+    var displayName: LocalizedStringResource {
         switch self {
         case .flat: return "Flat"
         case .bassBoost: return "Bass Boost"
