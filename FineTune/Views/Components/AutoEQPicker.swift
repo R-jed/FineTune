@@ -11,7 +11,7 @@ struct AutoEQPicker: View {
     let onSelect: (AutoEQProfile?) -> Void
     let onImport: () -> Void
     let onToggleFavorite: (String) -> Void
-    let importError: String?
+    let importError: LocalizedStringResource?
     var isCorrectionEnabled: Bool = false
     var onCorrectionToggle: ((Bool) -> Void)?
     var preampEnabled: Bool = true
