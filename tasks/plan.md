@@ -1,392 +1,187 @@
 # UI Localization Implementation Plan
 
-Status: Reviewed and implementation-ready as of 2026-08-23. Follow `SPEC-ui-localization.md` when any lower-level task wording is ambiguous.
+Status: First-party implementation is automated-test complete as of 2026-08-23. Remaining gates are macOS GUI verification, dependency/system observation, and final merge review.
+
+`SPEC-ui-localization.md` is authoritative.
 
 ## Goal
 
-Deliver an in-app FineTune UI language preference with Follow System, English, and Simplified Chinese while preserving existing settings compatibility, native macOS per-app language behavior, regional formatting preferences, and all non-presentation behavior.
-
-## Dependency Order
-
-```text
-foundation + language semantics
-          |
-          v
-localizable component boundaries
-          |
-          +-------------------+
-          |                   |
-          v                   v
-   Settings surfaces      popup/common rows
-          |                   |
-          +---------+---------+
-                    |
-                    v
-          EQ / AutoEQ / device detail
-                    |
-                    v
-   AppKit / notifications / InfoPlist catalog
-                    |
-                    v
-      completeness + visual verification
-                    |
-                    v
-       dependency/system boundary verdict
-                    |
-                    v
-          final regression + review
-```
-
-The order is intentional. Shared presentation boundaries and language semantics must be correct before bulk translation.
-
-## Phase 1: Localization Foundation
-
-### Change
-
-- Add `AppLanguage` with stable Codable raw values: `system`, `en`, `zh-Hans`.
-- Add `language` to `AppSettings`, default `.system`.
-- Decode with `decodeIfPresent` for old settings compatibility.
-- Add `zh-Hans` to Xcode project `knownRegions`.
-- Add `FineTune/Localizable.xcstrings`.
-- Add `FineTune/InfoPlist.xcstrings` for localizable privacy purpose strings.
-- Reuse existing application-target settings:
-  - `LOCALIZATION_PREFERS_STRING_CATALOGS = YES`
-  - `STRING_CATALOG_GENERATE_SYMBOLS = YES`
-  - `SWIFT_EMIT_LOC_STRINGS = YES`
-- Add one focused localization-context type.
-
-### Language semantics
-
-Follow System:
-
-- produce no FineTune SwiftUI locale override
-- let native macOS application-language and bundle lookup continue normally
-- do not substitute `.autoupdatingCurrent` as a language override
-
-Explicit English or Simplified Chinese:
-
-- apply a FineTune-owned runtime locale override to first-party SwiftUI roots
-- construct the presentation locale from the selected language/script while retaining current user region preferences where supported
-- use `Locale.Components` for the language/region composition
-- provide a deferred `LocalizedStringResource` resolver for non-SwiftUI first-party strings
-
-### Verification checkpoint
-
-- old settings fixtures decode unchanged
-- each language choice round-trips through persistence
-- existing persisted/raw identifiers remain unchanged
-- `.system` produces no app-defined SwiftUI language override
-- English and `zh-Hans` produce the intended language/script
-- explicit language selection retains current region behavior in focused tests
-- project metadata contains `zh-Hans`
-- String Catalog resources build successfully
-
-## Phase 2: Repair Localizable Presentation Boundaries
-
-### Change
-
-Refactor static presentation APIs that currently collapse localizable text into plain `String`.
-
-Priority candidates:
-
-- `SettingsRow`
-- `SettingsSection`
-- `SectionHeader`
-- `AboutLinkChip`
-- Settings picker/segmented-control labels
-- `ShortcutAction.displayName`
-- `AppearancePreference.description`
-- `MenuBarPopupSize.description`
-- `VolumeHotkeyStep.description`
-- menu bar icon style labels
-- device volume-tier display names
-
-Use `LocalizedStringResource` when text crosses layers or resolves later. Keep straightforward SwiftUI literals at readable call sites where automatic extraction is sufficient. Use generated String Catalog symbols where typed reuse materially improves safety.
-
-### Verification checkpoint
-
-- existing Codable tests still pass
-- representative shared components resolve English and Chinese correctly
-- no localization service logic is added to `MenuBarPopupView.swift`
-- dynamic application/device/user/profile names still use plain dynamic strings
+Deliver a FineTune-owned UI language preference with `Auto`, `English`, and `简体中文`, complete English/Simplified Chinese first-party resources, stable persistence, preserved regional formatting, and no unrelated behavior changes.
 
-## Phase 3: Language Selector and Settings Localization
+## Approved language behavior
 
-### Change
+- `Auto` persists as the existing `system` raw value.
+- Auto maps the first preferred system UI language to `zh-Hans` for Chinese and `en` for every other case.
+- Explicit English resolves to `en`.
+- Explicit Simplified Chinese resolves to `zh-Hans`.
+- Only FineTune-owned UI is controlled by this runtime language selector.
 
-Add a Language row to General Settings near appearance/theme controls.
+Do not restore the earlier Follow System semantics.
 
-Choices:
+## Completed implementation sequence
 
-- Follow System
-- English
-- 简体中文
+### 1. Foundation
 
-Localize:
+Completed:
 
-- Settings window title
-- tab labels
-- General and reset confirmation
-- Audio
-- Shortcuts
-- Updates
-- About
-- helper cards/components
-- help and accessibility strings
+- stable `AppLanguage` persistence
+- backward-compatible settings decoding
+- `zh-Hans` project localization registration
+- `Localizable.xcstrings`
+- `InfoPlist.xcstrings`
+- centralized `LocalizationContext`
+- region-preserving presentation locale
+- deterministic Auto resolver and tests
 
-Update relative-date/status formatting to use the feature localization context while preserving user region conventions.
+### 2. Reusable localization boundaries
 
-### Verification checkpoint
+Completed:
 
-- explicit English <-> Chinese switches all FineTune-owned Settings text live
-- Follow System restores native application-language behavior
-- selection persists after closing/reopening Settings and relaunching FineTune
-- no clipping at 720 x 560 in either explicit language
-- changing UI language does not change stored regional preferences
+- shared Settings presentation types preserve localization intent
+- enum/action display values localize independently of raw identifiers
+- dynamic app/device/profile/user names remain plain dynamic values
+- AppKit String-only boundaries resolve deferred resources at presentation time
 
-## Phase 4: Menu Bar Popup and Common Rows
+### 3. Settings
 
-### Change
+Completed first-party localization across General, Audio, Shortcuts, Updates, About, Settings window title, reset confirmation, helper components, and relevant accessibility/help copy.
 
-Localize FineTune-owned text in:
+The language selector exposes exactly `Auto`, `English`, and `简体中文`.
 
-- `MenuBarPopupView`
-- Output/Input tab/help text
-- edit/reorder mode
-- default-device fallbacks
-- app section and empty states
-- ignored-app count strings using catalog interpolation/plural support
-- Settings/Donate/Quit and accessibility labels
-- app/inactive/edit rows
-- output/input/Bluetooth device rows
-- device/app edit rows
-- device picker/shared dropdown/radio/mute controls
-- permission banner
+### 4. Menu bar and shared rows
 
-Do not translate application names, device names, user presets, or external profile names.
+Completed first-party localization for popup shell, Output/Input presentation, edit/reorder modes, app/device rows, shared controls, permission presentation, fallback text, help, and accessibility resources.
 
-### Verification checkpoint
+### 5. EQ, AutoEQ, and device detail
 
-- English and Chinese smoke test in Compact, Comfortable, and Spacious popup sizes
-- Output and Input
-- normal mode, device edit mode, app edit mode
-- keyboard navigation remains correct
-- help/accessibility strings change with explicit language
-- representative ignored-app counts resolve correctly
+Completed first-party localization while keeping user preset names, AutoEQ external names, device facts, UIDs/PIDs, and technical units stable.
 
-## Phase 5: EQ, AutoEQ, and Device Inspector
+### 6. AppKit, notifications, errors, and privacy metadata
 
-### Change
+Completed:
 
-Localize:
+- FineTune-owned AppKit messages
+- Bluetooth user-facing error presentation
+- localized privacy purpose strings
+- FineTune reconnect/disconnect/default-device notifications through `DeviceNotificationPresentation`
 
-- EQ headings and controls
-- built-in EQ preset/category presentation labels
-- save/rename/cancel/help/accessibility text
-- AutoEQ empty/loading/status/search/favorites/import/error/correction/preamp text
-- device inspector labels
-- device-detail volume-tier names
-- automatic-detection text
-- software-volume option and callouts
-- hog-mode messages
+The AudioEngine notification integration is `b556b5019b8dc21931416094b0a5c5dc0d30647d` and passed CI #83.
 
-Preserve external/dynamic content:
+### 7. Completeness and adversarial review
 
-- user preset names
-- AutoEQ profile/model names
-- external measurement/source names
-- numeric frequency labels
-- standard technical units
-- PID/UID/device names
+Completed automated/source-review work:
 
-### Verification checkpoint
+- Phase 7 inventory
+- Chinese presentation regression tests
+- catalog completeness tests for known Phase 7 resources
+- main-vs-feature comparison
+- focused adversarial review of sensitive presentation changes
+- exact diff review of AudioEngine notification integration
+- no observed release, signing, appcast, or dependency-upgrade drift
 
-- EQ save/rename/cancel/preset flows work in both languages
-- AutoEQ no-selection, selected, loading, search, favorites, import success/failure states reviewed
-- inspector/detail long Chinese text has no clipping or misleading wrapping
-- existing EQ/AutoEQ/device behavior tests remain green
-
-## Phase 6: AppKit, Notifications, Errors, and InfoPlist
-
-### Change
-
-Localize FineTune-owned non-SwiftUI presentation strings:
-
-- Settings window-title bridge input
-- `NSOpenPanel.message` for AutoEQ import
-- FineTune-generated notification title/body
-- intentionally user-facing lower-layer error/status strings
-- any additional first-party AppKit menu/alert text found by source scan
-
-Populate `InfoPlist.xcstrings` translations for:
-
-- `NSAudioCaptureUsageDescription`
-- `NSMicrophoneUsageDescription`
-- `NSBluetoothAlwaysUsageDescription`
-
-Keep product name `FineTune` unchanged.
-
-### Verification checkpoint
-
-- explicit resolver produces correct English/Chinese output for AppKit/notification boundaries
-- built app contains `InfoPlist.xcstrings` compiled resources and Chinese purpose strings
-- AutoEQ custom file-panel message follows explicit FineTune UI language
-- record the language used by system-owned file-panel controls
-- privacy prompt behavior is observed where practical
-
-## Phase 7: Completeness Guard
-
-### Change
-
-Run production-source inventory after String Catalog extraction/build.
-
-Classify every remaining English literal in shipping Swift code as:
-
-1. localized user-facing copy
-2. stable internal identifier
-3. SF Symbol/API/system key
-4. log/debug/developer-only text
-5. user/system/external dynamic content
-6. test/preview-only text
-
-Any unexplained first-party user-facing literal blocks merge.
-
-### Verification checkpoint
-
-- no unexplained English-only first-party user-facing literals remain
-- all shipping keys used by the feature have English and Simplified Chinese values
-- no relevant new localization warning remains unexplained
-- `zh-Hans`, `Localizable.xcstrings`, and `InfoPlist.xcstrings` are present in the built application as expected
-
-## Phase 8: Dependency and Platform Boundary Verification
+## Dependency/system boundary verdict
 
 ### Sparkle 2.8.1
 
-Sparkle already ships Simplified Chinese resources. Test the standard updater window under at least:
+Sparkle ships Simplified Chinese resources. FineTune uses its standard updater UI. Sparkle resolves standard strings from its framework bundle, so FineTune's runtime locale override does not guarantee control of updater language when native macOS application language differs.
 
-- native macOS app language English + FineTune Follow System
-- native macOS app language Simplified Chinese + FineTune Follow System
-- native macOS app language English + FineTune explicit Simplified Chinese
-- native macOS app language Simplified Chinese + FineTune explicit English
-
-Record whether Sparkle follows native application language or the FineTune runtime override.
-
-If Sparkle does not follow the runtime override, document the limitation. Do not replace `SPUStandardUpdaterController` or implement a custom `SPUUserDriver` without separate approval.
+A custom Sparkle user driver is outside scope.
 
 ### KeyboardShortcuts 2.4.0
 
-The dependency already ships `zh-Hans` strings. Test Recorder UI and conflict warnings under the same native-app-language versus FineTune-runtime-override distinction.
+KeyboardShortcuts ships `zh-Hans` resources. Its Recorder and conflict-alert strings use the package resource bundle. FineTune-owned shortcut labels follow FineTune's runtime language; dependency-owned Recorder strings are not guaranteed to do so under a mismatched native app language.
 
-Do not fork/replace the dependency solely to force runtime language behavior without approval.
+Forking/replacing the package solely for language forcing is outside scope.
 
 ### macOS-owned UI
 
-Record behavior for:
+FineTune controls its purpose strings and custom messages. macOS controls privacy-prompt chrome and standard panel controls.
 
-- privacy prompt chrome
-- standard `NSOpenPanel` controls
+## Current automated verification
 
-FineTune controls its purpose strings and custom panel message. macOS owns standard chrome language.
+CI #83 at `b556b5019b8dc21931416094b0a5c5dc0d30647d` passed:
 
-## Phase 9: Full Regression and Adversarial Review
+- Build
+- Test
+- test-result upload
+- complete workflow job
 
-### Automated verification
+Run id: `32638398426`
 
-Run:
+Job id: `97191501640`
 
-```bash
-xcodebuild test \
-  -project FineTune.xcodeproj \
-  -scheme FineTune \
-  -configuration Debug \
-  -skip-testing:FineTuneUITests \
-  CODE_SIGN_IDENTITY=- \
-  CODE_SIGNING_REQUIRED=NO \
-  -resultBundlePath build/TestResults.xcresult
-```
+Any later documentation or code head must receive a fresh successful CI before being called the final green head.
 
-Then:
+## Remaining execution plan
 
-```bash
-xcodebuild build \
-  -project FineTune.xcodeproj \
-  -scheme FineTune \
-  -configuration Debug \
-  CODE_SIGN_IDENTITY=- \
-  CODE_SIGNING_REQUIRED=NO
-```
+### A. Synchronize project records
 
-### Adversarial review
+Update:
 
-Compare feature branch against `main` and challenge:
+- `SPEC-ui-localization.md`
+- `TECHNICAL-BACKGROUND-ui-localization.md`
+- `IMPLEMENTATION-READINESS-ui-localization.md`
+- `tasks/phase7-localization-inventory.md`
+- `tasks/todo.md`
+- `HANDOFF.md`
+- PR #5 description
 
-- old settings fail to decode
-- localization changes persistence/raw values
-- Follow System accidentally overrides native per-app language
-- explicit language selection changes region formatting unexpectedly
-- one SwiftUI root remains on the old language
-- source localization exists but built resources are missing
-- custom components still erase localization intent through plain `String`
-- lower-layer first-party strings stay English
-- user/device/profile names are translated accidentally
-- plural/interpolated grammar is hardcoded
-- relative dates use wrong language or wrong region conventions
-- help/accessibility text remains English
-- Chinese layout clips or overlaps
-- system/dependency-owned UI is incorrectly claimed as FineTune-controlled
-- audio/routing/hotkey/EQ behavior changes despite presentation-only scope
+All records must use Auto semantics and current CI truth.
 
-## Merge Criteria
+### B. Verify the final documentation head
 
-Merge only when:
+After the docs-only commit:
 
-- all Required/Critical findings are resolved
-- full test suite passes
-- Debug build passes
-- `zh-Hans` is registered and shipped
-- `Localizable.xcstrings` and `InfoPlist.xcstrings` build correctly
-- English and Chinese FineTune-owned UI smoke review is complete
-- final source inventory is clean
-- dependency/system behavior is recorded from actual observation
-- final diff has no unrelated release/signing/appcast/repository-ownership/audio-engine changes
+1. compare it against the current production-code head
+2. require docs-only differences
+3. wait for a fresh CI run
+4. require Build and Test green
 
-## Commit Strategy
+### C. macOS GUI smoke matrix
 
-Keep changes reviewable and verify after each coherent increment.
+When a suitable macOS runtime is available, verify:
 
-Suggested sequence:
+- explicit English
+- explicit Simplified Chinese
+- Auto with Chinese first preferred language
+- Auto with non-Chinese first preferred language
 
-1. `feat: add localization foundation and language preference`
-2. `refactor: preserve localizable presentation resources`
-3. `feat: localize Settings and add language selector`
-4. `feat: localize menu bar and common rows`
-5. `feat: localize EQ AutoEQ and device inspector`
-6. `feat: localize AppKit notifications and privacy strings`
-7. `test: add localization and persistence regression coverage`
-8. `docs: record localization verification and platform boundaries`
+Review Settings, all popup sizes, Output/Input, edit states, EQ, AutoEQ representative states, device details, permission presentation, notifications, help, and accessibility presentation.
 
-Split further by owning UI area if a commit becomes difficult to review.
+Check clipping, overlap, wrapping, truncation, and translation quality.
 
-## Implementation Sources
+### D. Observe dependency/system surfaces
 
-Use these as authority during implementation:
+Record actual language used by:
 
-- https://developer.apple.com/documentation/xcode/localizing-and-varying-text-with-a-string-catalog
-- https://developer.apple.com/documentation/swiftui/preparing-views-for-localization
-- https://developer.apple.com/documentation/foundation/localizedstringresource
-- https://developer.apple.com/documentation/swift/string/init(localized:options:)
-- https://developer.apple.com/documentation/foundation/locale/components
-- https://developer.apple.com/documentation/xcode/supporting-multiple-languages-in-your-app
-- https://developer.apple.com/localization/
-- https://developer.apple.com/videos/play/wwdc2019/403/
-- https://developer.apple.com/videos/play/wwdc2023/10155/
-- https://developer.apple.com/videos/play/wwdc2025/225/
-- https://sparkle-project.org/documentation/custom-user-interfaces/
-- https://github.com/sparkle-project/Sparkle/releases/tag/2.8.1
-- https://github.com/sindresorhus/KeyboardShortcuts
+- Sparkle standard updater
+- KeyboardShortcuts Recorder and conflict alerts
+- privacy-prompt chrome
+- standard file-panel controls
 
-## Readiness Decision
+Do not reinterpret these dependency/system surfaces as FineTune-owned failures unless the approved scope changes.
 
-The first implementation pass may begin. No unresolved architecture blocker remains for FineTune-owned localization.
+### E. Final merge review
 
-Dependency/system-owned language behavior remains a verification checkpoint. Replacing those UI owners remains outside scope until separately approved.
+Before merge authorization:
+
+1. re-fetch `main` and PR head
+2. compare final branch against `main`
+3. confirm no unrelated release/signing/appcast/dependency/audio behavior drift
+4. confirm final CI green
+5. confirm manual GUI review evidence if available
+6. update handoff with final truth
+7. keep PR #5 unmerged until explicit authorization
+
+## Engineering constraints
+
+- no `AppleLanguages` mutation
+- no bundle swizzling
+- no custom translation dictionary
+- no dynamic `String` localization convenience API
+- no dependency fork solely for runtime language forcing
+- no custom Sparkle user driver without separate approval
+- no changes to persisted identifiers for presentation reasons
+- no drive-by audio/routing/hotkey refactors
+
+Use the smallest change that satisfies the approved first-party localization requirement.
