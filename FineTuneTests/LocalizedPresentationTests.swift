@@ -170,4 +170,36 @@ struct LocalizedPresentationTests {
         #expect(profile.measuredBy == "oratory1990")
         #expect(profile.source.rawValue == "fetched")
     }
+
+    @Test("Phase 5 device presentation uses humanized Chinese while device facts stay stable")
+    func phase5DeviceResources() {
+        #expect(chinese.localized("Device inspector") == "设备详情")
+        #expect(chinese.localized("Restore Default") == "恢复默认图标")
+        #expect(chinese.localized("Transport") == "连接方式")
+        #expect(chinese.localized("Sample rate") == "采样率")
+        #expect(chinese.localized("Device ID") == "设备 ID")
+        #expect(chinese.localized("Built-in") == "内置")
+        #expect(chinese.localized("Virtual") == "虚拟")
+        #expect(chinese.localized("In exclusive use by") == "独占使用：")
+        #expect(chinese.localized("Use FineTune's software volume") == "使用 FineTune 软件音量控制")
+        #expect(chinese.localized("Couldn't change sample rate. The device refused.") == "无法更改采样率，设备拒绝了此次更改。")
+        #expect(chinese.localized(TransportType.builtIn.displayName) == "内置")
+
+        let info = DeviceInspectorInfo(
+            transportType: .usb,
+            sampleRate: 48_000,
+            availableSampleRates: [48_000],
+            sampleRateSettable: false,
+            formatLabel: "24-bit PCM",
+            hogModeOwner: 4321,
+            uid: "USB-Audio-123"
+        )
+        #expect(info.transportType == .usb)
+        #expect(info.uid == "USB-Audio-123")
+        #expect(info.formatLabel == "24-bit PCM")
+
+        let owner = DeviceInspectorInfo.hogModeOwnerDetails(4321, processName: "Audirvana")
+        #expect(owner?.pid == 4321)
+        #expect(owner?.processName == "Audirvana")
+    }
 }
