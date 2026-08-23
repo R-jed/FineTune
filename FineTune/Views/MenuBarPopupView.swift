@@ -50,8 +50,8 @@ struct MenuBarPopupView: View {
     /// Track popup visibility to pause VU meter polling when hidden
     @State private var isPopupVisible = true
 
-    /// Error message shown when AutoEQ profile import fails
-    @State private var autoEQImportError: String?
+    /// Localizable error shown when AutoEQ profile import fails.
+    @State private var autoEQImportError: LocalizedStringResource?
     /// Task that auto-clears the import error after 3 seconds
     @State private var importErrorClearTask: Task<Void, Never>?
 
@@ -1178,7 +1178,10 @@ struct MenuBarPopupView: View {
         panel.allowedContentTypes = [UTType.plainText]
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
-        panel.message = "Select an AutoEQ ParametricEQ.txt file"
+        let localization = LocalizationContext(
+            language: audioEngine.settingsManager.appSettings.language
+        )
+        panel.message = localization.localized("Select an AutoEQ ParametricEQ.txt file")
         panel.begin { response in
             guard response == .OK, let url = panel.url else { return }
             let name = url.deletingPathExtension().lastPathComponent
@@ -1187,7 +1190,9 @@ struct MenuBarPopupView: View {
                     audioEngine.setAutoEQProfile(for: deviceUID, profileID: profile.id)
                     autoEQImportError = nil
                 } else {
-                    autoEQImportError = "Could not read profile — check file format"
+                    autoEQImportError = LocalizedStringResource(
+                        "Could not read profile. Check the file format."
+                    )
                     importErrorClearTask?.cancel()
                     importErrorClearTask = Task {
                         try? await Task.sleep(for: .seconds(3))
