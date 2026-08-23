@@ -141,4 +141,33 @@ struct LocalizedPresentationTests {
         #expect(pickerItem.name == "Studio Mix")
         #expect(pickerItem.userPresetID == userPreset.id)
     }
+
+    @Test("Phase 5 AutoEQ presentation localizes while external profile data stays verbatim")
+    func phase5AutoEQResources() {
+        #expect(english.localized("Close AutoEQ") == "Close AutoEQ")
+        #expect(chinese.localized("Close AutoEQ") == "关闭 AutoEQ")
+        #expect(chinese.localized("AutoEQ correction") == "AutoEQ 校正")
+        #expect(chinese.localized("No correction active") == "未启用校正")
+        #expect(chinese.localized("Imported") == "已导入")
+        #expect(chinese.localized("Correction") == "校正")
+        #expect(chinese.localized("Preamp") == "前置增益")
+        #expect(chinese.localized("Search headphones") == "搜索耳机")
+        #expect(chinese.localized("Search headphones...") == "搜索耳机...")
+        #expect(chinese.localized("FAVORITES") == "收藏")
+        #expect(chinese.localized("results") == "个结果")
+        #expect(chinese.localized("Import custom profile") == "导入自定义配置文件")
+
+        let profile = AutoEQProfile(
+            id: "sennheiser-hd-600",
+            name: "Sennheiser HD 600",
+            source: .fetched,
+            preampDB: -6,
+            filters: [],
+            measuredBy: "oratory1990"
+        )
+        #expect(profile.id == "sennheiser-hd-600")
+        #expect(profile.name == "Sennheiser HD 600")
+        #expect(profile.measuredBy == "oratory1990")
+        #expect(profile.source.rawValue == "fetched")
+    }
 }
