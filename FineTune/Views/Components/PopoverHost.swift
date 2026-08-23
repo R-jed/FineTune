@@ -20,6 +20,8 @@ struct PopoverHost<Content: View>: NSViewRepresentable {
     let nsAppearance: NSAppearance?
     @ViewBuilder let content: () -> Content
 
+    @Environment(\.locale) private var locale
+
     func makeNSView(context: Context) -> NSView {
         NSView()
     }
@@ -35,6 +37,7 @@ struct PopoverHost<Content: View>: NSViewRepresentable {
                 context.coordinator.showPanel(
                     from: nsView,
                     content: content,
+                    locale: locale,
                     preferredColorScheme: preferredColorScheme,
                     nsAppearance: nsAppearance
                 )
@@ -42,6 +45,7 @@ struct PopoverHost<Content: View>: NSViewRepresentable {
                 // Update content when state changes while panel is open
                 context.coordinator.updateContent(
                     content,
+                    locale: locale,
                     preferredColorScheme: preferredColorScheme,
                     nsAppearance: nsAppearance
                 )
@@ -72,6 +76,7 @@ struct PopoverHost<Content: View>: NSViewRepresentable {
         func showPanel<V: View>(
             from parentView: NSView,
             content: () -> V,
+            locale: Locale,
             preferredColorScheme: ColorScheme?,
             nsAppearance: NSAppearance?
         ) {
@@ -96,9 +101,16 @@ struct PopoverHost<Content: View>: NSViewRepresentable {
 
             panel.becomesKeyOnlyIfNeeded = false
 
-            // Create hosting view with content, applying the resolved color scheme.
+            // Create hosting view with content, carrying the parent SwiftUI locale
+            // into this detached root and applying the resolved color scheme.
             // Use AnyView to allow rootView updates without replacing the hosting view.
-            let hosting: NSHostingView<AnyView> = NSHostingView(rootView: AnyView(content().preferredColorScheme(preferredColorScheme)))
+            let hosting: NSHostingView<AnyView> = NSHostingView(
+                rootView: AnyView(
+                    content()
+                        .environment(\.locale, locale)
+                        .preferredColorScheme(preferredColorScheme)
+                )
+            )
             hosting.frame.size = hosting.fittingSize
             panel.contentView = hosting
             panel.setContentSize(hosting.fittingSize)
@@ -162,6 +174,7 @@ struct PopoverHost<Content: View>: NSViewRepresentable {
 
         func updateContent<V: View>(
             _ content: () -> V,
+            locale: Locale,
             preferredColorScheme: ColorScheme?,
             nsAppearance: NSAppearance?
         ) {
@@ -169,9 +182,13 @@ struct PopoverHost<Content: View>: NSViewRepresentable {
             // Re-apply appearance in case the preference changed while the
             // panel is open. Setting to the same value is a no-op.
             panel?.appearance = nsAppearance
-            // Update existing hosting view's rootView instead of replacing it
-            // This allows SwiftUI to perform efficient diffing without flickering
-            hostingView.rootView = AnyView(content().preferredColorScheme(preferredColorScheme))
+            // Update existing hosting view's rootView instead of replacing it.
+            // Re-apply locale so a live language change reaches an open panel.
+            hostingView.rootView = AnyView(
+                content()
+                    .environment(\.locale, locale)
+                    .preferredColorScheme(preferredColorScheme)
+            )
             // Resize panel if content size changed
             let newSize = hostingView.fittingSize
             if let panel = panel, panel.frame.size != newSize {
@@ -210,7 +227,7 @@ struct PopoverHost<Content: View>: NSViewRepresentable {
                     parentWindow.makeKey()
                 } else {
                     // External dismiss — re-key then resign so FluidMenuBarExtra
-                    // runs its standard dismiss animation
+                    // runs its standard dismiss animation.
                     parentWindow.makeKey()
                     parentWindow.resignKey()
                 }
