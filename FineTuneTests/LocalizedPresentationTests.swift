@@ -96,4 +96,24 @@ struct LocalizedPresentationTests {
         #expect(english.localized(resetConfirmationTitle) == "Reset all settings?")
         #expect(chinese.localized(resetConfirmationTitle) == "重置所有设置？")
     }
+
+    @Test("Phase 4 popup and device resources resolve in both supported languages")
+    func phase4Resources() {
+        #expect(english.localized("Single") == "Single")
+        #expect(chinese.localized("Single") == "单设备")
+        #expect(english.localized("Multi") == "Multi")
+        #expect(chinese.localized("Multi") == "多设备")
+        #expect(english.localized("devices") == "devices")
+        #expect(chinese.localized("devices") == "个设备")
+        #expect(chinese.localized("System Audio") == "系统音频")
+        #expect(chinese.localized("Reorder devices") == "调整设备顺序")
+        #expect(chinese.localized("No Output") == "无输出设备")
+        #expect(chinese.localized("No Input") == "无输入设备")
+        #expect(chinese.localized("Output Devices") == "输出设备")
+        #expect(chinese.localized("Input Devices") == "输入设备")
+        #expect(english.localized("ignored") == "ignored")
+        #expect(chinese.localized("ignored") == "个已忽略应用")
+        #expect(chinese.localized("ignored · edit to manage") == "个已忽略应用 · 编辑以管理")
+        #expect(chinese.localized("Quit FineTune") == "退出 FineTune")
+    }
 }
