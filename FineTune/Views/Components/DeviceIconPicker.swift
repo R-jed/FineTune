@@ -107,7 +107,9 @@ struct DeviceIconPicker: View {
 
         for category in DeviceIconCatalog.categories {
             guard let title = localizedCategoryTitle(for: category.name) else { continue }
-            let localizedTitle = String(localized: title, locale: locale)
+            var localizedTitleResource = title
+            localizedTitleResource.locale = locale
+            let localizedTitle = String(localized: localizedTitleResource)
             guard localizedTitle.localizedCaseInsensitiveContains(trimmed)
                     || category.name.localizedCaseInsensitiveContains(trimmed) else { continue }
 
