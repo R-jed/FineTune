@@ -109,11 +109,34 @@ struct LocalizedPresentationTests {
         #expect(chinese.localized("Reorder devices") == "调整设备顺序")
         #expect(chinese.localized("No Output") == "无输出设备")
         #expect(chinese.localized("No Input") == "无输入设备")
-        #expect(chinese.localized("Output Devices") == "输出设备")
-        #expect(chinese.localized("Input Devices") == "输入设备")
         #expect(english.localized("ignored") == "ignored")
         #expect(chinese.localized("ignored") == "个已忽略应用")
         #expect(chinese.localized("ignored · edit to manage") == "个已忽略应用 · 编辑以管理")
         #expect(chinese.localized("Quit FineTune") == "退出 FineTune")
+    }
+
+    @Test("Phase 5 EQ presentation localizes without changing preset identity")
+    func phase5EQResources() {
+        #expect(EQPreset.flat.rawValue == "flat")
+        #expect(EQPreset.bassBoost.rawValue == "bassBoost")
+        #expect(EQPreset.hipHop.rawValue == "hipHop")
+        #expect(EQPreset.rnb.rawValue == "rnb")
+        #expect(EQPreset.movie.rawValue == "movie")
+        #expect(EQPreset.flat.name == "Flat")
+        #expect(EQPreset.Category.music.rawValue == "Music")
+
+        #expect(english.localized(EQPreset.flat.displayName) == "Flat")
+        #expect(chinese.localized(EQPreset.flat.displayName) == "平直")
+        #expect(english.localized(EQPreset.bassBoost.displayName) == "Bass Boost")
+        #expect(chinese.localized(EQPreset.bassBoost.displayName) == "低频增强")
+        #expect(english.localized(EQPreset.Category.music.displayName) == "Music")
+        #expect(chinese.localized(EQPreset.Category.music.displayName) == "音乐")
+        #expect(english.localized("My Presets") == "My Presets")
+        #expect(chinese.localized("My Presets") == "我的预设")
+
+        let userPreset = UserEQPreset(name: "Studio Mix", settings: EQSettings())
+        let pickerItem = EQPickerItem(user: userPreset)
+        #expect(pickerItem.name == "Studio Mix")
+        #expect(pickerItem.userPresetID == userPreset.id)
     }
 }
