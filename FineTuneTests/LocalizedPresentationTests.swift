@@ -54,7 +54,7 @@ struct LocalizedPresentationTests {
 
     @Test("English display resources resolve to source copy")
     func englishDisplayResources() {
-        #expect(english.localized(AppLanguage.system.displayName) == "Follow System")
+        #expect(english.localized(AppLanguage.system.displayName) == "Auto")
         #expect(english.localized(AppearancePreference.light.displayName) == "Light")
         #expect(english.localized(MenuBarPopupSize.comfortable.displayName) == "Comfortable")
         #expect(english.localized(VolumeHotkeyStep.extraFine.displayName) == "Extra-Fine (1.56%)")
@@ -66,7 +66,7 @@ struct LocalizedPresentationTests {
 
     @Test("Simplified Chinese display resources resolve through runtime override")
     func simplifiedChineseDisplayResources() {
-        #expect(chinese.localized(AppLanguage.system.displayName) == "跟随系统")
+        #expect(chinese.localized(AppLanguage.system.displayName) == "自动")
         #expect(chinese.localized(AppearancePreference.light.displayName) == "浅色")
         #expect(chinese.localized(MenuBarPopupSize.comfortable.displayName) == "舒适")
         #expect(chinese.localized(VolumeHotkeyStep.extraFine.displayName) == "超细调 (1.56%)")

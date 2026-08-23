@@ -8,20 +8,33 @@ nonisolated enum AppLanguage: String, Codable, CaseIterable, Equatable, Hashable
     case english = "en"
     case simplifiedChinese = "zh-Hans"
 
-    var languageIdentifier: String? {
+    /// Resolves every preference to one of FineTune's two supported UI languages.
+    /// Auto uses the first preferred system language. Any Chinese locale maps to
+    /// Simplified Chinese; every other or missing value maps to English.
+    func resolvedLanguageIdentifier(
+        preferredLanguages: [String] = Locale.preferredLanguages
+    ) -> String {
         switch self {
         case .system:
-            nil
+            guard let preferredLanguage = preferredLanguages.first else {
+                return "en"
+            }
+            let normalized = preferredLanguage
+                .replacingOccurrences(of: "_", with: "-")
+                .lowercased()
+            return normalized == "zh" || normalized.hasPrefix("zh-")
+                ? "zh-Hans"
+                : "en"
         case .english:
-            "en"
+            return "en"
         case .simplifiedChinese:
-            "zh-Hans"
+            return "zh-Hans"
         }
     }
 
     var displayName: LocalizedStringResource {
         switch self {
-        case .system: "Follow System"
+        case .system: "Auto"
         case .english: "English"
         case .simplifiedChinese: "简体中文"
         }

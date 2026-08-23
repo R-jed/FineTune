@@ -12,13 +12,13 @@ struct AppLanguageTests {
         #expect(AppLanguage.simplifiedChinese.rawValue == "zh-Hans")
     }
 
-    @Test("AppSettings defaults to Follow System")
+    @Test("AppSettings defaults to Auto")
     func defaultLanguage() {
         #expect(AppSettings().language == .system)
     }
 
-    @Test("Older AppSettings payloads without language decode as Follow System")
-    func legacyPayloadDefaultsToSystem() throws {
+    @Test("Older AppSettings payloads without language decode as Auto")
+    func legacyPayloadDefaultsToAuto() throws {
         let data = Data("{\"launchAtLogin\":true}".utf8)
         let decoded = try JSONDecoder().decode(AppSettings.self, from: data)
 
@@ -38,42 +38,111 @@ struct AppLanguageTests {
             #expect(decoded.language == language)
         }
     }
+
+    @Test("Auto maps only the first preferred system language")
+    func autoLanguageMapping() {
+        let cases: [([String], String)] = [
+            (["zh-Hans-CN"], "zh-Hans"),
+            (["zh-Hant-TW"], "zh-Hans"),
+            (["zh_CN"], "zh-Hans"),
+            (["zh"], "zh-Hans"),
+            (["en-AU"], "en"),
+            (["ja-JP"], "en"),
+            (["fr-FR"], "en"),
+            (["ja-JP", "zh-Hans-CN"], "en"),
+            ([""], "en"),
+            ([], "en")
+        ]
+
+        for (preferredLanguages, expected) in cases {
+            #expect(
+                AppLanguage.system.resolvedLanguageIdentifier(
+                    preferredLanguages: preferredLanguages
+                ) == expected
+            )
+        }
+    }
+
+    @Test("Explicit languages ignore system preference")
+    func explicitLanguagesIgnoreSystemPreference() {
+        #expect(
+            AppLanguage.english.resolvedLanguageIdentifier(
+                preferredLanguages: ["zh-Hant-TW"]
+            ) == "en"
+        )
+        #expect(
+            AppLanguage.simplifiedChinese.resolvedLanguageIdentifier(
+                preferredLanguages: ["ja-JP"]
+            ) == "zh-Hans"
+        )
+    }
 }
 
 @Suite("Localization context")
 struct LocalizationContextTests {
-    @Test("Follow System leaves SwiftUI locale unmodified")
-    func systemHasNoOverride() {
+    @Test("Auto resolves Chinese system preference to Simplified Chinese")
+    func autoChinese() {
         let context = LocalizationContext(
             language: .system,
-            baseLocale: Locale(identifier: "en_AU")
+            baseLocale: Locale(identifier: "en_AU"),
+            preferredLanguages: ["zh-Hant-TW"]
         )
+        let components = Locale.Components(locale: context.overrideLocale)
 
-        #expect(context.overrideLocale == nil)
-        #expect(context.presentationLocale.region?.identifier == "AU")
+        #expect(components.languageComponents.languageCode?.identifier == "zh")
+        #expect(components.languageComponents.script?.identifier == "Hans")
+        #expect(components.region?.identifier == "AU")
+        #expect(context.localized("Localization") == "本地化")
     }
 
-    @Test("English override preserves the user's region")
-    func englishPreservesRegion() throws {
+    @Test("Auto maps unsupported system languages to English")
+    func autoUnsupportedLanguageFallsBackToEnglish() {
         let context = LocalizationContext(
-            language: .english,
-            baseLocale: Locale(identifier: "fr_AU")
+            language: .system,
+            baseLocale: Locale(identifier: "fr_FR"),
+            preferredLanguages: ["ja-JP"]
         )
-        let locale = try #require(context.overrideLocale)
-        let components = Locale.Components(locale: locale)
+        let components = Locale.Components(locale: context.overrideLocale)
 
         #expect(components.languageComponents.languageCode?.identifier == "en")
-        #expect(components.region?.identifier == "AU")
+        #expect(components.region?.identifier == "FR")
+        #expect(context.localized("Localization") == "Localization")
     }
 
-    @Test("Simplified Chinese override preserves region and script")
-    func simplifiedChinesePreservesRegionAndScript() throws {
+    @Test("Auto maps missing system language data to English")
+    func autoMissingLanguageFallsBackToEnglish() {
+        let context = LocalizationContext(
+            language: .system,
+            baseLocale: Locale(identifier: "zh_Hans_CN"),
+            preferredLanguages: []
+        )
+        let components = Locale.Components(locale: context.overrideLocale)
+
+        #expect(components.languageComponents.languageCode?.identifier == "en")
+        #expect(components.region?.identifier == "CN")
+    }
+
+    @Test("Explicit English remains English")
+    func explicitEnglish() {
+        let context = LocalizationContext(
+            language: .english,
+            baseLocale: Locale(identifier: "zh_Hans_CN"),
+            preferredLanguages: ["zh-Hans-CN"]
+        )
+        let components = Locale.Components(locale: context.overrideLocale)
+
+        #expect(components.languageComponents.languageCode?.identifier == "en")
+        #expect(components.region?.identifier == "CN")
+    }
+
+    @Test("Explicit Simplified Chinese remains Simplified Chinese")
+    func explicitSimplifiedChinese() {
         let context = LocalizationContext(
             language: .simplifiedChinese,
-            baseLocale: Locale(identifier: "en_AU")
+            baseLocale: Locale(identifier: "en_AU"),
+            preferredLanguages: ["ja-JP"]
         )
-        let locale = try #require(context.overrideLocale)
-        let components = Locale.Components(locale: locale)
+        let components = Locale.Components(locale: context.overrideLocale)
 
         #expect(components.languageComponents.languageCode?.identifier == "zh")
         #expect(components.languageComponents.script?.identifier == "Hans")

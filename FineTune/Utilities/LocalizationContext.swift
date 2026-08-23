@@ -2,64 +2,59 @@
 import Foundation
 import SwiftUI
 
-/// Resolves FineTune's optional runtime UI-language override while preserving
-/// the user's regional formatting preferences.
+/// Resolves FineTune-owned presentation to one of its two supported UI languages
+/// while preserving the user's regional formatting preferences.
 nonisolated struct LocalizationContext: Sendable {
     let language: AppLanguage
     let baseLocale: Locale
+    private let resolvedLanguageIdentifier: String
 
-    init(language: AppLanguage, baseLocale: Locale = .autoupdatingCurrent) {
+    init(
+        language: AppLanguage,
+        baseLocale: Locale = .autoupdatingCurrent,
+        preferredLanguages: [String] = Locale.preferredLanguages
+    ) {
         self.language = language
         self.baseLocale = baseLocale
+        self.resolvedLanguageIdentifier = language.resolvedLanguageIdentifier(
+            preferredLanguages: preferredLanguages
+        )
     }
 
-    /// A locale for FineTune-owned presentation when the user explicitly picks a language.
-    /// `nil` means FineTune must leave SwiftUI's locale untouched so macOS can apply the
-    /// app-specific language selected in System Settings.
-    var overrideLocale: Locale? {
-        guard let languageIdentifier = language.languageIdentifier else { return nil }
-
+    /// FineTune-owned UI always resolves to English or Simplified Chinese.
+    /// The region remains the user's current region for date and number formatting.
+    var overrideLocale: Locale {
         var components = Locale.Components(locale: baseLocale)
-        components.languageComponents = Locale.Language.Components(identifier: languageIdentifier)
+        components.languageComponents = Locale.Language.Components(
+            identifier: resolvedLanguageIdentifier
+        )
         components.region = baseLocale.region
         return Locale(components: components)
     }
 
-    /// Locale for FineTune-owned date/number formatting. Follow System uses the user's
-    /// live locale; explicit language choices keep the user's region while changing language.
     var presentationLocale: Locale {
-        overrideLocale ?? baseLocale
+        overrideLocale
     }
 
     /// Resolves a deferred localizable resource at the final String boundary.
-    /// Follow System deliberately uses normal bundle lookup with no FineTune override.
     func localized(_ resource: LocalizedStringResource) -> String {
-        guard let locale = overrideLocale else {
-            return String(localized: resource)
-        }
-
         var localizedResource = resource
-        localizedResource.locale = locale
+        localizedResource.locale = overrideLocale
         return String(localized: localizedResource)
     }
 }
 
 private struct FineTuneLocaleModifier: ViewModifier {
-    let locale: Locale?
+    let locale: Locale
 
-    @ViewBuilder
     func body(content: Content) -> some View {
-        if let locale {
-            content.environment(\.locale, locale)
-        } else {
-            content
-        }
+        content.environment(\.locale, locale)
     }
 }
 
 extension View {
-    /// Applies FineTune's explicit runtime locale only when one is selected.
-    func fineTuneLocale(_ locale: Locale?) -> some View {
+    /// Applies FineTune's resolved runtime UI locale.
+    func fineTuneLocale(_ locale: Locale) -> some View {
         modifier(FineTuneLocaleModifier(locale: locale))
     }
 }
