@@ -205,7 +205,7 @@ struct LocalizedPresentationTests {
 
     @Test("Phase 7 completeness resources resolve to Simplified Chinese")
     func phase7CompletenessResources() {
-        let expected: [(String, String)] = [
+        let expected: [(LocalizedStringResource, String)] = [
             ("Audio capture access required", "需要音频捕获权限"),
             ("Enable in System Settings → Privacy & Security → Screen & System Audio Recording", "请在“系统设置”→“隐私与安全性”→“屏幕与系统音频录制”中启用"),
             ("Open System Settings", "打开系统设置"),
