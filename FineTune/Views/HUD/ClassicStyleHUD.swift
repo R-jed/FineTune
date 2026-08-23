@@ -5,6 +5,7 @@ import SwiftUI
 struct ClassicStyleHUD: View {
     let sliderFraction: Float
     let mute: Bool
+    var language: AppLanguage = .system
 
     // MARK: - Constants
 
@@ -51,8 +52,11 @@ struct ClassicStyleHUD: View {
     #endif
 
     private var accessibilityDescription: String {
-        if mute { return "Muted" }
-        return "Volume \(Int((displayValue * 100).rounded())) percent"
+        HUDPresentation.classicAccessibilityLabel(
+            sliderFraction: Double(displayValue),
+            mute: mute,
+            language: language
+        )
     }
 
     // MARK: - Body

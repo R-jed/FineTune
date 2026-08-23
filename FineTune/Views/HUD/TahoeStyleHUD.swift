@@ -6,6 +6,7 @@ struct TahoeStyleHUD: View {
     let sliderFraction: Float
     let mute: Bool
     let deviceName: String
+    var language: AppLanguage = .system
     var onSliderChange: ((Float) -> Void)? = nil
     var onHoverChange: ((Bool) -> Void)? = nil
 
@@ -56,10 +57,12 @@ struct TahoeStyleHUD: View {
     #endif
 
     private var accessibilityDescription: String {
-        let device = deviceName.isEmpty ? "Unknown device" : deviceName
-        let percent = Int((displayFloat * 100).rounded())
-        if displayMute { return "\(device), muted, volume at \(percent) percent" }
-        return "\(device), volume \(percent) percent"
+        HUDPresentation.tahoeAccessibilityLabel(
+            deviceName: deviceName,
+            sliderFraction: Double(displayFloat),
+            mute: displayMute,
+            language: language
+        )
     }
 
     private var sliderBinding: Binding<Double> {

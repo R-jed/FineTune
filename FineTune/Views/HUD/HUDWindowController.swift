@@ -85,7 +85,8 @@ final class HUDWindowController: MediaKeyHUDPresenting {
 
         let style = settingsManager.appSettings.hudStyle
         let appearance = settingsManager.appSettings.appearance
-        let locale = LocalizationContext(language: settingsManager.appSettings.language).overrideLocale
+        let language = settingsManager.appSettings.language
+        let locale = LocalizationContext(language: language).overrideLocale
         styleAtLastShow = style
         let panel = ensurePanel()
         // Refresh on every show so a preference change between invocations
@@ -106,6 +107,7 @@ final class HUDWindowController: MediaKeyHUDPresenting {
                     sliderFraction: displayFraction,
                     mute: mute,
                     deviceName: deviceName,
+                    language: language,
                     onSliderChange: { [weak self] newFraction in
                         self?.volumeWriter?(Double(newFraction))
                     },
@@ -119,9 +121,13 @@ final class HUDWindowController: MediaKeyHUDPresenting {
             size = NSSize(width: 300, height: 72)
         case .classic:
             root = AnyView(
-                ClassicStyleHUD(sliderFraction: displayFraction, mute: mute)
-                    .fineTuneLocale(locale)
-                    .preferredColorScheme(scheme)
+                ClassicStyleHUD(
+                    sliderFraction: displayFraction,
+                    mute: mute,
+                    language: language
+                )
+                .fineTuneLocale(locale)
+                .preferredColorScheme(scheme)
             )
             size = NSSize(width: 200, height: 200)
         }
@@ -173,9 +179,12 @@ final class HUDWindowController: MediaKeyHUDPresenting {
     }
 
     func showPerAppNotControlledHUD(displayName: String?, bundleID: String?, icon: NSImage?) {
+        let fallbackTitle = HUDPresentation.localizedAppNotControlledFallback(
+            language: settingsManager.appSettings.language
+        )
         let title = displayName?.nilIfEmpty
             ?? bundleID?.nilIfEmpty
-            ?? "FineTune isn't controlling this app yet"
+            ?? fallbackTitle
         presentPerApp(
             icon: icon,
             title: title,
@@ -194,7 +203,8 @@ final class HUDWindowController: MediaKeyHUDPresenting {
         }
 
         let appearance = settingsManager.appSettings.appearance
-        let locale = LocalizationContext(language: settingsManager.appSettings.language).overrideLocale
+        let language = settingsManager.appSettings.language
+        let locale = LocalizationContext(language: language).overrideLocale
         styleAtLastShow = .tahoe
         let panel = ensurePanel()
         panel.appearance = appearance.nsAppearance
@@ -202,7 +212,7 @@ final class HUDWindowController: MediaKeyHUDPresenting {
 
         let scheme = appearance.swiftUIColorScheme
         let root = AnyView(
-            PerAppHUD(icon: icon, title: title, content: content)
+            PerAppHUD(icon: icon, title: title, content: content, language: language)
                 .fineTuneLocale(locale)
                 .preferredColorScheme(scheme)
         )
@@ -347,7 +357,12 @@ final class HUDWindowController: MediaKeyHUDPresenting {
     // MARK: - Accessibility
 
     private func postAccessibilityAnnouncement(panel: NSPanel, sliderFraction: Double, mute: Bool, deviceName: String) {
-        let description = accessibilityDescription(sliderFraction: sliderFraction, mute: mute, deviceName: deviceName)
+        let description = HUDPresentation.deviceAnnouncement(
+            deviceName: deviceName,
+            sliderFraction: sliderFraction,
+            mute: mute,
+            language: settingsManager.appSettings.language
+        )
         NSAccessibility.post(
             element: panel,
             notification: .announcementRequested,
@@ -358,22 +373,27 @@ final class HUDWindowController: MediaKeyHUDPresenting {
         )
     }
 
-    private func accessibilityDescription(sliderFraction: Double, mute: Bool, deviceName: String) -> String {
-        let device = deviceName.isEmpty ? "Unknown device" : deviceName
-        if mute { return "\(device), muted" }
-        let clamped = max(0, min(1, sliderFraction))
-        return "\(device), volume \(Int((clamped * 100).rounded())) percent"
-    }
-
     private func postPerAppAccessibilityAnnouncement(panel: NSPanel, title: String, content: PerAppHUDContent) {
+        let language = settingsManager.appSettings.language
         let description: String
         switch content {
         case .volume(let sliderFraction):
-            description = "\(title), volume \(Int((sliderFraction * 100).rounded())) percent"
+            description = HUDPresentation.perAppVolumeAnnouncement(
+                title: title,
+                sliderFraction: sliderFraction,
+                language: language
+            )
         case .mute(let isMuted):
-            description = isMuted ? "\(title), muted" : "\(title), unmuted"
+            description = HUDPresentation.perAppMuteAnnouncement(
+                title: title,
+                isMuted: isMuted,
+                language: language
+            )
         case .notControlled:
-            description = "\(title), not controlled by FineTune"
+            description = HUDPresentation.perAppNotControlledAnnouncement(
+                title: title,
+                language: language
+            )
         }
         NSAccessibility.post(
             element: panel,
@@ -450,6 +470,7 @@ private struct PerAppHUD: View {
     let icon: NSImage?
     let title: String
     let content: PerAppHUDContent
+    let language: AppLanguage
 
     private static let frameWidth: CGFloat = 300
     private static let frameHeight: CGFloat = 72
@@ -457,11 +478,6 @@ private struct PerAppHUD: View {
     private static let percentageWidth: CGFloat = 36
     private static let iconSize: CGFloat = 28
     private static let barHeight: CGFloat = 4
-
-    private var subtitleText: String? {
-        if case .notControlled = content { return "Not controlled by FineTune" }
-        return nil
-    }
 
     private var displayLevel: Double {
         switch content {
@@ -499,11 +515,22 @@ private struct PerAppHUD: View {
     private var accessibilityDescription: String {
         switch content {
         case .volume:
-            return "\(title), volume \(Int((displayLevel * 100).rounded())) percent"
+            return HUDPresentation.perAppVolumeAnnouncement(
+                title: title,
+                sliderFraction: displayLevel,
+                language: language
+            )
         case .mute(let isMuted):
-            return isMuted ? "\(title), muted" : "\(title), unmuted"
+            return HUDPresentation.perAppMuteAnnouncement(
+                title: title,
+                isMuted: isMuted,
+                language: language
+            )
         case .notControlled:
-            return "\(title), not controlled by FineTune"
+            return HUDPresentation.perAppNotControlledAnnouncement(
+                title: title,
+                language: language
+            )
         }
     }
 
@@ -511,7 +538,7 @@ private struct PerAppHUD: View {
         HStack(spacing: 10) {
             iconView
             VStack(alignment: .leading, spacing: 6) {
-                Text(title)
+                Text(verbatim: title)
                     .font(TahoeStyleHUD.nameFont)
                     .foregroundStyle(DesignTokens.Colors.textPrimary)
                     .lineLimit(1)
@@ -579,20 +606,18 @@ private struct PerAppHUD: View {
                                      ? DesignTokens.Colors.mutedIndicator
                                      : DesignTokens.Colors.hudTileActive)
                     .frame(width: 18, height: 18, alignment: .center)
-                Text(isMuted ? "Muted" : "Unmuted")
+                Text(isMuted ? HUDPresentation.muted : HUDPresentation.unmuted)
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(DesignTokens.Colors.textSecondary)
                 Spacer(minLength: 0)
             }
         case .notControlled:
-            if let subtitleText {
-                Text(subtitleText)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(DesignTokens.Colors.textSecondary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
+            Text(HUDPresentation.notControlled)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(DesignTokens.Colors.textSecondary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
