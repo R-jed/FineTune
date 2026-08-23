@@ -78,6 +78,11 @@ struct LocalizedPresentationTests {
 
     @Test("Settings resources resolve in both supported languages")
     func settingsResources() {
+        let resetConfirmationTitle = LocalizedStringResource(
+            "settings.reset.confirmationTitle",
+            defaultValue: "Reset all settings?"
+        )
+
         #expect(english.localized("FineTune Settings") == "FineTune Settings")
         #expect(chinese.localized("FineTune Settings") == "FineTune 设置")
         #expect(english.localized("Language") == "Language")
@@ -88,5 +93,7 @@ struct LocalizedPresentationTests {
         #expect(chinese.localized("Never checked") == "从未检查")
         #expect(english.localized("Star on GitHub") == "Star on GitHub")
         #expect(chinese.localized("Star on GitHub") == "在 GitHub 加星")
+        #expect(english.localized(resetConfirmationTitle) == "Reset all settings?")
+        #expect(chinese.localized(resetConfirmationTitle) == "重置所有设置？")
     }
 }

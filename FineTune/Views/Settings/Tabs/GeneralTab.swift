@@ -8,6 +8,11 @@ struct GeneralTab: View {
 
     @State private var showResetConfirmation = false
 
+    private static let resetConfirmationTitle = LocalizedStringResource(
+        "settings.reset.confirmationTitle",
+        defaultValue: "Reset all settings?"
+    )
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
@@ -21,7 +26,7 @@ struct GeneralTab: View {
         }
         .scrollIndicators(.never)
         .confirmationDialog(
-            "Reset all settings?",
+            Self.resetConfirmationTitle,
             isPresented: $showResetConfirmation,
             titleVisibility: .visible
         ) {

@@ -262,9 +262,10 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "FineTune 设置" } }
       }
     },
-    "Reset all settings?" : {
+    "settings.reset.confirmationTitle" : {
       "extractionState" : "manual",
       "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Reset all settings?" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重置所有设置？" } }
       }
     },
