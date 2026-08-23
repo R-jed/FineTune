@@ -109,6 +109,8 @@ struct LocalizedPresentationTests {
         #expect(chinese.localized("Reorder devices") == "调整设备顺序")
         #expect(chinese.localized("No Output") == "无输出设备")
         #expect(chinese.localized("No Input") == "无输入设备")
+        #expect(chinese.localized("Output Devices") == "输出设备")
+        #expect(chinese.localized("Input Devices") == "输入设备")
         #expect(english.localized("ignored") == "ignored")
         #expect(chinese.localized("ignored") == "个已忽略应用")
         #expect(chinese.localized("ignored · edit to manage") == "个已忽略应用 · 编辑以管理")
