@@ -27,9 +27,9 @@ The initial `R-jed/FineTune` snapshot was verified at the Git tree level against
 
 `main` remains the stable base for the localization work. The current implementation is on `feature/ui-localization` in PR #5.
 
-Verified implementation head before this handoff update: `13335db3fea48412f104e0bfcc689fd1c3722acd`.
+Latest verified implementation head before this handoff update: `366bcc534f4ca03dfc650c2e66da66399ef37886`.
 
-PR #5 is open and unmerged. Do not merge it without explicit authorization.
+PR #5 is open and unmerged. Its title and body now describe the implementation rather than the obsolete planning-only state. Do not merge it without explicit authorization.
 
 Localization implementation is in progress. Phases 1 through 5 have automated Build and Test verification. Phase 6 is partially implemented and verified.
 
@@ -42,10 +42,12 @@ Recent verified CI milestones:
 - Phase 5 EQ, AutoEQ, and device-detail localization: final device presentation regression commit `982bd63fa4f49a6d344e70007ab640493ba2c179` passed CI #52.
 - Phase 6 notification presentation helper and tests: head `dd00d1d2f905bc2028fb840d8ecee67bb2d611a7` passed CI #56.
 - Phase 6 AutoEQ AppKit file-panel message, import error, and profile-loading error boundaries: head `13335db3fea48412f104e0bfcc689fd1c3722acd` passed CI #60.
+- Refined Simplified Chinese privacy purpose strings in `InfoPlist.xcstrings`: commit `f281bec691032e344fcc7d530da29c30793b333d` passed CI #62.
+- Built-product Info.plist localization verification: commit `366bcc534f4ca03dfc650c2e66da66399ef37886` passed CI #63. The unit test reads `zh-Hans/InfoPlist.strings` from the built FineTune.app and verifies all three privacy purpose values.
 
 CI #23 previously failed during generated string-symbol generation because `Reset all settings?` and `Reset All Settings` normalized to the same generated symbol. The fix uses semantic key `settings.reset.confirmationTitle` with `Reset all settings?` as its English default value. Keep this pattern when two visible strings normalize to the same generated symbol.
 
-CI #59 was cancelled because a newer branch commit superseded it. Do not count cancelled runs as verification. The superseding head passed CI #60.
+CI #59 was cancelled because a newer branch commit superseded it. Do not count cancelled runs as verification. The superseding implementation passed CI #60.
 
 ## Current platform and dependencies
 
@@ -113,6 +115,7 @@ Key areas:
 - `FineTune/Views/Settings/`: Settings root, reusable Settings components and tab content.
 - `FineTune/Localizable.xcstrings`: first-party UI localization source of truth.
 - `FineTune/InfoPlist.xcstrings`: localized Info.plist purpose strings.
+- `FineTuneTests/InfoPlistLocalizationTests.swift`: verifies compiled Simplified Chinese privacy purpose resources from the built application bundle.
 - `FineTuneTests/`: unit and integration-style tests.
 - `.github/workflows/ci.yml`: build and test CI.
 - `.github/workflows/release.yml`: signed and notarized release process plus Sparkle appcast generation.
@@ -220,6 +223,10 @@ Do not claim notification localization complete until `showReconnectNotification
 
 `MenuBarPopupView` now resolves the FineTune-owned `NSOpenPanel.message` for AutoEQ imports through `LocalizationContext`, and AutoEQ import/profile-loading errors preserve localizable static copy while leaving external profile names verbatim. The required Chinese catalog entries already exist. This path passed CI #60.
 
+`InfoPlist.xcstrings` contains English and Simplified Chinese privacy purpose strings for audio capture, Bluetooth, and microphone access. The Chinese copy was refined for user-facing clarity in `f281bec691032e344fcc7d530da29c30793b333d`, which passed CI #62.
+
+`FineTuneTests/InfoPlistLocalizationTests.swift` verifies the compiled product rather than only the source catalog. It locates the FineTune app bundle during the host-based unit test, opens `zh-Hans/InfoPlist.strings`, and checks all three final Chinese privacy purpose values. This passed CI #63. Built-bundle Info.plist localization is therefore automatedly verified.
+
 ### Next safe Phase 6 work
 
 1. Localize the FineTune-owned permission banner copy in `PermissionBannerView` through the existing catalog. The SwiftUI literals already participate in localization; the remaining work is catalog coverage and regression tests. Candidate Chinese wording:
@@ -228,8 +235,9 @@ Do not claim notification localization complete until `showReconnectNotification
    - `Open System Settings` -> `打开系统设置`
    - `Grant Access` -> `授予权限`
 2. Connect the validated notification presentation helper to the three production `AudioEngine` notification methods using a safe patch mechanism. `AudioEngine.swift` is close to 100 KB; avoid replacing the whole file through a whole-file connector write merely to change a few lines.
-3. Inventory remaining user-visible error strings and AppKit String boundaries. Keep logs/debug messages in English unless they are actually surfaced to users.
-4. Verify `InfoPlist.xcstrings` values in the built product when a suitable macOS build/runtime inspection path is available.
+3. Complete the inventory of remaining user-visible error strings and AppKit String boundaries. Keep logs/debug messages in English unless they are actually surfaced to users.
+
+`URLHandler.swift` was reviewed during Phase 6 and contains logging only; its English diagnostics are not user-visible UI and should not be added to the localization catalog.
 
 System-owned controls inside standard `NSOpenPanel`, macOS privacy dialogs, Sparkle UI and KeyboardShortcuts UI remain separate verification boundaries. Do not replace standard system panels or fork dependencies solely to force FineTune's in-app runtime language without explicit approval.
 
