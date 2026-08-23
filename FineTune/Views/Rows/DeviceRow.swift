@@ -155,8 +155,8 @@ struct DeviceRow: View {
                         .lineLimit(1)
                         .help(device.name)
 
-                    if let subtitle = Self.autoEQSubtitle(profileName: autoEQProfileName, isEnabled: autoEQEnabled) {
-                        Text(subtitle)
+                    if let profileName = autoEQProfileName {
+                        autoEQSubtitle(profileName: profileName)
                             .font(.system(size: 9))
                             .foregroundStyle(DesignTokens.Colors.textTertiary)
                             .lineLimit(1)
@@ -251,6 +251,11 @@ struct DeviceRow: View {
             sliderValue = newSlider
         }
     }
+
+    private func autoEQSubtitle(profileName: String) -> Text {
+        let profile = Text(verbatim: profileName)
+        return autoEQEnabled ? profile : profile + Text(" (off)")
+    }
 }
 
 extension DeviceRow {
@@ -262,13 +267,6 @@ extension DeviceRow {
 
     static func sliderToVolume(_ slider: Double, backend: VolumeControlTier) -> Float {
         VolumeMapping.systemGain(forSliderFraction: slider, tier: backend)
-    }
-
-    // MARK: - Subtitle
-
-    static func autoEQSubtitle(profileName: String?, isEnabled: Bool) -> String? {
-        guard let profileName else { return nil }
-        return isEnabled ? profileName : "\(profileName) (off)"
     }
 }
 
