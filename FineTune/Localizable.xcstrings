@@ -1641,12 +1641,14 @@
     },
     " (off)" : {
       "extractionState" : "manual",
+      "generatesSymbol" : false,
       "localizations" : {
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "（已关闭）" } }
       }
     },
     "Volume boost:" : {
       "extractionState" : "manual",
+      "generatesSymbol" : false,
       "localizations" : {
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "音量增强：" } }
       }
