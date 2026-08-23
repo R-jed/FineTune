@@ -2,62 +2,59 @@
 
 Last updated: 2026-08-23
 
-This file is the starting context for future development sessions on this repository. Read it before changing code, then verify time-sensitive details against the repository itself.
+Read this file before changing code. Verify time-sensitive state against the repository before every write.
 
 ## Project identity
 
-FineTune is a macOS menu bar audio-control application. It controls per-app volume, app gain, application routing, output and input device levels, per-app EQ, AutoEQ headphone correction, global shortcuts, media keys, and a FineTune-owned volume HUD.
+FineTune is a macOS menu bar audio-control application. It controls per-app volume and gain, application routing, output and input device levels, per-app EQ, AutoEQ headphone correction, global shortcuts, media keys, and FineTune-owned volume HUDs.
 
 Repository: `R-jed/FineTune`
 
-Upstream origin used to bootstrap this repository: `ronitsingh10/FineTune`
+Upstream bootstrap source: `ronitsingh10/FineTune`
 
-Bootstrap baseline:
+Bootstrap commit: `2285279d36d3f8115c1c2d4aecd904f1bdf96a51`
 
-- Upstream branch: `main`
-- Upstream commit: `2285279d36d3f8115c1c2d4aecd904f1bdf96a51`
-- Upstream tree: `cfc960ed5e09651c8876aa42c2443adffe0705a5`
-- Upstream release represented by that snapshot: v1.9.0
-- License: GNU GPL v3
-- Preserve the original copyright notice
+Bootstrap tree: `cfc960ed5e09651c8876aa42c2443adffe0705a5`
 
-The initial `R-jed/FineTune` snapshot was verified at Git tree level against the upstream tree before project-specific development began. Later commits intentionally diverge from that snapshot.
+License: GNU GPL v3. Preserve the original copyright notice.
 
 ## Current development state
 
 Stable base: `main`
 
-Active localization branch: `feature/ui-localization`
+Active branch: `feature/ui-localization`
 
 Pull request: #5, `feat: add English and Simplified Chinese UI localization`
 
-Current branch HEAD at this handoff update: `c61a3f06c50899d5b79b314674c74e5f055e59a0`
+Verified implementation head before this documentation update: `07b34f766de0c50b6a5a244771eaf066083e1ad6`
 
 PR #5 is open and unmerged. Do not merge it without explicit authorization.
 
-Localization work is still in progress. Do not describe the feature as complete until the final Build/Test gate, source inventory, and manual UI review are finished.
+Localization work is still in progress because production device notifications in `AudioEngine.swift`, the final source inventory, and manual runtime smoke tests remain.
 
-### Current CI truth
+## Current CI truth
 
-- CI #73 at `4aa029d51cc5486c983b8f14fce45fb44ec5aaba` passed Build and Test after the centralized HUD presentation work.
-- CI #77 at `9dba16c55a806299ddcda35387c70287a2871a82` failed during Build because String Catalog generated-symbol names collided for `Off` versus ` (off)` and `Volume boost` versus `Volume boost:`.
-- `c61a3f06c50899d5b79b314674c74e5f055e59a0` disables symbol generation only for the two colliding catalog entries.
-- CI #78 at `c61a3f06c50899d5b79b314674c74e5f055e59a0` confirms Build succeeds, but Test fails.
-- CI #78 workflow run id: `32624329468`.
-- CI #78 job id: `97157217040`.
-- The exact failing test assertion has not yet been verified from the available log response. Do not guess the cause. A later green CI may supersede this blocker, but any remaining failure must be diagnosed from its exact test output.
+- CI #73 at `4aa029d51cc5486c983b8f14fce45fb44ec5aaba` passed Build and Test after centralized HUD localization.
+- CI #77 at `9dba16c55a806299ddcda35387c70287a2871a82` failed during String Catalog generated-symbol generation because `Off` collided with ` (off)` and `Volume boost` collided with `Volume boost:`.
+- `c61a3f06c50899d5b79b314674c74e5f055e59a0` disables symbol generation only for the two colliding manual entries.
+- CI #78 and the docs-only CI #79 both reached a Test failure. This proved the failure predated the Auto-language implementation.
+- The CI #79 uploaded `.xcresult` artifact was inspected. The exact root cause was a test-target compile error in `FineTuneTests/LocalizedPresentationTests.swift`: `phase7CompletenessResources()` declared its source values as dynamic `String`, then passed them to `LocalizationContext.localized(_:)`, which intentionally accepts `LocalizedStringResource`.
+- `07b34f766de0c50b6a5a244771eaf066083e1ad6` fixes that test boundary by using `LocalizedStringResource` without adding a production `String` localization overload.
+- CI #81 at `07b34f766de0c50b6a5a244771eaf066083e1ad6` passed Build, Test, test-result upload, and the complete job.
 
-## Current platform and dependency facts
+CI #81 is the current verified automated baseline.
+
+## Platform and dependency facts
 
 - Swift language mode: Swift 6.0.
-- macOS deployment target used by the app/test configuration: 15.4.
-- `STRING_CATALOG_GENERATE_SYMBOLS = YES` for the application target.
-- `SWIFT_EMIT_LOC_STRINGS = YES` for the application target.
+- macOS deployment target: 15.4.
+- App target `STRING_CATALOG_GENERATE_SYMBOLS = YES`.
+- App target `SWIFT_EMIT_LOC_STRINGS = YES`.
 - FluidMenuBarExtra 1.5.1.
 - KeyboardShortcuts 2.4.0.
 - Sparkle 2.8.1.
 
-Do not upgrade dependencies as part of localization unless required and separately reviewed.
+Do not change dependencies as part of localization unless required and separately reviewed.
 
 ## Product language specification
 
@@ -72,195 +69,156 @@ The language preference exposes exactly three choices:
 - `English`.
 - `简体中文`.
 
-`Auto` is the default preference. Internally the existing enum case and persisted raw value `system` must be retained for backward compatibility. The product-facing wording and behavior are `Auto`; do not restore the old `Follow System` semantics.
+`Auto` is the default. Internally the existing enum case `.system` and persisted raw value `system` are retained for backward compatibility.
 
-### Auto mapping rule
-
-Auto reads the first preferred system UI language and maps it to one of the two supported FineTune UI languages:
+Auto reads the first preferred system UI language and maps it to one of FineTune's two UI languages:
 
 - Any Chinese language identifier maps to `zh-Hans`.
 - Every non-Chinese language maps to `en`.
 - Missing or unusable preferred-language data maps to `en`.
+- Only the first preferred language controls the result.
 
-Required examples:
+Verified examples include:
 
 - `zh-Hans-CN` -> `zh-Hans`.
 - `zh-Hant-TW` -> `zh-Hans`.
 - `zh_CN` -> `zh-Hans`.
+- `zh` -> `zh-Hans`.
 - `en-AU` -> `en`.
 - `ja-JP` -> `en`.
 - `fr-FR` -> `en`.
-- Empty preferred-language list -> `en`.
+- empty list -> `en`.
+- `["ja-JP", "zh-Hans"]` -> `en`.
 
-Do not add Traditional Chinese UI, Japanese UI, region-specific UI variants, a CLDR-style fallback chain, or a large language mapping table. Keep the resolver deterministic and small.
+Do not add Traditional Chinese UI, Japanese UI, region-specific UI variants, a CLDR-style fallback chain, or a large language mapping table.
 
-### Runtime localization boundary
+## Auto implementation now verified
 
-`AppLanguage` owns the stable persisted identity and the mapping to a supported FineTune UI language.
+`AppLanguage.system` is still the persisted compatibility identity, while its display resource is now `Auto`.
 
-`LocalizationContext` is the central runtime localization boundary for FineTune-owned UI and String-only AppKit boundaries. Under the current product specification every selected mode, including Auto, must resolve to a concrete supported FineTune locale: `en` or `zh-Hans`. Arbitrary system languages such as French or Japanese must not leak through to FineTune-owned UI.
+`AppLanguage.resolvedLanguageIdentifier(preferredLanguages:)` deterministically resolves every preference to `en` or `zh-Hans`.
 
-Keep dynamic external values verbatim. This includes application names, device names, user preset names, AutoEQ profile names, UIDs, PIDs, bundle identifiers, version/build values, URLs, and other external identity values.
+`LocalizationContext` now always produces a concrete FineTune locale. It preserves the user's region for regional formatting while forcing FineTune-owned UI language to one of the two supported languages.
 
-Use `LocalizedStringResource` through presentation layers and resolve to `String` only at final String-only boundaries.
+The SwiftUI root locale modifier now takes a concrete `Locale`. Detached popover and HUD hosting roots continue to receive the same resolved locale.
 
-Keep one first-party UI catalog: `FineTune/Localizable.xcstrings`. Do not create a second localization framework or hard-code Chinese branches in Swift UI code.
+The main String Catalog already contained the `Auto` key with Simplified Chinese value `自动`, so the language-selector change required no large catalog rewrite. The old `Follow System` catalog entry is currently unused and can be reviewed during final catalog cleanup.
+
+Persistence compatibility is retained:
+
+- `.system` raw value remains `system`.
+- `.english` remains `en`.
+- `.simplifiedChinese` remains `zh-Hans`.
+- legacy `AppSettings` payloads without a language still decode to `.system`, which now means Auto.
 
 ## Localization implementation completed so far
 
-Earlier phases established Settings persistence, String Catalogs, reusable presentation resources, Settings localization, menu bar popup localization, EQ/AutoEQ/device-detail localization, Info.plist localization, and AppKit localization boundaries.
+Earlier phases established settings persistence, String Catalogs, Settings localization, menu bar popup localization, EQ and AutoEQ localization, device-detail localization, Info.plist localization, and AppKit String boundaries.
 
-Phase 7 completeness work added or refined the following:
+Important Phase 7 work:
 
 - `c455da0dfce401ca6c09d5df420d1e573f8deefd`: propagate locale into detached popovers through `PopoverHost`.
-- `550649ee4e5b19728613a7abaa19125fd12876cc`: type Bluetooth connection errors so presentation can localize them safely.
-- `e37f721befda4e14a79791644be1387897ea09d3`: preserve localizable mute help text as `LocalizedStringResource`.
+- `550649ee4e5b19728613a7abaa19125fd12876cc`: replace Bluetooth user-facing string errors with typed connection errors.
+- `e37f721befda4e14a79791644be1387897ea09d3`: keep mute help text as `LocalizedStringResource`.
 - `c5406797077eeffd73acc051f860e4b0fd7a8a15`: propagate locale into Tahoe, Classic, and per-app HUD hosting roots.
-- `7db0217...` and `31b1176564721391d9a9f20d9d2d82597ba2d0c0`: add notification presentation helpers and fallback tests.
-- `7dfd1d07db54d6d8c33372157eb72ff501145325`: preserve AutoEQ dynamic profile names while localizing the static `(off)` suffix.
-- `4aa029d51cc5486c983b8f14fce45fb44ec5aaba`: centralize FineTune HUD localized presentation. CI #73 passed Build and Test for this state.
+- `31b1176564721391d9a9f20d9d2d82597ba2d0c0`: notification presentation fallback tests.
+- `7dfd1d07db54d6d8c33372157eb72ff501145325`: keep AutoEQ profile names verbatim while localizing the static `(off)` suffix.
+- `4aa029d51cc5486c983b8f14fce45fb44ec5aaba`: centralize FineTune HUD localized presentation.
 - `016c9bb16624904d3189f3504dbb890281a6503f`: separate dynamic accessibility values from localizable static labels.
-- `c980d68ca1874f20a10902fd613b236daff6a6a6`: complete the Phase 7 String Catalog additions then known.
+- `c980d68ca1874f20a10902fd613b236daff6a6a6`: add Phase 7 String Catalog coverage.
 - `2c58ea85e21f38e21dab9f1f699928ba535ff661`: add Simplified Chinese presentation regression tests.
-- `9dba16c55a806299ddcda35387c70287a2871a82`: add Phase 7 catalog coverage regression tests.
-- `c61a3f06c50899d5b79b314674c74e5f055e59a0`: resolve generated-symbol collisions by disabling symbol generation only on the two colliding source entries.
+- `9dba16c55a806299ddcda35387c70287a2871a82`: add Phase 7 catalog completeness tests.
+- `c61a3f06c50899d5b79b314674c74e5f055e59a0`: resolve known generated-symbol collisions.
+- `6249a458ee40ed11ea936c4d788deaccc9ef8d34`: implement Auto UI-language resolution and replace old Follow System runtime semantics.
+- `07b34f766de0c50b6a5a244771eaf066083e1ad6`: preserve `LocalizedStringResource` typing in the Phase 7 completeness test. CI #81 passed fully.
 
-`tasks/phase7-localization-inventory.md` is the working inventory for this completeness pass.
+`tasks/phase7-localization-inventory.md` remains the working completeness inventory.
 
-## Detached SwiftUI roots
+## Localization boundaries to preserve
 
-Detached `NSHostingView` roots were a real runtime localization gap. Current fixes explicitly propagate the FineTune locale into:
+FineTune-owned static UI text should stay localizable.
 
-- dropdown/popover hosts through `PopoverHost`;
-- Tahoe HUD;
-- Classic HUD;
-- per-app HUD roots.
+Dynamic external identity values stay verbatim, including application names, device names, user preset names, AutoEQ profile names, UIDs, PIDs, bundle identifiers, versions, build numbers, and URLs.
 
-Keep this architecture when changing locale resolution. Do not reintroduce root-specific ad hoc language logic.
+Use `LocalizedStringResource` through SwiftUI and reusable presentation code. Resolve to `String` only at final String-only boundaries such as AppKit and notification content.
 
-## Current immediate work
+Do not add a generic `localized(_ key: String)` convenience overload. The CI #79 failure demonstrated why keeping the typed boundary matters.
 
-### 1. Replace old Follow System behavior with Auto
+Keep `FineTune/Localizable.xcstrings` as the single first-party UI catalog. `FineTune/InfoPlist.xcstrings` remains dedicated to localized Info.plist purpose strings.
 
-Current `AppLanguage.system` still displays `Follow System` and returns no language identifier. Current `LocalizationContext` therefore allows the host locale to pass through. This conflicts with the approved product specification.
+Detached `NSHostingView` roots are explicit locale boundaries. Current fixes cover dropdown/popover hosting, Tahoe HUD, Classic HUD, and per-app HUD.
 
-Required implementation:
+## Immediate remaining production blocker
 
-- Keep `.system` and raw persisted value `system`.
-- Display `Auto` in English and `自动` in Simplified Chinese.
-- Resolve Auto from `Locale.preferredLanguages` or an injected preferred-language list for tests.
-- Map any first preferred language beginning with Chinese language identifier `zh` to `zh-Hans`.
-- Map everything else, including an empty list, to `en`.
-- Explicit English always resolves to `en`.
-- Explicit Simplified Chinese always resolves to `zh-Hans`.
-- Keep the resolver simple and deterministic.
+`FineTune/Audio/Engine/AudioEngine.swift` still constructs three FineTune-owned device notifications in English.
 
-Replace old tests that assert Follow System preserves arbitrary locale/region. New tests must cover the mapping examples above and confirm Auto always produces one of the two supported UI locales.
+Current exact blob SHA at the verified head: `cd3d07e6ac0f34c17b447b8b2920e51827dc2903`.
 
-### 2. Update String Catalog wording
+Required minimal integration:
 
-`FineTune/Localizable.xcstrings` still contains `Follow System`. Replace the product-facing entry with `Auto` and provide Simplified Chinese value `自动`.
+1. In device disconnect handling, stop constructing the user-facing fallback string `none` at the call site. Pass `fallbackDevice?.name` as `String?`.
+2. `showDisconnectNotification` should accept `fallbackName: String?` and build presentation through `DeviceNotificationPresentation.disconnected(...)` using `settingsManager.appSettings.language`.
+3. `showReconnectNotification` should build presentation through `DeviceNotificationPresentation.reconnected(...)` using the current app language.
+4. In default-device handling, preserve the device name as optional for presentation. Logging may use `newDeviceName ?? newDefaultUID`.
+5. `showDefaultChangedNotification` should accept `String?` and use `DeviceNotificationPresentation.defaultChanged(...)`.
+6. Assign `content.title` and `content.body` from the presentation helper.
+7. Preserve notification enablement conditions, `content.sound = nil`, request identifiers, callbacks, and `UNUserNotificationCenter.current().add` behavior.
 
-Preserve the prior `generatesSymbol: false` metadata for ` (off)` and `Volume boost:`.
+Existing presentation resources and tests already cover English and Simplified Chinese copy, including semantic fallbacks `notification.noFallbackDevice` and `notification.defaultOutputFallback`.
 
-Because the catalog is large, use a detached candidate commit and inspect the exact diff before moving the feature branch.
+`AudioEngine.swift` is close to 100 KB. The repository connector writes existing files as whole-file replacements. Do not blind-write this file. Reconstruct from the exact current blob, compare a detached candidate, and move the branch only when the diff is limited to the intended notification regions.
 
-### 3. Restore green Build/Test
-
-After Auto implementation, run the repository CI path. Do not treat Build success alone as completion. If Test fails, inspect the exact test name and assertion before changing production code.
-
-Canonical CI commands:
-
-```bash
-xcodebuild build \
-  -project FineTune.xcodeproj \
-  -scheme FineTune \
-  -configuration Debug \
-  CODE_SIGN_IDENTITY=- \
-  CODE_SIGNING_REQUIRED=NO
-```
-
-```bash
-xcodebuild test \
-  -project FineTune.xcodeproj \
-  -scheme FineTune \
-  -configuration Debug \
-  -skip-testing:FineTuneUITests \
-  CODE_SIGN_IDENTITY=- \
-  CODE_SIGNING_REQUIRED=NO \
-  -resultBundlePath build/TestResults.xcresult
-```
-
-### 4. Connect localized notification presentation to AudioEngine
-
-`DeviceNotificationPresentation` exists and is tested, but `FineTune/Audio/Engine/AudioEngine.swift` still constructs the three device notification titles/bodies directly in English.
-
-Required production integration after the Auto work is controlled:
-
-- `showReconnectNotification` uses `DeviceNotificationPresentation`.
-- `showDisconnectNotification` accepts an optional fallback device name rather than constructing user-facing `none` at the call site.
-- `showDefaultChangedNotification` accepts an optional device name rather than constructing user-facing `Default Output` at the call site.
-- Presentation uses `settingsManager.appSettings.language`.
-- Preserve dynamic device names verbatim.
-- Preserve `UNNotificationRequest` identifiers.
-- Preserve `content.sound = nil`.
-- Preserve the existing notification delivery calls.
-
-`AudioEngine.swift` is close to 100 KB. Do not use an unsafe blind whole-file replacement. Fetch the exact current blob, construct a candidate from that blob, compare the candidate diff, and fast-forward only if the diff contains the intended notification regions.
+The file has been re-read in line ranges against the current blob during the session. No production AudioEngine write has been made yet after CI #81.
 
 ## Final verification gates before merge authorization
 
-The feature is not complete until all relevant gates pass:
+The localization feature remains incomplete until all relevant gates pass:
 
-1. Full Build succeeds.
-2. Full unit Test succeeds.
-3. Auto mapping tests cover Chinese, English, unsupported system languages, and empty preferred-language data.
-4. Explicit English and Simplified Chinese behavior remains correct.
-5. `Localizable.xcstrings` retains existing keys and intended Phase 7 translations without unrelated churn.
-6. Production notification call sites use localized presentation helpers.
-7. Phase 7 source inventory is re-run and every remaining English literal is classified correctly.
-8. Dynamic external data remains verbatim.
-9. FineTune-owned UI is manually smoke-tested in Auto, English, and Simplified Chinese when a macOS runtime is available.
-10. Dependency-owned and system-owned UI is reviewed separately. Do not claim Sparkle, KeyboardShortcuts, macOS privacy prompts, or standard system panel controls follow FineTune runtime language until observed.
-11. Compare the final feature branch with `main` for unrelated drift.
-12. PR #5 remains unmerged until explicit authorization.
+1. Production device notifications use `DeviceNotificationPresentation`.
+2. Full Build succeeds after the notification integration.
+3. Full unit Test succeeds after the notification integration.
+4. Phase 7 source inventory is re-run and all remaining English literals are classified.
+5. Dynamic external identity values remain verbatim.
+6. English, Simplified Chinese, and Auto are manually smoke-tested when a macOS UI runtime is available.
+7. Dependency-owned and system-owned UI is reviewed separately. Do not claim Sparkle, KeyboardShortcuts, macOS privacy prompts, or standard AppKit controls follow FineTune's runtime language until observed.
+8. Compare the final feature branch with `main` for unrelated drift.
+9. Perform a final adversarial review of translation quality, locale propagation, persistence compatibility, and generated String Catalog behavior.
+10. PR #5 stays unmerged until explicit authorization.
 
 ## Repository areas to treat carefully
 
 - `FineTune/Audio/Engine/AudioEngine.swift`: large core orchestration file, high blast radius.
-- `FineTune/Localizable.xcstrings`: large generated/edited catalog, verify exact diffs.
+- `FineTune/Localizable.xcstrings`: large String Catalog, verify exact diffs.
 - `FineTune/Views/MenuBarPopupView.swift`: large central UI surface.
 - `FineTune/Utilities/LocalizationContext.swift`: central runtime language policy.
-- `FineTune/Settings/Types/AppLanguage.swift`: persisted language identity and supported-language resolver.
+- `FineTune/Settings/Types/AppLanguage.swift`: persisted language identity and resolver.
 - `.github/workflows/ci.yml`: canonical Build/Test behavior.
 
 ## Development rules for future sessions
 
-Before implementation:
+Before every implementation step:
 
-1. Read this file, the active localization inventory/specification, relevant source files, and tests.
-2. Re-fetch the feature branch head before writing.
-3. Establish the exact behavior and success criteria.
-4. Verify framework-specific assumptions against source or official documentation when needed.
-5. Prefer the smallest change that solves the full requirement cleanly.
+1. Read this file and the relevant inventory/specification.
+2. Re-fetch the branch head and exact file blobs before writing.
+3. Establish the behavior and success criteria.
+4. Use official framework documentation when a framework assumption matters.
+5. Prefer the smallest change that solves the full requirement.
 
 During implementation:
 
 - Keep `main` usable.
-- Make focused commits with one logical concern each.
+- Use focused commits.
 - Preserve persisted-data compatibility unless a migration is explicitly designed and tested.
 - Avoid drive-by refactors.
-- Keep dynamic external identity values out of localization lookup.
-- Re-read branch HEAD before each write.
-- Use fast-forward ref updates only.
-- For large or sensitive files, create and compare a detached candidate before updating the branch.
-- If concurrent commits appear, inspect them before writing and never overwrite them blindly.
+- Keep external identity values out of localization lookup.
+- For large or sensitive files, construct and compare a detached candidate before moving the branch.
+- Do not overwrite concurrent work.
 
 Before claiming completion:
 
 - Verify Build and Test.
-- Inspect failing logs rather than guessing.
-- Review behavior and source inventory.
+- Diagnose failures from exact logs or `.xcresult` evidence.
+- Re-run the source inventory.
 - Compare against `main` for unrelated changes.
-- Record the final verified state here.
-- Keep PR #5 unmerged until explicit merge authorization is given.
+- Record the verified state here.
+- Keep PR #5 unmerged until explicit merge authorization.
