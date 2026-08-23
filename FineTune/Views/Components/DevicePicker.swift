@@ -532,17 +532,21 @@ extension DevicePicker {
         selectedDeviceUIDs: Set<String>,
         isFollowingDefault: Bool,
         mode: DeviceSelectionMode
-    ) -> String? {
+    ) -> Text? {
         switch mode {
         case .single:
             if isFollowingDefault { return nil }
-            return devices.first(where: { $0.uid == selectedDeviceUID })?.name
+            guard let device = devices.first(where: { $0.uid == selectedDeviceUID }) else { return nil }
+            return Text(verbatim: device.name)
         case .multi:
             let valid = devices.filter { selectedDeviceUIDs.contains($0.uid) }
             switch valid.count {
-            case 0:  return "Multi"
-            case 1:  return "Multi · \(valid[0].name)"
-            default: return "Multi · \(valid.count) devices"
+            case 0:
+                return Text("Multi")
+            case 1:
+                return Text("Multi") + Text(verbatim: " · \(valid[0].name)")
+            default:
+                return Text("Multi") + Text(verbatim: " · \(valid.count) ") + Text("devices")
             }
         }
     }

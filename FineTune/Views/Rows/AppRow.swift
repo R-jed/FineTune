@@ -146,7 +146,7 @@ struct AppRow: View {
                         isFollowingDefault: isFollowingDefault,
                         mode: deviceSelectionMode
                     ) {
-                        Text(subtitle)
+                        subtitle
                             .font(.system(size: 9))
                             .foregroundStyle(DesignTokens.Colors.textTertiary)
                             .lineLimit(1)
@@ -259,7 +259,7 @@ struct AppRow: View {
                     volume: Float.random(in: 0.5...1.5),
                     audioLevel: Float.random(in: 0...0.8),
                     devices: MockData.sampleDevices,
-                    selectedDeviceUID: MockData.sampleDevices.randomElement()!.uid,
+                    selectedDeviceUID: MockData.sampleDevices[0].uid,
                     onVolumeChange: { _ in },
                     onMuteChange: { _ in },
                     onDeviceSelected: { _ in }
