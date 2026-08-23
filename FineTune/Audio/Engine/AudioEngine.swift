@@ -1427,7 +1427,7 @@ final class AudioEngine {
         }
 
         if !affectedApps.isEmpty {
-            let fallbackName = fallbackDevice?.name ?? "none"
+            let fallbackName = fallbackDevice?.name
             logger.info("\(deviceName) disconnected, \(affectedApps.count) app(s) affected")
             if settingsManager.appSettings.showDeviceDisconnectAlerts {
                 showDisconnectNotification(deviceName: deviceName, fallbackName: fallbackName, affectedApps: affectedApps)
@@ -1638,9 +1638,14 @@ final class AudioEngine {
     }
 
     private func showReconnectNotification(deviceName: String, affectedApps: [AudioApp]) {
+        let presentation = DeviceNotificationPresentation.reconnected(
+            deviceName: deviceName,
+            affectedAppCount: affectedApps.count,
+            language: settingsManager.appSettings.language
+        )
         let content = UNMutableNotificationContent()
-        content.title = "Audio Device Reconnected"
-        content.body = "\"\(deviceName)\" is back. \(affectedApps.count) app(s) switched back."
+        content.title = presentation.title
+        content.body = presentation.body
         content.sound = nil
 
         let request = UNNotificationRequest(
@@ -1656,10 +1661,16 @@ final class AudioEngine {
         }
     }
 
-    private func showDisconnectNotification(deviceName: String, fallbackName: String, affectedApps: [AudioApp]) {
+    private func showDisconnectNotification(deviceName: String, fallbackName: String?, affectedApps: [AudioApp]) {
+        let presentation = DeviceNotificationPresentation.disconnected(
+            deviceName: deviceName,
+            fallbackName: fallbackName,
+            affectedAppCount: affectedApps.count,
+            language: settingsManager.appSettings.language
+        )
         let content = UNMutableNotificationContent()
-        content.title = "Audio Device Disconnected"
-        content.body = "\"\(deviceName)\" disconnected. \(affectedApps.count) app(s) switched to \(fallbackName)"
+        content.title = presentation.title
+        content.body = presentation.body
         content.sound = nil
 
         let request = UNNotificationRequest(
@@ -1763,8 +1774,8 @@ final class AudioEngine {
 
             let affectedApps = apps.filter { followsDefault.contains($0.id) }
             if !affectedApps.isEmpty {
-                let deviceName = deviceMonitor.device(for: newDefaultUID)?.name ?? "Default Output"
-                logger.info("Default changed to \(deviceName), \(affectedApps.count) app(s) following")
+                let deviceName = deviceMonitor.device(for: newDefaultUID)?.name
+                logger.info("Default changed to \(deviceName ?? newDefaultUID), \(affectedApps.count) app(s) following")
                 if settingsManager.appSettings.showDeviceDisconnectAlerts {
                     showDefaultChangedNotification(newDeviceName: deviceName, affectedApps: affectedApps)
                 }
@@ -1772,10 +1783,15 @@ final class AudioEngine {
         }
     }
 
-    private func showDefaultChangedNotification(newDeviceName: String, affectedApps: [AudioApp]) {
+    private func showDefaultChangedNotification(newDeviceName: String?, affectedApps: [AudioApp]) {
+        let presentation = DeviceNotificationPresentation.defaultChanged(
+            newDeviceName: newDeviceName,
+            affectedAppCount: affectedApps.count,
+            language: settingsManager.appSettings.language
+        )
         let content = UNMutableNotificationContent()
-        content.title = "Default Audio Device Changed"
-        content.body = "\(affectedApps.count) app(s) switched to \"\(newDeviceName)\""
+        content.title = presentation.title
+        content.body = presentation.body
         content.sound = nil
 
         let request = UNNotificationRequest(
