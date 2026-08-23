@@ -79,6 +79,26 @@ struct DeviceNotificationPresentationTests {
         #expect(defaultChanged.body == "1 个应用已切换到“AirPods Pro”。")
     }
 
+    @Test("Simplified Chinese notification copy localizes fallback device labels")
+    func chineseFallbackCopy() {
+        let disconnected = DeviceNotificationPresentation.disconnected(
+            deviceName: "USB DAC",
+            fallbackName: nil,
+            affectedAppCount: 1,
+            language: .simplifiedChinese,
+            baseLocale: locale
+        )
+        #expect(disconnected.body == "“USB DAC”已断开连接。1 个应用已切换到“无可用设备”。")
+
+        let defaultChanged = DeviceNotificationPresentation.defaultChanged(
+            newDeviceName: nil,
+            affectedAppCount: 2,
+            language: .simplifiedChinese,
+            baseLocale: locale
+        )
+        #expect(defaultChanged.body == "2 个应用已切换到“默认输出设备”。")
+    }
+
     @Test("Dynamic device names remain verbatim")
     func deviceNamesStayVerbatim() {
         let presentation = DeviceNotificationPresentation.disconnected(

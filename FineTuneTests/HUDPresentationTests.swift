@@ -99,6 +99,65 @@ struct HUDPresentationTests {
         )
     }
 
+    @Test("Simplified Chinese HUD copy uses localized static text and verbatim dynamic names")
+    func chineseCopy() {
+        #expect(
+            HUDPresentation.deviceAnnouncement(
+                deviceName: "",
+                sliderFraction: 0.25,
+                mute: false,
+                language: .simplifiedChinese,
+                baseLocale: locale
+            ) == "未知设备，音量 25%"
+        )
+        #expect(
+            HUDPresentation.tahoeAccessibilityLabel(
+                deviceName: "Studio Display",
+                sliderFraction: 0.5,
+                mute: true,
+                language: .simplifiedChinese,
+                baseLocale: locale
+            ) == "Studio Display，已静音，音量 50%"
+        )
+        #expect(
+            HUDPresentation.classicAccessibilityLabel(
+                sliderFraction: 0.5,
+                mute: false,
+                language: .simplifiedChinese,
+                baseLocale: locale
+            ) == "音量 50%"
+        )
+        #expect(
+            HUDPresentation.classicAccessibilityLabel(
+                sliderFraction: 0.5,
+                mute: true,
+                language: .simplifiedChinese,
+                baseLocale: locale
+            ) == "已静音"
+        )
+        #expect(
+            HUDPresentation.perAppMuteAnnouncement(
+                title: "Music α",
+                isMuted: false,
+                language: .simplifiedChinese,
+                baseLocale: locale
+            ) == "Music α，已取消静音"
+        )
+        #expect(
+            HUDPresentation.perAppNotControlledAnnouncement(
+                title: "Music α",
+                language: .simplifiedChinese,
+                baseLocale: locale
+            ) == "Music α，未由 FineTune 控制"
+        )
+        #expect(
+            HUDPresentation.localizedAppNotControlledFallback(
+                language: .simplifiedChinese,
+                baseLocale: locale
+            ) == "FineTune 尚未控制此应用"
+        )
+    }
+
     @Test("Percentages clamp to the HUD display range")
     func clampsPercentages() {
         #expect(
