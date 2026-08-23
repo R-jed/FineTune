@@ -173,7 +173,7 @@ private struct UserPresetItemView: View {
                         .foregroundStyle(isHovered ? DesignTokens.Colors.interactiveHover : .clear)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Delete preset \(item.name)")
+                .accessibilityLabel(Text("Delete preset") + Text(verbatim: " \(item.name)"))
                 .help("Delete preset")
             }
         }
