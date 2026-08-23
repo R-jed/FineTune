@@ -1,14 +1,35 @@
 // FineTune/Views/Components/SectionHeader.swift
 import SwiftUI
 
-/// A styled section header for organizing content
-/// Renders text in uppercase with letter spacing
+/// A styled section header for organizing content.
+/// Static FineTune-owned labels stay localizable; dynamic/external labels must opt into verbatim rendering.
 struct SectionHeader: View {
-    let title: LocalizedStringResource
+    private enum Title {
+        case localized(LocalizedStringResource)
+        case verbatim(String)
+    }
+
+    private let title: Title
+
+    init(title: LocalizedStringResource) {
+        self.title = .localized(title)
+    }
+
+    init(verbatimTitle: String) {
+        self.title = .verbatim(verbatimTitle)
+    }
+
+    private var text: Text {
+        switch title {
+        case .localized(let resource):
+            Text(resource)
+        case .verbatim(let value):
+            Text(verbatim: value)
+        }
+    }
 
     var body: some View {
-        Text(title)
-            .sectionHeaderStyle()
+        text.sectionHeaderStyle()
     }
 }
 
