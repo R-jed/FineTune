@@ -1,6 +1,7 @@
 // FineTune/Views/Components/DeviceIconPicker.swift
 import SwiftUI
 import AppKit
+import Foundation
 
 /// Popover content for choosing a device's icon override. Selection applies
 /// immediately via `onSelect` and the popover stays open for further browsing;
@@ -11,6 +12,7 @@ struct DeviceIconPicker: View {
     let currentOverride: String?
     let onSelect: (String?) -> Void
 
+    @Environment(\.locale) private var locale
     @State private var query = ""
     @State private var driverIconPresent = false
 
@@ -30,7 +32,7 @@ struct DeviceIconPicker: View {
                     if trimmedQuery.isEmpty {
                         gridSection(title: "Suggested", symbols: suggestedSymbols, highlighted: highlighted)
                         ForEach(DeviceIconCatalog.categories) { category in
-                            if let title = localizedCategoryTitle(for: category.name) {
+                            if let title = Self.localizedCategoryTitle(for: category.name) {
                                 gridSection(
                                     title: title,
                                     symbols: category.entries.map(\.symbol),
@@ -78,7 +80,7 @@ struct DeviceIconPicker: View {
         query.trimmingCharacters(in: .whitespaces)
     }
 
-    private func localizedCategoryTitle(for name: String) -> LocalizedStringResource? {
+    static func localizedCategoryTitle(for name: String) -> LocalizedStringResource? {
         switch name {
         case "Headphones & Earbuds": return "Headphones & Earbuds"
         case "Speakers": return "Speakers"
@@ -89,9 +91,37 @@ struct DeviceIconPicker: View {
         }
     }
 
+    static func localizedCategoryTitle(forSymbol symbol: String) -> LocalizedStringResource? {
+        guard let category = DeviceIconCatalog.categories.first(where: { category in
+            category.entries.contains(where: { $0.symbol == symbol })
+        }) else { return nil }
+        return localizedCategoryTitle(for: category.name)
+    }
+
+    static func matchingEntries(query: String, locale: Locale) -> [DeviceIconCatalog.Entry] {
+        let trimmed = query.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return DeviceIconCatalog.allEntries }
+
+        var matches = DeviceIconCatalog.matching(trimmed)
+        var seen = Set(matches.map(\.symbol))
+
+        for category in DeviceIconCatalog.categories {
+            guard let title = localizedCategoryTitle(for: category.name) else { continue }
+            let localizedTitle = String(localized: title, locale: locale)
+            guard localizedTitle.localizedCaseInsensitiveContains(trimmed)
+                    || category.name.localizedCaseInsensitiveContains(trimmed) else { continue }
+
+            for entry in category.entries where seen.insert(entry.symbol).inserted {
+                matches.append(entry)
+            }
+        }
+
+        return matches
+    }
+
     @ViewBuilder
     private func searchResults(highlighted: String?) -> some View {
-        let hits = DeviceIconCatalog.matching(trimmedQuery).map(\.symbol)
+        let hits = Self.matchingEntries(query: trimmedQuery, locale: locale).map(\.symbol)
         if hits.isEmpty {
             Text("No matching icons")
                 .font(DesignTokens.Typography.caption)
@@ -207,8 +237,11 @@ private struct IconCell: View {
 
     @State private var isHovered = false
 
-    private var descriptor: String {
-        DeviceIconCatalog.entry(for: symbol)?.keywords.first?.capitalized ?? symbol
+    private var descriptor: Text {
+        if let category = DeviceIconPicker.localizedCategoryTitle(forSymbol: symbol) {
+            return Text(category) + Text(verbatim: ", \(symbol)")
+        }
+        return Text(verbatim: symbol)
     }
 
     var body: some View {
@@ -233,8 +266,8 @@ private struct IconCell: View {
         .buttonStyle(.plain)
         .onHover { isHovered = $0 }
         .animation(DesignTokens.Animation.hover, value: isHovered)
-        .help(Text(verbatim: symbol))
-        .accessibilityLabel(Text("Choose device icon") + Text(verbatim: ": \(descriptor)"))
+        .help(descriptor)
+        .accessibilityLabel(Text("Choose device icon") + Text(verbatim: ": ") + descriptor)
     }
 
     private var fill: Color {
