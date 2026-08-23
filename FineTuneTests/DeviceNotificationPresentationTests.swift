@@ -28,6 +28,26 @@ struct DeviceNotificationPresentationTests {
         #expect(multiple.body == "“USB DAC” disconnected. 2 apps switched to “MacBook Pro Speakers”.")
     }
 
+    @Test("English notification copy owns fallback device labels")
+    func englishFallbackCopy() {
+        let disconnected = DeviceNotificationPresentation.disconnected(
+            deviceName: "USB DAC",
+            fallbackName: nil,
+            affectedAppCount: 1,
+            language: .english,
+            baseLocale: locale
+        )
+        #expect(disconnected.body == "“USB DAC” disconnected. 1 app switched to “none”.")
+
+        let defaultChanged = DeviceNotificationPresentation.defaultChanged(
+            newDeviceName: nil,
+            affectedAppCount: 2,
+            language: .english,
+            baseLocale: locale
+        )
+        #expect(defaultChanged.body == "2 apps switched to “Default Output”.")
+    }
+
     @Test("Simplified Chinese notification copy uses natural word order")
     func chineseCopy() {
         let reconnect = DeviceNotificationPresentation.reconnected(
