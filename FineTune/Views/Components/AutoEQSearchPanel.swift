@@ -472,12 +472,12 @@ struct AutoEQSearchPanel: View {
 
     @ViewBuilder
     private var catalogError: some View {
-        if case .error(let message) = profileManager.catalogState,
+        if case .error = profileManager.catalogState,
            profileManager.catalogEntries.isEmpty {
             HStack(spacing: DesignTokens.Spacing.xs) {
                 Image(systemName: "exclamationmark.triangle")
                     .font(.system(size: 10))
-                Text(verbatim: message)
+                Text("Failed to load")
                     .font(.system(size: 10))
             }
             .foregroundStyle(.red.opacity(0.9))
