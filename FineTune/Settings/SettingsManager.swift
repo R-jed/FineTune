@@ -26,6 +26,7 @@ nonisolated struct AppSettings: Codable, Equatable {
     // General
     var launchAtLogin: Bool = false
     var menuBarIconStyle: MenuBarIconStyle = .default
+    var language: AppLanguage = .system
 
     // Audio
     var defaultNewAppVolume: Float = 1.0      // 100% (unity gain)
@@ -67,6 +68,7 @@ nonisolated struct AppSettings: Codable, Equatable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         launchAtLogin = try c.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? false
         menuBarIconStyle = try c.decodeIfPresent(MenuBarIconStyle.self, forKey: .menuBarIconStyle) ?? .default
+        language = try c.decodeIfPresent(AppLanguage.self, forKey: .language) ?? .system
         defaultNewAppVolume = try c.decodeIfPresent(Float.self, forKey: .defaultNewAppVolume) ?? 1.0
         lockInputDevice = try c.decodeIfPresent(Bool.self, forKey: .lockInputDevice) ?? true
         showDeviceDisconnectAlerts = try c.decodeIfPresent(Bool.self, forKey: .showDeviceDisconnectAlerts) ?? true
