@@ -30,11 +30,19 @@ struct DeviceIconPicker: View {
                     if trimmedQuery.isEmpty {
                         gridSection(title: "Suggested", symbols: suggestedSymbols, highlighted: highlighted)
                         ForEach(DeviceIconCatalog.categories) { category in
-                            gridSection(
-                                verbatimTitle: category.name,
-                                symbols: category.entries.map(\.symbol),
-                                highlighted: highlighted
-                            )
+                            if let title = localizedCategoryTitle(for: category.name) {
+                                gridSection(
+                                    title: title,
+                                    symbols: category.entries.map(\.symbol),
+                                    highlighted: highlighted
+                                )
+                            } else {
+                                gridSection(
+                                    verbatimTitle: category.name,
+                                    symbols: category.entries.map(\.symbol),
+                                    highlighted: highlighted
+                                )
+                            }
                         }
                     } else {
                         searchResults(highlighted: highlighted)
@@ -68,6 +76,17 @@ struct DeviceIconPicker: View {
 
     private var trimmedQuery: String {
         query.trimmingCharacters(in: .whitespaces)
+    }
+
+    private func localizedCategoryTitle(for name: String) -> LocalizedStringResource? {
+        switch name {
+        case "Headphones & Earbuds": return "Headphones & Earbuds"
+        case "Speakers": return "Speakers"
+        case "Computers & Displays": return "Computers & Displays"
+        case "Microphones": return "Microphones"
+        case "Connectors & Other": return "Connectors & Other"
+        default: return nil
+        }
     }
 
     @ViewBuilder
@@ -188,6 +207,10 @@ private struct IconCell: View {
 
     @State private var isHovered = false
 
+    private var descriptor: String {
+        DeviceIconCatalog.entry(for: symbol)?.keywords.first?.capitalized ?? symbol
+    }
+
     var body: some View {
         Button(action: onSelect) {
             Image(systemName: symbol)
@@ -210,8 +233,8 @@ private struct IconCell: View {
         .buttonStyle(.plain)
         .onHover { isHovered = $0 }
         .animation(DesignTokens.Animation.hover, value: isHovered)
-        .help(symbol)
-        .accessibilityLabel(DeviceIconCatalog.entry(for: symbol)?.keywords.first?.capitalized ?? symbol)
+        .help(Text(verbatim: symbol))
+        .accessibilityLabel(Text("Choose device icon") + Text(verbatim: ": \(descriptor)"))
     }
 
     private var fill: Color {
