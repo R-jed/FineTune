@@ -33,6 +33,27 @@ struct DeviceEditRow<ExpandedContent: View>: View {
         )
     }
 
+    private var detailsAccessibilityLabel: LocalizedStringResource {
+        isExpanded ? "Collapse device details" : "Expand device details"
+    }
+
+    private var hideHelpText: LocalizedStringResource {
+        if isDefault { return "Cannot hide the default device" }
+        return isHidden ? "Show in main view" : "Hide from main view"
+    }
+
+    private var hideAccessibilityLabel: LocalizedStringResource {
+        isHidden ? "Show in main view" : "Hide from main view"
+    }
+
+    private var inspectorHelpText: LocalizedStringResource {
+        isExpanded ? "Close device inspector" : "Device inspector"
+    }
+
+    private var inspectorAccessibilityLabel: LocalizedStringResource {
+        isExpanded ? "Close device inspector" : "Open device inspector"
+    }
+
     var body: some View {
         ExpandableGlassRow(isExpanded: isExpanded) {
             headerRow
@@ -69,10 +90,10 @@ struct DeviceEditRow<ExpandedContent: View>: View {
             iconButton
 
             HStack(spacing: DesignTokens.Spacing.sm) {
-                Text(device.name)
+                Text(verbatim: device.name)
                     .font(DesignTokens.Typography.rowName)
                     .lineLimit(1)
-                    .help(device.uid)
+                    .help(Text(verbatim: device.uid))
 
                 if isDefault {
                     Text("DEFAULT")
@@ -91,7 +112,7 @@ struct DeviceEditRow<ExpandedContent: View>: View {
             .contentShape(Rectangle())
             .onTapGesture { onToggleExpand() }
             .accessibilityAddTraits(.isButton)
-            .accessibilityLabel(isExpanded ? "Collapse device details" : "Expand device details")
+            .accessibilityLabel(Text(detailsAccessibilityLabel))
 
             hideToggleButton
 
@@ -163,11 +184,8 @@ struct DeviceEditRow<ExpandedContent: View>: View {
         }
         .buttonStyle(.plain)
         .disabled(isDefault)
-        .help(isDefault
-            ? "Cannot hide the default device"
-            : (isHidden ? "Show in main view" : "Hide from main view")
-        )
-        .accessibilityLabel(isHidden ? "Show in main view" : "Hide from main view")
+        .help(hideHelpText)
+        .accessibilityLabel(Text(hideAccessibilityLabel))
     }
 
     private var infoButton: some View {
@@ -194,8 +212,8 @@ struct DeviceEditRow<ExpandedContent: View>: View {
         }
         .buttonStyle(.plain)
         .onHover { isInfoButtonHovered = $0 }
-        .help(isExpanded ? "Close device inspector" : "Device inspector")
-        .accessibilityLabel(isExpanded ? "Close device inspector" : "Open device inspector")
+        .help(inspectorHelpText)
+        .accessibilityLabel(Text(inspectorAccessibilityLabel))
         .animation(.spring(response: 0.3, dampingFraction: 0.75), value: isExpanded)
         .animation(DesignTokens.Animation.hover, value: isInfoButtonHovered)
     }
@@ -237,7 +255,7 @@ private struct EditablePriority: View {
                     .onExitCommand { cancel() }
                     .fixedSize()
             } else {
-                Text("\(displayNumber)")
+                Text(verbatim: "\(displayNumber)")
                     .font(.system(size: 11, weight: .semibold).monospacedDigit())
                     .foregroundStyle(isHovered ? DesignTokens.Colors.textPrimary : textColor)
             }
