@@ -77,7 +77,7 @@ nonisolated struct DeviceNotificationPresentation: Equatable {
 
         return Self(
             title: title,
-            body: "“\(deviceName)”\(afterDevice)\(affectedAppCount)\(switchedTo)\(fallbackName)\(sentenceEnd)"
+            body: "“\(deviceName)”\(afterDevice)\(affectedAppCount)\(switchedTo)“\(fallbackName)”\(sentenceEnd)"
         )
     }
 
