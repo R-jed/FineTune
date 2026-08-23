@@ -202,4 +202,37 @@ struct LocalizedPresentationTests {
         #expect(owner?.pid == 4321)
         #expect(owner?.processName == "Audirvana")
     }
+
+    @Test("Phase 7 completeness resources resolve to Simplified Chinese")
+    func phase7CompletenessResources() {
+        let expected: [(String, String)] = [
+            ("Audio capture access required", "需要音频捕获权限"),
+            ("Enable in System Settings → Privacy & Security → Screen & System Audio Recording", "请在“系统设置”→“隐私与安全性”→“屏幕与系统音频录制”中启用"),
+            ("Open System Settings", "打开系统设置"),
+            ("Grant Access", "授予权限"),
+            ("Edit volume percentage", "编辑音量百分比"),
+            ("Mute", "静音"),
+            ("Unmute", "取消静音"),
+            ("Mute microphone", "将麦克风静音"),
+            ("Unmute microphone", "取消麦克风静音"),
+            ("Default device", "默认设备"),
+            ("Set as default", "设为默认设备"),
+            ("Pin app", "固定应用"),
+            ("Unpin app", "取消固定应用"),
+            ("Ignore app", "忽略应用"),
+            ("Stop ignoring", "取消忽略"),
+            ("Close Equalizer", "关闭均衡器"),
+            ("Connect", "连接"),
+            ("Couldn't connect", "无法连接"),
+            ("Connection timed out", "连接超时"),
+            (" (off)", "（已关闭）"),
+            ("Volume boost:", "音量增强："),
+            ("Volume boost", "音量增强"),
+            ("Open", "打开")
+        ]
+
+        for (source, translated) in expected {
+            #expect(chinese.localized(source) == translated)
+        }
+    }
 }
