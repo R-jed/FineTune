@@ -1,9 +1,18 @@
+import Foundation
 import AudioToolbox
 
 enum VolumeControlTier: String, Codable, Equatable {
     case hardware
     case ddc
     case software
+
+    var displayName: LocalizedStringResource {
+        switch self {
+        case .hardware: "Hardware"
+        case .ddc: "DDC"
+        case .software: "Software"
+        }
+    }
 }
 
 @MainActor

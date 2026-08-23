@@ -108,7 +108,7 @@ struct ShortcutsTab: View {
         }
     }
 
-    private func description(for action: ShortcutAction) -> String {
+    private func description(for action: ShortcutAction) -> LocalizedStringResource {
         switch action {
         case .togglePopup: "Show or hide the menu bar popup"
         case .targetAppVolumeUp: "Raise volume for the app playing audio"

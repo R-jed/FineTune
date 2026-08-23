@@ -1,22 +1,229 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "App Mute" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "App Mute" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "应用静音" } }
+      }
+    },
+    "App Volume Down" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "App Volume Down" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "降低应用音量" } }
+      }
+    },
+    "App Volume Up" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "App Volume Up" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "提高应用音量" } }
+      }
+    },
+    "Classic" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Classic" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "经典" } }
+      }
+    },
+    "Coarse (12.5%)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Coarse (12.5%)" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "粗调 (12.5%)" } }
+      }
+    },
+    "Comfortable" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Comfortable" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "舒适" } }
+      }
+    },
+    "Compact" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Compact" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "紧凑" } }
+      }
+    },
+    "Dark" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Dark" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "深色" } }
+      }
+    },
+    "DDC" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "DDC" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "DDC" } }
+      }
+    },
+    "Default" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Default" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "默认" } }
+      }
+    },
+    "Device" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Device" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "设备" } }
+      }
+    },
+    "English" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "English" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "English" } }
+      }
+    },
+    "Equalizer" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Equalizer" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "均衡器" } }
+      }
+    },
+    "Extra-Fine (1.56%)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Extra-Fine (1.56%)" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "超细调 (1.56%)" } }
+      }
+    },
+    "Fine (3.13%)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Fine (3.13%)" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "细调 (3.13%)" } }
+      }
+    },
+    "Follow System" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Follow System" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "跟随系统" } }
+      }
+    },
+    "Hardware" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Hardware" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "硬件" } }
+      }
+    },
+    "Light" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Light" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "浅色" } }
+      }
+    },
     "Localization" : {
       "comment" : "Foundation localization probe used by tests and as a minimal verified catalog entry.",
       "extractionState" : "manual",
       "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Localization"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "本地化"
-          }
-        }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Localization" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "本地化" } }
+      }
+    },
+    "Lower volume for the app playing audio" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Lower volume for the app playing audio" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "降低正在播放音频的应用音量" } }
+      }
+    },
+    "Mute or unmute the app playing audio" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Mute or unmute the app playing audio" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "将正在播放音频的应用静音或取消静音" } }
+      }
+    },
+    "Normal (6.25%)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Normal (6.25%)" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "标准 (6.25%)" } }
+      }
+    },
+    "Raise volume for the app playing audio" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Raise volume for the app playing audio" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "提高正在播放音频的应用音量" } }
+      }
+    },
+    "Show or hide the menu bar popup" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Show or hide the menu bar popup" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "显示或隐藏菜单栏弹窗" } }
+      }
+    },
+    "Software" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Software" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "软件" } }
+      }
+    },
+    "Spacious" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Spacious" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "宽敞" } }
+      }
+    },
+    "Speaker" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Speaker" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "扬声器" } }
+      }
+    },
+    "System" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "System" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "系统" } }
+      }
+    },
+    "Tahoe" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Tahoe" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Tahoe" } }
+      }
+    },
+    "Toggle FineTune Popup" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Toggle FineTune Popup" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "切换 FineTune 弹窗" } }
+      }
+    },
+    "Waveform" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Waveform" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "波形" } }
+      }
+    },
+    "简体中文" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "简体中文" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "简体中文" } }
       }
     }
   },

@@ -18,4 +18,12 @@ nonisolated enum AppLanguage: String, Codable, CaseIterable, Equatable, Sendable
             "zh-Hans"
         }
     }
+
+    var displayName: LocalizedStringResource {
+        switch self {
+        case .system: "Follow System"
+        case .english: "English"
+        case .simplifiedChinese: "简体中文"
+        }
+    }
 }
