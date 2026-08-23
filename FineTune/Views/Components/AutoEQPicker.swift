@@ -42,6 +42,10 @@ struct AutoEQPicker: View {
         return DesignTokens.Colors.interactiveDefault
     }
 
+    private var triggerHelp: LocalizedStringResource {
+        isExpanded ? "Close AutoEQ" : "AutoEQ correction"
+    }
+
     // MARK: - Body
 
     var body: some View {
@@ -77,7 +81,7 @@ struct AutoEQPicker: View {
         }
         .buttonStyle(.plain)
         .onHover { isButtonHovered = $0 }
-        .help(isExpanded ? "Close AutoEQ" : "AutoEQ correction")
+        .help(triggerHelp)
         .animation(DesignTokens.Animation.hover, value: isButtonHovered)
     }
 
