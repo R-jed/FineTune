@@ -1,95 +1,79 @@
 # UI Localization Task List
 
-Status: Updated from verified repository state on 2026-08-23. A checked item means its stated automated/source verification has been demonstrated. Manual GUI items remain open until observed in a macOS UI runtime.
+Status: Updated from verified repository state on 2026-08-24. Checked source/automated items have evidence. Manual macOS GUI items remain open until observed in a real UI runtime.
 
-## Foundation
+## Foundation and architecture
 
 - [x] Stable `AppLanguage` persistence with raw values `system`, `en`, and `zh-Hans`.
 - [x] Backward-compatible decoding of older settings without a language field.
 - [x] Simplified Chinese project localization registration.
 - [x] `FineTune/Localizable.xcstrings` and `FineTune/InfoPlist.xcstrings` added and built.
 - [x] Central `LocalizationContext` implemented.
-- [x] Explicit language presentation preserves current region behavior in focused tests.
+- [x] User region preserved for regional formatting in focused tests.
 - [x] Auto semantics implemented and tested.
   - Chinese first preferred language -> `zh-Hans`.
   - Every other first preferred language -> `en`.
   - Empty/unusable list -> `en`.
   - Only the first preferred language controls the result.
 - [x] Settings and menu-bar roots use the shared resolved FineTune locale.
-- [x] Deferred `LocalizedStringResource` resolution is used for first-party non-SwiftUI String boundaries.
+- [x] Detached popover and HUD roots receive the selected FineTune locale.
+- [x] `LocalizedStringResource` is retained through first-party presentation boundaries and resolved only at final String-only boundaries.
+- [x] Dynamic app/device/profile/user identity values remain outside localization lookup.
 
-## Shared presentation boundaries
-
-- [x] Settings shared components preserve localizable presentation types.
-- [x] Common first-party label components preserve localization intent.
-- [x] Localized display values are separated from stable raw/Codable identifiers.
-- [x] Dynamic app/device/profile/user names remain outside localization lookup.
-
-## Settings
+## First-party UI coverage
 
 - [x] General Settings exposes `Auto`, `English`, and `简体中文`.
-- [x] Settings root and General first-party text localized.
-- [x] Audio Settings first-party text localized.
-- [x] Shortcuts Settings first-party labels/descriptions localized.
-- [x] Updates Settings first-party text and feature-aware formatting localized.
-- [x] About Settings first-party text localized.
-
-## Menu bar and common rows
-
-- [x] Menu bar popup shell first-party text localized.
-- [x] Count/interpolated popup presentation covered by localized resources/tests.
-- [x] App-row first-party controls localized.
-- [x] Device-row and picker first-party controls localized.
-- [x] Permission presentation resources localized.
-- [x] Shared help/accessibility resources from the Phase 7 audit localized.
-
-## EQ, AutoEQ, and device presentation
-
-- [x] EQ first-party UI localized.
-- [x] Built-in EQ preset/category display labels localized without changing stored model values.
+- [x] Settings tabs and shared Settings controls localized.
+- [x] Menu-bar popup shell and common row controls localized.
+- [x] Permission presentation localized.
+- [x] EQ built-in presentation localized without changing stored preset identity.
 - [x] AutoEQ first-party UI localized while external profile/model/source names remain verbatim.
-- [x] Device inspector/detail first-party presentation localized while technical values remain stable.
-- [x] AutoEQ disabled-state suffix localized without localizing the dynamic profile name.
-
-## Detached roots and HUD
-
-- [x] Shared popover hosting propagates FineTune locale.
-- [x] Tahoe HUD root propagates FineTune locale.
-- [x] Classic HUD root propagates FineTune locale.
-- [x] Per-app HUD roots propagate FineTune locale.
-- [x] HUD static copy and accessibility presentation centralized and tested.
-
-## AppKit, notifications, errors, and privacy metadata
-
-- [x] FineTune-owned AppKit String presentation localized.
-- [x] Bluetooth connection errors converted to typed state and localized at presentation.
-- [x] FineTune reconnect/disconnect/default-device notification presentation implemented and tested.
-- [x] Production `AudioEngine` notification methods connected to `DeviceNotificationPresentation`.
-- [x] Nil disconnect fallback and nil default-output fallback localized semantically.
-- [x] Dynamic device names remain verbatim in notification tests.
+- [x] Device inspector/detail presentation localized while technical values remain stable.
+- [x] Bluetooth connection failures use typed state and localized presentation.
+- [x] FineTune reconnect/disconnect/default-device notifications use localized presentation.
+- [x] Missing disconnect/default device fallback names localize semantically.
+- [x] FineTune-owned AppKit messages localize at the String boundary.
 - [x] Privacy purpose strings have English and Simplified Chinese resources.
+- [x] HUD static copy and accessibility presentation centralized and tested.
+- [x] Shared help and accessibility copy from the source audit localized.
+
+## Final source-review fixes
+
+- [x] Device-icon category headers localize.
+- [x] Device-icon search accepts representative Simplified Chinese category queries such as `耳机`, `麦克风`, and `显示器`.
+- [x] Device-icon accessibility descriptors use localized category presentation while SF Symbol identifiers remain verbatim.
+- [x] CI #85 compile regression from the wrong `String(localized:locale:)` overload diagnosed from exact logs.
+- [x] Device-icon resource resolution repaired without adding a generic dynamic-string localization API.
+- [x] Device-icon tests use `LocalizationContext` as the typed localization boundary.
+- [x] AutoEQ catalog failure no longer renders the fetcher's English runtime error string verbatim.
+- [x] AutoEQ catalog failure reuses existing localized `Failed to load` copy; detailed fetch diagnostics remain internal/logged.
+- [x] Defensive `SettingsManager.createUserPreset` `Untitled` fallback reviewed. Shipping `EQPanelView` prevents empty names before this call, so the fallback is not exposed through the reviewed product UI.
 
 ## Catalog and regression protection
 
-- [x] Phase 7 catalog completeness regression tests added for known audited resources.
-- [x] Simplified Chinese presentation regression tests added.
+- [x] Phase 7 catalog completeness tests cover known audited resources.
+- [x] Simplified Chinese presentation regression tests exist.
 - [x] Generated String Catalog collisions for ` (off)` and `Volume boost:` fixed without disabling generated symbols globally.
-- [x] Typed localization boundary retained after CI #79 failure analysis.
 - [x] `notification.noFallbackDevice` Chinese resource verified.
 - [x] `notification.defaultOutputFallback` Chinese resource verified.
+- [x] Device-picker, mode-toggle, EQ, AutoEQ, device-inspector, Bluetooth, notification, and HUD resources rechecked in the full catalog blob.
 
 ## Build and source review
 
 - [x] CI #81 passed after localization test-boundary repair.
-- [x] CI #82 passed on the previous handoff head.
+- [x] CI #82 passed on the earlier handoff state.
 - [x] CI #83 passed after production AudioEngine notification integration.
-  - Run `32638398426`.
-  - Job `97191501640`.
+- [x] CI #84 passed on the documentation-synchronized state.
+- [x] CI #85 failure root cause identified and repaired.
+- [x] CI #87 passed on verified production-code head `ad4e09077e708de0989b4e5ceb9bab5d8e22c03e`.
+  - Run `32651747504`.
+  - Job `97224371006`.
+  - Build, Test, test-result upload, and complete job all succeeded.
 - [x] AudioEngine candidate diff reviewed before branch advancement.
 - [x] AudioEngine production diff limited to notification presentation integration.
-- [x] Feature branch compared with `main`; no observed dependency upgrade, release, signing, or appcast drift.
-- [x] Adversarial spot checks found presentation/localization changes rather than unrelated business-logic changes.
-- [ ] Fresh CI on the final documentation-synchronized branch head.
+- [x] High-risk unchanged presentation files under Views, Settings, Utilities, Coordination, and menu-bar support were reviewed for user-facing localization boundaries.
+- [x] Existing false-negative catalog searches caused by a truncated API response were corrected by checking the full catalog blob.
+- [x] `HANDOFF.md` refreshed with the verified code baseline and final source-review findings.
 
 ## Dependency and system boundaries
 
@@ -100,9 +84,9 @@ Status: Updated from verified repository state on 2026-08-23. A checked item mea
   - Custom Sparkle user driver remains outside scope.
 - [x] KeyboardShortcuts 2.4.0 source behavior reviewed.
   - `zh-Hans` resources exist.
-  - package-owned Recorder text uses the package resource bundle.
+  - Package-owned Recorder text uses the package resource bundle.
   - FineTune runtime locale does not guarantee control of package-owned Recorder/conflict-alert language.
-  - dependency replacement solely for this purpose remains outside scope.
+  - Dependency replacement solely for this purpose remains outside scope.
 - [x] macOS-owned surface boundary classified.
   - FineTune owns purpose-string values and custom messages.
   - macOS owns privacy-prompt and standard-panel chrome language.
@@ -110,7 +94,7 @@ Status: Updated from verified repository state on 2026-08-23. A checked item mea
 - [ ] Observe KeyboardShortcuts Recorder/conflict alerts in the live matrix.
 - [ ] Observe privacy-prompt and standard-panel chrome where practical.
 
-## Manual macOS GUI verification
+## Manual macOS GUI verification for the local agent
 
 - [ ] Explicit English Settings review at target size.
 - [ ] Explicit Simplified Chinese Settings review at target size.
@@ -122,19 +106,20 @@ Status: Updated from verified repository state on 2026-08-23. A checked item mea
 - [ ] Output and Input presentation.
 - [ ] Device edit and app edit states.
 - [ ] App/device/Bluetooth rows.
+- [ ] Device-icon picker category headers, Chinese search, help, and VoiceOver labels.
 - [ ] EQ representative flows.
-- [ ] AutoEQ no-selection, selected, loading, search, favorites, import success, and import failure states.
+- [ ] AutoEQ no-selection, selected, loading, search, favorites, import success, import failure, and catalog failure states.
 - [ ] Permission presentation.
 - [ ] Device inspector/detail states.
 - [ ] FineTune notification display.
 - [ ] Help/accessibility presentation.
-- [ ] Review clipping, overlap, wrapping, truncation, and translation quality.
+- [ ] Review clipping, overlap, wrapping, truncation, visual balance, and Chinese translation quality.
 
 ## Final merge gate
 
-- [ ] Final branch head has green Build and Test.
-- [ ] Manual macOS GUI review evidence is recorded when a runtime is available.
+- [ ] Re-fetch the actual final branch head immediately before merge review and confirm Build and Test are green.
+- [ ] Manual macOS GUI review evidence is recorded.
 - [ ] Dependency/system observations are recorded accurately.
 - [ ] Final `main` comparison is re-run immediately before merge review.
-- [ ] `HANDOFF.md` reflects the final head and verification truth.
-- [ ] PR #5 remains unmerged until explicit authorization.
+- [ ] No unrelated release, signing, appcast, dependency, or business-logic drift is present.
+- [ ] PR #5 remains unmerged until explicit authorization is given.
