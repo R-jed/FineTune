@@ -52,13 +52,6 @@ struct DevicePicker: View {
             case .device(let device): return device.uid
             }
         }
-
-        var name: String {
-            switch self {
-            case .systemAudio: return "System Audio"
-            case .device(let device): return device.name
-            }
-        }
     }
 
     private var menuItems: [MenuItem] {
@@ -72,8 +65,9 @@ struct DevicePicker: View {
         devices.filter { selectedDeviceUIDs.contains($0.uid) }
     }
 
-    /// Display text for trigger button
-    private var triggerText: String {
+    /// Display text for the trigger button. Static copy stays localizable while
+    /// device names remain verbatim external data.
+    private var triggerText: Text {
         switch mode {
         case .single:
             return singleModeText
@@ -83,20 +77,20 @@ struct DevicePicker: View {
                 return singleModeText
             }
             if count == 1 {
-                return validMultiSelections[0].name
+                return Text(verbatim: validMultiSelections[0].name)
             }
-            return "\(count) devices"
+            return Text(verbatim: "\(count) ") + Text("devices")
         }
     }
 
-    /// Text for single-mode display (also used as fallback for empty multi-mode)
-    private var singleModeText: String {
+    /// Text for single-mode display (also used as fallback for empty multi-mode).
+    private var singleModeText: Text {
         if isFollowingDefault {
-            return "System Audio"
+            return Text("System Audio")
         } else if let device = devices.first(where: { $0.uid == selectedDeviceUID }) {
-            return device.name
+            return Text(verbatim: device.name)
         }
-        return "Select"
+        return Text("Select")
     }
 
     @ViewBuilder
@@ -223,7 +217,7 @@ struct DevicePicker: View {
             HStack(spacing: DesignTokens.Spacing.xs) {
                 HStack(spacing: DesignTokens.Spacing.xs) {
                     triggerIcon
-                    Text(triggerText)
+                    triggerText
                         .font(.system(size: 11, weight: .medium))
                         .lineLimit(1)
                 }
@@ -523,7 +517,7 @@ private struct DevicePickerRow: View {
                 }
             }
         case .device(let device):
-            Text(device.name)
+            Text(verbatim: device.name)
                 .lineLimit(1)
         }
     }
