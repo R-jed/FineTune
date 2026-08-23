@@ -85,6 +85,7 @@ final class HUDWindowController: MediaKeyHUDPresenting {
 
         let style = settingsManager.appSettings.hudStyle
         let appearance = settingsManager.appSettings.appearance
+        let locale = LocalizationContext(language: settingsManager.appSettings.language).overrideLocale
         styleAtLastShow = style
         let panel = ensurePanel()
         // Refresh on every show so a preference change between invocations
@@ -112,12 +113,14 @@ final class HUDWindowController: MediaKeyHUDPresenting {
                         self?.handleHoverChange(hovering)
                     }
                 )
+                .fineTuneLocale(locale)
                 .preferredColorScheme(scheme)
             )
             size = NSSize(width: 300, height: 72)
         case .classic:
             root = AnyView(
                 ClassicStyleHUD(sliderFraction: displayFraction, mute: mute)
+                    .fineTuneLocale(locale)
                     .preferredColorScheme(scheme)
             )
             size = NSSize(width: 200, height: 200)
@@ -191,6 +194,7 @@ final class HUDWindowController: MediaKeyHUDPresenting {
         }
 
         let appearance = settingsManager.appSettings.appearance
+        let locale = LocalizationContext(language: settingsManager.appSettings.language).overrideLocale
         styleAtLastShow = .tahoe
         let panel = ensurePanel()
         panel.appearance = appearance.nsAppearance
@@ -199,6 +203,7 @@ final class HUDWindowController: MediaKeyHUDPresenting {
         let scheme = appearance.swiftUIColorScheme
         let root = AnyView(
             PerAppHUD(icon: icon, title: title, content: content)
+                .fineTuneLocale(locale)
                 .preferredColorScheme(scheme)
         )
         let size = NSSize(width: 300, height: 72)
