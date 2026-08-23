@@ -50,8 +50,17 @@ struct DeviceIconPickerTests {
             return
         }
 
-        #expect(String(localized: resource, locale: Locale(identifier: "en")) == "Headphones & Earbuds")
-        #expect(String(localized: resource, locale: Locale(identifier: "zh-Hans")) == "耳机与耳塞")
+        let english = LocalizationContext(
+            language: .english,
+            baseLocale: Locale(identifier: "en_US")
+        )
+        let chinese = LocalizationContext(
+            language: .simplifiedChinese,
+            baseLocale: Locale(identifier: "en_US")
+        )
+
+        #expect(english.localized(resource) == "Headphones & Earbuds")
+        #expect(chinese.localized(resource) == "耳机与耳塞")
     }
 }
 
