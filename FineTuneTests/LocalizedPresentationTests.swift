@@ -75,4 +75,18 @@ struct LocalizedPresentationTests {
         #expect(chinese.localized(ShortcutAction.targetAppMuteToggle.displayName) == "应用静音")
         #expect(chinese.localized(VolumeControlTier.hardware.displayName) == "硬件")
     }
+
+    @Test("Settings resources resolve in both supported languages")
+    func settingsResources() {
+        #expect(english.localized("FineTune Settings") == "FineTune Settings")
+        #expect(chinese.localized("FineTune Settings") == "FineTune 设置")
+        #expect(english.localized("Language") == "Language")
+        #expect(chinese.localized("Language") == "语言")
+        #expect(english.localized("Software Updates") == "Software Updates")
+        #expect(chinese.localized("Software Updates") == "软件更新")
+        #expect(english.localized("Never checked") == "Never checked")
+        #expect(chinese.localized("Never checked") == "从未检查")
+        #expect(english.localized("Star on GitHub") == "Star on GitHub")
+        #expect(chinese.localized("Star on GitHub") == "在 GitHub 加星")
+    }
 }

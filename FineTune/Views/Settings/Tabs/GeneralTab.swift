@@ -47,6 +47,20 @@ struct GeneralTab: View {
             }
             SettingsRowDivider()
             SettingsRow(
+                "Language",
+                description: "Choose the language used by FineTune"
+            ) {
+                Picker("", selection: $settings.appSettings.language) {
+                    ForEach(AppLanguage.allCases, id: \.self) { language in
+                        Text(language.displayName).tag(language)
+                    }
+                }
+                .pickerStyle(.menu)
+                .labelsHidden()
+                .fixedSize()
+            }
+            SettingsRowDivider()
+            SettingsRow(
                 "Theme",
                 description: "Match macOS, or lock to Light or Dark"
             ) {
