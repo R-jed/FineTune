@@ -20,9 +20,8 @@ nonisolated struct LocalizationContext: Sendable {
         guard let languageIdentifier = language.languageIdentifier else { return nil }
 
         var components = Locale.Components(locale: baseLocale)
-        var languageComponents = Locale.Language.Components(identifier: languageIdentifier)
-        languageComponents.region = components.region
-        components.languageComponents = languageComponents
+        components.languageComponents = Locale.Language.Components(identifier: languageIdentifier)
+        components.region = baseLocale.region
         return Locale(components: components)
     }
 
