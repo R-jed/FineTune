@@ -1,16 +1,18 @@
 # Technical Background: FineTune UI Localization
 
-Last validated: 2026-08-23
+Last validated: 2026-08-24
 
 This document records the platform and dependency facts that matter for the current localization implementation. `SPEC-ui-localization.md` defines product behavior.
 
 ## Current conclusion
 
-FineTune can provide immediate English/Simplified Chinese switching for FineTune-owned presentation without changing the process-wide macOS application language.
+FineTune provides immediate English/Simplified Chinese switching for FineTune-owned presentation without changing the process-wide macOS application language.
 
-The current product selector is `Auto`, `English`, and `简体中文`.
+The product selector is `Auto`, `English`, and `简体中文`.
 
 `Auto` has superseded the earlier Follow System design. The persisted raw value `system` remains for compatibility, but current runtime behavior always maps FineTune-owned UI to either `en` or `zh-Hans`.
+
+The current first-party source review has found no remaining automated/source localization blocker. Runtime and visual proof still requires a real macOS GUI environment.
 
 ## String Catalog model
 
@@ -19,12 +21,14 @@ FineTune uses Apple's String Catalog toolchain:
 - `FineTune/Localizable.xcstrings` for FineTune-owned UI
 - `FineTune/InfoPlist.xcstrings` for localizable Info.plist values
 
-The application target already enables String Catalog preference, generated symbols, and Swift localization extraction.
+The application target enables String Catalog generated symbols and Swift localization extraction.
 
 Generated symbols remain enabled globally. Two known manual catalog entries disable symbol generation individually to avoid name collisions:
 
 - ` (off)`
 - `Volume boost:`
+
+The legacy `Follow System` catalog entry remains unused. Removing that one unused manual resource is optional cleanup and is intentionally deferred because it has no runtime effect and is not worth a noisy catalog-only rewrite.
 
 ## Runtime language and native application language
 
@@ -53,11 +57,11 @@ This distinction is why dependency/system surfaces may use a different language 
 
 FineTune uses `LocalizedStringResource` for static first-party text that crosses layers or is resolved later.
 
-This is important because localization intent can be lost when static copy is converted to a plain `String` too early.
+This matters because localization intent can be lost when static copy is converted to a plain `String` too early.
 
 Resolve to `String` only at final String-only APIs, including notification content and AppKit presentation.
 
-Do not add a convenience API that accepts arbitrary dynamic String keys. The CI #79 failure showed the value of preserving the typed localization boundary.
+Do not add a convenience API that accepts arbitrary dynamic String keys. CI #79 demonstrated the value of preserving the typed localization boundary.
 
 ## Dynamic external values
 
@@ -71,11 +75,11 @@ Keep these outside localization lookup:
 - bundle identifiers
 - versions/build numbers
 - URLs
-- SF Symbols
+- SF Symbol identifiers
 - protocol and persistence keys
 - other external identity values
 
-The notification presentation tests explicitly verify dynamic device names remain verbatim.
+Notification presentation tests verify dynamic device names remain verbatim.
 
 ## Detached hosting roots
 
@@ -90,6 +94,22 @@ FineTune explicitly propagates the resolved locale into:
 
 Future detached hosting roots must be treated as locale boundaries.
 
+## Device-icon discovery
+
+Device icon category names originate from the internal icon catalog, while presentation needs to follow the selected FineTune locale.
+
+The current implementation keeps SF Symbol identifiers verbatim and exposes typed localized resources for known category titles. Representative Simplified Chinese category searches such as `耳机`, `麦克风`, and `显示器` are covered by tests.
+
+CI #85 exposed an invalid `String(localized:locale:)` overload use during this work. The repair kept the `LocalizedStringResource` boundary and resolves through `LocalizationContext` where a final `String` is required.
+
+## AutoEQ error boundary
+
+`AutoEQFetcher` may carry detailed English runtime diagnostics for network/catalog failures. These are diagnostic/internal values and must not be rendered verbatim as FineTune-owned Chinese UI.
+
+The current `AutoEQSearchPanel` uses localized FineTune-owned `Failed to load` presentation for catalog failure while detailed fetch diagnostics remain available to the lower-level state/logging path.
+
+External AutoEQ profile/model/source names continue to render verbatim.
+
 ## Sparkle 2.8.1
 
 FineTune uses `SPUStandardUpdaterController`.
@@ -98,7 +118,7 @@ Confirmed from Sparkle 2.8.1 source:
 
 - Sparkle ships Chinese localization resources.
 - `SPUStandardUserDriver` uses Sparkle localization helpers.
-- `SULocalizations.h` resolves standard UI strings through `NSLocalizedStringFromTableInBundle` using the Sparkle framework bundle.
+- standard UI strings resolve from the Sparkle framework bundle.
 
 Implication:
 
@@ -121,7 +141,7 @@ Confirmed from tag 2.4.0 source:
 
 - `zh-Hans.lproj` is included.
 - `RecorderCocoa` owns visible placeholder/conflict-alert text.
-- package strings are resolved through `NSLocalizedString(self, bundle: .module, ...)`.
+- package strings are resolved through the package resource bundle.
 
 Implication:
 
@@ -146,20 +166,40 @@ The in-app FineTune selector does not claim control over those surfaces.
 
 ## Production verification state
 
-Current production localization code at `b556b5019b8dc21931416094b0a5c5dc0d30647d` passed CI #83 Build and Test.
+Verified production-code head:
 
-The AudioEngine notification integration was created from an exact source blob, reviewed as a detached candidate, corrected for an accidental missing final newline, rebuilt as one clean commit, compared, and then advanced with a non-force branch update.
+`ad4e09077e708de0989b4e5ceb9bab5d8e22c03e`
 
-This is the preferred workflow for future large sensitive files.
+CI #87 passed Build, Test, test-result upload, and the complete workflow job.
+
+Run id: `32651747504`.
+
+Job id: `97224371006`.
+
+Verified documentation-synchronized head before this technical-background refresh:
+
+`0b94ebe5343f93a564fc3a54898edb45591ccada`
+
+CI #88 also passed Build, Test, test-result upload, and the complete workflow job.
+
+The feature branch was compared against `main` at that head and was ahead 89, behind 0, with 67 changed files. The comparison showed no dependency upgrade, release, signing, entitlement, or appcast drift. The `AudioEngine` diff remains limited to notification presentation integration rather than audio-routing/default-device behavior changes.
+
+## Source-review state
+
+The final source review covers PR-changed files and high-risk unchanged presentation boundaries under `Views`, `Settings`, `Utilities`, `Coordination`, audio permission/monitor presentation, and menu-bar support code.
+
+Observed first-party presentation is catalog-backed/localized or intentionally dynamic/technical. Logging-only English strings are not classified as UI.
+
+`SettingsManager.createUserPreset` retains a defensive `"Untitled"` fallback, but the shipping `EQPanelView` trims and rejects empty names before calling it. The fallback is therefore not exposed through the reviewed product UI.
 
 ## What remains unverified here
 
-The current environment cannot run FineTune's macOS GUI, so the following remain manual runtime checks:
+The current execution environment cannot run FineTune's macOS GUI, so these remain manual runtime checks:
 
 - visual clipping and layout in all required Chinese states
 - live switching across every surface
+- live notification appearance and GUI accessibility behavior
 - live dependency/system language under mismatched native application language and FineTune runtime language
-- accessibility behavior that requires the running GUI
 
 Direct local repository cloning is also unavailable in the current container because `github.com` DNS resolution fails. Source completeness conclusions therefore combine exact GitHub file reads, Git diffs, String Catalog regression tests, focused source review, and CI rather than a local whole-repository regex scan.
 

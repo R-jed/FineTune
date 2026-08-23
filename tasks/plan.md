@@ -1,6 +1,6 @@
 # UI Localization Implementation Plan
 
-Status: First-party implementation is automated-test complete as of 2026-08-23. Remaining gates are macOS GUI verification, dependency/system observation, and final merge review.
+Status: First-party implementation and source review are automated-test complete as of 2026-08-24. Remaining gates are macOS GUI verification, dependency/system observation, and final merge review.
 
 `SPEC-ui-localization.md` is authoritative.
 
@@ -56,6 +56,8 @@ Completed first-party localization for popup shell, Output/Input presentation, e
 
 Completed first-party localization while keeping user preset names, AutoEQ external names, device facts, UIDs/PIDs, and technical units stable.
 
+The final source review additionally verified device-icon category presentation/search/accessibility and removed the AutoEQ catalog-failure English diagnostic leak from user-facing presentation.
+
 ### 6. AppKit, notifications, errors, and privacy metadata
 
 Completed:
@@ -74,10 +76,12 @@ Completed automated/source-review work:
 - Phase 7 inventory
 - Chinese presentation regression tests
 - catalog completeness tests for known Phase 7 resources
-- main-vs-feature comparison
-- focused adversarial review of sensitive presentation changes
+- high-risk unchanged presentation-file review
+- device-icon discovery localization and typed resource-boundary repair
+- AutoEQ catalog-failure presentation repair
 - exact diff review of AudioEngine notification integration
-- no observed release, signing, appcast, or dependency-upgrade drift
+- final comparison against `main` at documentation head `0b94ebe5343f93a564fc3a54898edb45591ccada`
+- no observed dependency, release, signing, entitlement, appcast, or unrelated audio-behavior drift
 
 ## Dependency/system boundary verdict
 
@@ -99,47 +103,34 @@ FineTune controls its purpose strings and custom messages. macOS controls privac
 
 ## Current automated verification
 
-CI #83 at `b556b5019b8dc21931416094b0a5c5dc0d30647d` passed:
+Verified production-code head:
+
+`ad4e09077e708de0989b4e5ceb9bab5d8e22c03e`
+
+CI #87 passed:
 
 - Build
 - Test
 - test-result upload
 - complete workflow job
 
-Run id: `32638398426`
+Run id: `32651747504`
 
-Job id: `97191501640`
+Job id: `97224371006`
 
-Any later documentation or code head must receive a fresh successful CI before being called the final green head.
+Verified documentation-synchronized head before this plan refresh:
+
+`0b94ebe5343f93a564fc3a54898edb45591ccada`
+
+CI #88 also passed Build, Test, test-result upload, and the complete workflow job.
+
+If later code changes are made during local macOS verification, the resulting branch head must receive a fresh successful CI before merge review.
 
 ## Remaining execution plan
 
-### A. Synchronize project records
+### A. macOS GUI smoke matrix
 
-Update:
-
-- `SPEC-ui-localization.md`
-- `TECHNICAL-BACKGROUND-ui-localization.md`
-- `IMPLEMENTATION-READINESS-ui-localization.md`
-- `tasks/phase7-localization-inventory.md`
-- `tasks/todo.md`
-- `HANDOFF.md`
-- PR #5 description
-
-All records must use Auto semantics and current CI truth.
-
-### B. Verify the final documentation head
-
-After the docs-only commit:
-
-1. compare it against the current production-code head
-2. require docs-only differences
-3. wait for a fresh CI run
-4. require Build and Test green
-
-### C. macOS GUI smoke matrix
-
-When a suitable macOS runtime is available, verify:
+On a real macOS runtime, verify:
 
 - explicit English
 - explicit Simplified Chinese
@@ -148,9 +139,9 @@ When a suitable macOS runtime is available, verify:
 
 Review Settings, all popup sizes, Output/Input, edit states, EQ, AutoEQ representative states, device details, permission presentation, notifications, help, and accessibility presentation.
 
-Check clipping, overlap, wrapping, truncation, and translation quality.
+Check clipping, overlap, wrapping, truncation, immediate language switching, and translation quality.
 
-### D. Observe dependency/system surfaces
+### B. Observe dependency/system surfaces
 
 Record actual language used by:
 
@@ -159,18 +150,18 @@ Record actual language used by:
 - privacy-prompt chrome
 - standard file-panel controls
 
-Do not reinterpret these dependency/system surfaces as FineTune-owned failures unless the approved scope changes.
+Treat these as dependency/system observations unless the approved scope changes.
 
-### E. Final merge review
+### C. Final merge review
 
 Before merge authorization:
 
 1. re-fetch `main` and PR head
-2. compare final branch against `main`
-3. confirm no unrelated release/signing/appcast/dependency/audio behavior drift
-4. confirm final CI green
-5. confirm manual GUI review evidence if available
-6. update handoff with final truth
+2. if the local agent changed code, require fresh Build and Test on that exact head
+3. compare the final branch against `main`
+4. confirm no unrelated release/signing/appcast/dependency/audio behavior drift
+5. confirm manual GUI review evidence
+6. record any dependency/system observations accurately
 7. keep PR #5 unmerged until explicit authorization
 
 ## Engineering constraints
