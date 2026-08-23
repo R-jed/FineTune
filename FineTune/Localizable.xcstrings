@@ -1201,6 +1201,241 @@
       "localizations" : {
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "应用此校正配置文件" } }
       }
+    },
+    "Collapse device details" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "收起设备详情" } }
+      }
+    },
+    "Expand device details" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "展开设备详情" } }
+      }
+    },
+    "Cannot hide the default device" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "默认设备无法隐藏" } }
+      }
+    },
+    "Show in main view" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "在主界面中显示" } }
+      }
+    },
+    "Hide from main view" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "从主界面隐藏" } }
+      }
+    },
+    "Close device inspector" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "关闭设备详情" } }
+      }
+    },
+    "Device inspector" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "设备详情" } }
+      }
+    },
+    "Open device inspector" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开设备详情" } }
+      }
+    },
+    "Change icon" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "更改图标" } }
+      }
+    },
+    "Edit priority position" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "调整优先级" } }
+      }
+    },
+    "DEFAULT" : {
+      "extractionState" : "manual",
+      "generatesSymbol" : false,
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "默认" } }
+      }
+    },
+    "Suggested" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "推荐" } }
+      }
+    },
+    "Headphones & Earbuds" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "耳机与耳塞" } }
+      }
+    },
+    "Speakers" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "扬声器" } }
+      }
+    },
+    "Computers & Displays" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "电脑与显示器" } }
+      }
+    },
+    "Microphones" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "麦克风" } }
+      }
+    },
+    "Connectors & Other" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "连接与其他" } }
+      }
+    },
+    "Restore Default" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "恢复默认图标" } }
+      }
+    },
+    "No matching icons" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未找到匹配的图标" } }
+      }
+    },
+    "Search icons" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "搜索图标" } }
+      }
+    },
+    "Choose device icon" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择设备图标" } }
+      }
+    },
+    "Transport" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "连接方式" } }
+      }
+    },
+    "Sample rate" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "采样率" } }
+      }
+    },
+    "Format" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "格式" } }
+      }
+    },
+    "Device ID" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "设备 ID" } }
+      }
+    },
+    "Activate to change" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "按下可更改" } }
+      }
+    },
+    "Copied" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已复制" } }
+      }
+    },
+    "Copy device ID" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "复制设备 ID" } }
+      }
+    },
+    "Device ID copied" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "设备 ID 已复制" } }
+      }
+    },
+    "Built-in" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "内置" } }
+      }
+    },
+    "Virtual" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "虚拟" } }
+      }
+    },
+    "Other" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "其他" } }
+      }
+    },
+    "Couldn't change sample rate. The device refused." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法更改采样率，设备拒绝了此次更改。" } }
+      }
+    },
+    "Auto" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "自动" } }
+      }
+    },
+    "Auto-detected volume control" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "自动检测的音量控制方式" } }
+      }
+    },
+    "In exclusive use by" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "独占使用：" } }
+      }
+    },
+    "In exclusive use by PID" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "独占使用 · PID" } }
+      }
+    },
+    "Use FineTune's software volume" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "使用 FineTune 软件音量控制" } }
+      }
+    },
+    "Turn on only if the volume slider doesn't work. FineTune remembers this for each device." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "仅在音量滑块无法正常工作时开启。FineTune 会针对每台设备记住此设置。" } }
+      }
     }
   },
   "version" : "1.0"
