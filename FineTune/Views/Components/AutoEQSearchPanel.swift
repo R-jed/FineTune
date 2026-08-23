@@ -12,7 +12,7 @@ struct AutoEQSearchPanel: View {
     let onDismiss: () -> Void
     let onImport: () -> Void
     let onToggleFavorite: (String) -> Void
-    let importErrorMessage: String?
+    let importErrorMessage: LocalizedStringResource?
     var isCorrectionEnabled: Bool = false
     var onCorrectionToggle: ((Bool) -> Void)?
     var preampEnabled: Bool = true
@@ -26,7 +26,7 @@ struct AutoEQSearchPanel: View {
     @State private var highlightedIndex: Int?
     @State private var cachedSearchResult = AutoEQSearchResult(entries: [], totalCount: 0)
     @State private var loadingProfileID: String?
-    @State private var fetchError: String?
+    @State private var fetchErrorProfileName: String?
     @FocusState private var isSearchFocused: Bool
 
     private let maxVisibleItems = 6
@@ -134,8 +134,8 @@ struct AutoEQSearchPanel: View {
 
             errorMessages
         }
-        .animation(.easeInOut(duration: 0.2), value: fetchError)
-        .animation(.easeInOut(duration: 0.2), value: importErrorMessage)
+        .animation(.easeInOut(duration: 0.2), value: fetchErrorProfileName)
+        .animation(.easeInOut(duration: 0.2), value: importErrorMessage != nil)
         .background {
             RoundedRectangle(cornerRadius: 10)
                 .fill(DesignTokens.Colors.recessedBackground)
@@ -520,8 +520,16 @@ struct AutoEQSearchPanel: View {
 
     @ViewBuilder
     private var errorMessages: some View {
-        if let errorMessage = fetchError ?? importErrorMessage {
-            Text(verbatim: errorMessage)
+        if let profileName = fetchErrorProfileName {
+            (Text("Failed to load") + Text(verbatim: " \(profileName)"))
+                .font(.system(size: 10))
+                .foregroundStyle(.red.opacity(0.9))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, DesignTokens.Spacing.sm)
+                .padding(.bottom, DesignTokens.Spacing.xs)
+                .transition(.opacity)
+        } else if let importErrorMessage {
+            Text(importErrorMessage)
                 .font(.system(size: 10))
                 .foregroundStyle(.red.opacity(0.9))
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -658,17 +666,17 @@ struct AutoEQSearchPanel: View {
     private func selectCatalogEntry(_ entry: AutoEQCatalogEntry) {
         guard loadingProfileID == nil else { return }
         loadingProfileID = entry.id
-        fetchError = nil
+        fetchErrorProfileName = nil
 
         Task { @MainActor in
             if let profile = await profileManager.resolveProfile(for: entry) {
                 onSelect(profile)
                 onDismiss()
             } else {
-                fetchError = "Failed to load \(entry.name)"
+                fetchErrorProfileName = entry.name
                 Task {
                     try? await Task.sleep(for: .seconds(3))
-                    if fetchError != nil { fetchError = nil }
+                    if fetchErrorProfileName != nil { fetchErrorProfileName = nil }
                 }
             }
             loadingProfileID = nil
