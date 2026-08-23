@@ -1436,6 +1436,94 @@
       "localizations" : {
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "仅在音量滑块无法正常工作时开启。FineTune 会针对每台设备记住此设置。" } }
       }
+    },
+    "notification.audioDeviceReconnected.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Audio Device Reconnected" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "音频设备已重新连接" } }
+      }
+    },
+    "notification.audioDeviceReconnected.afterDevice" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : " is back. " } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已重新连接。" } }
+      }
+    },
+    "notification.oneAppSwitchedBack" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : " app switched back." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : " 个应用已切换回来。" } }
+      }
+    },
+    "notification.manyAppsSwitchedBack" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : " apps switched back." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : " 个应用已切换回来。" } }
+      }
+    },
+    "notification.audioDeviceDisconnected.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Audio Device Disconnected" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "音频设备已断开连接" } }
+      }
+    },
+    "notification.audioDeviceDisconnected.afterDevice" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : " disconnected. " } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已断开连接。" } }
+      }
+    },
+    "notification.oneAppSwitchedTo" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : " app switched to " } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : " 个应用已切换到" } }
+      }
+    },
+    "notification.manyAppsSwitchedTo" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : " apps switched to " } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : " 个应用已切换到" } }
+      }
+    },
+    "notification.defaultAudioDeviceChanged.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Default Audio Device Changed" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "默认音频设备已更改" } }
+      }
+    },
+    "notification.sentenceEnd" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "。" } }
+      }
+    },
+    "Select an AutoEQ ParametricEQ.txt file" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择要导入的 AutoEQ ParametricEQ.txt 文件" } }
+      }
+    },
+    "Could not read profile. Check the file format." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法读取配置文件，请检查文件格式。" } }
+      }
+    },
+    "Failed to load" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法加载" } }
+      }
     }
   },
   "version" : "1.0"
