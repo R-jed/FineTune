@@ -91,14 +91,20 @@ struct AutoEQSearchPanel: View {
         return count
     }
 
-    /// Resolved display info for the status card.
-    private var cardProfileInfo: (name: String, source: String?)? {
+    /// Resolved display info for the status card. External names and measurement
+    /// sources remain verbatim; the FineTune-owned imported marker stays localizable.
+    private var cardProfileInfo: (name: String, source: Text?)? {
         guard let selectedID = selectedProfileID else { return nil }
         if let profile = profileManager.profile(for: selectedID) {
-            let source = profile.source == .imported ? "Imported" : profile.measuredBy
+            let source: Text?
+            if profile.source == .imported {
+                source = Text("Imported")
+            } else {
+                source = profile.measuredBy.map { Text(verbatim: $0) }
+            }
             return (profile.name, source)
         } else if let entry = profileManager.catalogEntry(for: selectedID) {
-            return (entry.name, entry.measuredBy)
+            return (entry.name, sourceText(for: entry))
         }
         return nil
     }
@@ -235,7 +241,7 @@ struct AutoEQSearchPanel: View {
     // MARK: - Status Section (flat, no card container)
 
     @ViewBuilder
-    private func statusCard(id: String, name: String, source: String?) -> some View {
+    private func statusCard(id: String, name: String, source: Text?) -> some View {
         let isFavorited = favoriteIDs.contains(id)
         let isStarHovered = starHoveredID == id
 
@@ -243,7 +249,7 @@ struct AutoEQSearchPanel: View {
             // Profile info + action buttons
             HStack(alignment: .top, spacing: DesignTokens.Spacing.xs) {
                 VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
-                    Text(name)
+                    Text(verbatim: name)
                         .font(DesignTokens.Typography.cardProfileName)
                         .foregroundStyle(
                             isCorrectionEnabled
@@ -253,7 +259,7 @@ struct AutoEQSearchPanel: View {
                         .lineLimit(1)
 
                     if let source {
-                        Text(source)
+                        source
                             .font(DesignTokens.Typography.cardSource)
                             .foregroundStyle(DesignTokens.Colors.textTertiary)
                             .lineLimit(1)
@@ -280,7 +286,9 @@ struct AutoEQSearchPanel: View {
                     .buttonStyle(.plain)
                     .onHover { starHoveredID = $0 ? id : nil }
                     .animation(DesignTokens.Animation.hover, value: isStarHovered)
-                    .accessibilityLabel(isFavorited ? "Remove from favorites" : "Add to favorites")
+                    .accessibilityLabel(
+                        isFavorited ? Text("Remove from favorites") : Text("Add to favorites")
+                    )
 
                     // Remove button
                     Button {
@@ -322,13 +330,13 @@ struct AutoEQSearchPanel: View {
         .padding(.vertical, DesignTokens.Spacing.sm)
         .animation(.easeInOut(duration: 0.15), value: isCorrectionEnabled)
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("\(name) correction profile")
+        .accessibilityLabel(Text("Correction profile") + Text(verbatim: ": \(name)"))
     }
 
     // MARK: - Mini Toggle
 
     private func miniToggle(
-        label: String,
+        label: LocalizedStringResource,
         isOn: Bool,
         action: @escaping () -> Void
     ) -> some View {
@@ -338,17 +346,18 @@ struct AutoEQSearchPanel: View {
                 .foregroundStyle(DesignTokens.Colors.autoEQToggleLabel)
 
             Toggle(
-                label,
                 isOn: Binding(get: { isOn }, set: { _ in action() })
-            )
+            ) {
+                Text(label)
+            }
             .toggleStyle(.switch)
             .controlSize(.mini)
             .scaleEffect(0.65)
             .labelsHidden()
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(label)
-        .accessibilityValue(isOn ? "On" : "Off")
+        .accessibilityLabel(Text(label))
+        .accessibilityValue(isOn ? Text("On") : Text("Off"))
     }
 
     // MARK: - Search Field
@@ -468,7 +477,7 @@ struct AutoEQSearchPanel: View {
             HStack(spacing: DesignTokens.Spacing.xs) {
                 Image(systemName: "exclamationmark.triangle")
                     .font(.system(size: 10))
-                Text(message)
+                Text(verbatim: message)
                     .font(.system(size: 10))
             }
             .foregroundStyle(.red.opacity(0.9))
@@ -512,7 +521,7 @@ struct AutoEQSearchPanel: View {
     @ViewBuilder
     private var errorMessages: some View {
         if let errorMessage = fetchError ?? importErrorMessage {
-            Text(errorMessage)
+            Text(verbatim: errorMessage)
                 .font(.system(size: 10))
                 .foregroundStyle(.red.opacity(0.9))
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -529,13 +538,17 @@ struct AutoEQSearchPanel: View {
         let total = cachedSearchResult.totalCount
         let shown = cachedSearchResult.entries.count
         if total > shown {
-            Text("Showing \(shown) of \(total) results")
+            (Text("Showing")
+                + Text(verbatim: " \(shown) ")
+                + Text("of")
+                + Text(verbatim: " \(total) ")
+                + Text("results"))
                 .font(.system(size: 9))
                 .foregroundStyle(DesignTokens.Colors.textTertiary)
                 .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.vertical, DesignTokens.Spacing.xxs)
         } else if total > 0 {
-            Text("\(total) results")
+            (Text(verbatim: "\(total) ") + Text("results"))
                 .font(.system(size: 9))
                 .foregroundStyle(DesignTokens.Colors.textTertiary)
                 .frame(maxWidth: .infinity, alignment: .center)
@@ -557,12 +570,12 @@ struct AutoEQSearchPanel: View {
 
         HStack {
             VStack(alignment: .leading, spacing: 1) {
-                Text(entry.name)
+                Text(verbatim: entry.name)
                     .font(.system(size: 11, weight: isSelected ? .semibold : .regular))
                     .foregroundStyle(DesignTokens.Colors.textPrimary)
                     .lineLimit(1)
 
-                Text(entry.measuredBy)
+                sourceText(for: entry)
                     .font(.system(size: 9))
                     .foregroundStyle(DesignTokens.Colors.textTertiary)
             }
@@ -603,7 +616,7 @@ struct AutoEQSearchPanel: View {
             if isHovered { highlightedIndex = nil }
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(entry.name)
+        .accessibilityLabel(Text(verbatim: entry.name))
         .accessibilityAddTraits(isSelected ? .isSelected : [])
         .accessibilityHint("Apply this correction profile")
     }
@@ -634,7 +647,9 @@ struct AutoEQSearchPanel: View {
             .buttonStyle(.plain)
             .onHover { starHoveredID = $0 ? id : nil }
             .animation(DesignTokens.Animation.hover, value: isStarHovered)
-            .accessibilityLabel(isFavorited ? "Remove from favorites" : "Add to favorites")
+            .accessibilityLabel(
+                isFavorited ? Text("Remove from favorites") : Text("Add to favorites")
+            )
         }
     }
 
@@ -700,6 +715,13 @@ struct AutoEQSearchPanel: View {
     }
 
     // MARK: - Helpers
+
+    private func sourceText(for entry: AutoEQCatalogEntry) -> Text {
+        if profileManager.profile(for: entry.id)?.source == .imported {
+            return Text("Imported")
+        }
+        return Text(verbatim: entry.measuredBy)
+    }
 
     private func isHighlighted(_ itemID: String) -> Bool {
         guard let index = highlightedIndex else { return false }
