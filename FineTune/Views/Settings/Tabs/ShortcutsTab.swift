@@ -37,7 +37,7 @@ struct ShortcutsTab: View {
             ) {
                 Picker("", selection: $settings.appSettings.volumeHotkeyStep) {
                     ForEach(VolumeHotkeyStep.allCases) { step in
-                        Text(step.description).tag(step)
+                        Text(step.displayName).tag(step)
                     }
                 }
                 .pickerStyle(.menu)
@@ -74,7 +74,7 @@ struct ShortcutsTab: View {
                     mediaKeyMonitor.reconcile()
                 }
                 .padding(.horizontal, 16)
-                .padding(.vertical, 12)
+                    .padding(.vertical, 12)
             }
 
             if settings.appSettings.mediaKeyControlEnabled && accessibility.isTrustedCached {
