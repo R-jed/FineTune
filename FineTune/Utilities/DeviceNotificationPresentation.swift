@@ -46,7 +46,7 @@ nonisolated struct DeviceNotificationPresentation: Equatable {
 
     static func disconnected(
         deviceName: String,
-        fallbackName: String,
+        fallbackName: String?,
         affectedAppCount: Int,
         language: AppLanguage,
         baseLocale: Locale = .autoupdatingCurrent
@@ -74,15 +74,21 @@ nonisolated struct DeviceNotificationPresentation: Equatable {
                 defaultValue: "."
             )
         )
+        let resolvedFallbackName = fallbackName ?? localization.localized(
+            LocalizedStringResource(
+                "notification.noFallbackDevice",
+                defaultValue: "none"
+            )
+        )
 
         return Self(
             title: title,
-            body: "“\(deviceName)”\(afterDevice)\(affectedAppCount)\(switchedTo)“\(fallbackName)”\(sentenceEnd)"
+            body: "“\(deviceName)”\(afterDevice)\(affectedAppCount)\(switchedTo)“\(resolvedFallbackName)”\(sentenceEnd)"
         )
     }
 
     static func defaultChanged(
-        newDeviceName: String,
+        newDeviceName: String?,
         affectedAppCount: Int,
         language: AppLanguage,
         baseLocale: Locale = .autoupdatingCurrent
@@ -104,10 +110,16 @@ nonisolated struct DeviceNotificationPresentation: Equatable {
                 defaultValue: "."
             )
         )
+        let resolvedDeviceName = newDeviceName ?? localization.localized(
+            LocalizedStringResource(
+                "notification.defaultOutputFallback",
+                defaultValue: "Default Output"
+            )
+        )
 
         return Self(
             title: title,
-            body: "\(affectedAppCount)\(switchedTo)“\(newDeviceName)”\(sentenceEnd)"
+            body: "\(affectedAppCount)\(switchedTo)“\(resolvedDeviceName)”\(sentenceEnd)"
         )
     }
 
