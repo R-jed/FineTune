@@ -20,6 +20,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
 
       - name: Setup Xcode
         uses: maxim-lobanov/setup-xcode@v1
@@ -70,8 +73,16 @@ jobs:
           retention-days: 7
 
       - name: Commit verified app lifecycle repair
-        if: ${{ success() && hashFiles('tasks/app_lifecycle_acceptance_repair.py') != '' }}
+        if: ${{ success() && github.event_name == 'pull_request' && hashFiles('tasks/app_lifecycle_acceptance_repair.py') != '' }}
         run: |
+          expected_head="${{ github.event.pull_request.head.sha }}"
+          head_ref="${{ github.event.pull_request.head.ref }}"
+          remote_head="$(git ls-remote origin "refs/heads/${head_ref}" | cut -f1)"
+          if [ "${remote_head}" != "${expected_head}" ]; then
+            echo "refusing writeback: ${head_ref} moved from ${expected_head} to ${remote_head}"
+            exit 1
+          fi
+
           rm tasks/app_lifecycle_acceptance_repair.py
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -84,4 +95,4 @@ jobs:
             tasks/app_lifecycle_acceptance_repair.py
           git diff --cached --quiet && { echo "repair produced no staged changes"; exit 1; }
           git commit -m "fix: repair integrated app lifecycle"
-          git push origin HEAD:integration/full-product-acceptance
+          git push origin "HEAD:refs/heads/${head_ref}"
