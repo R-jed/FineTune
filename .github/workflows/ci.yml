@@ -50,6 +50,17 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             -resultBundlePath build/TestResults.xcresult
 
+      - name: Print failing test summary
+        if: failure()
+        run: |
+          echo '=== xcresult summary ==='
+          xcrun xcresulttool get test-results summary --path build/TestResults.xcresult || true
+          echo '=== xcresult tests ==='
+          xcrun xcresulttool get test-results tests --path build/TestResults.xcresult || true
+          echo '=== legacy xcresult fallback ==='
+          xcrun xcresulttool get --legacy --format json --path build/TestResults.xcresult | \
+            grep -E 'testStatus|identifier|message|failure|expected|actual' | tail -300 || true
+
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
