@@ -257,6 +257,14 @@ s = replace_once(s, """        },
         startMonitorsAutomatically: false
 """, "test engine init unpin delay")
 s = replace_once(s, "let fix = makeFixture(unpinRemovalDelay: .zero)", "let fix = makeFixture()", "quiet unpin test fixture")
+s = replace_once(s, """    func hideRestorePreservesInactivePinnedApp() {
+        let fix = makeFixture()
+        let info = PinnedAppInfo(
+""", """    func hideRestorePreservesInactivePinnedApp() {
+        let fix = makeFixture()
+        fix.processMonitor.activeApps = []
+        let info = PinnedAppInfo(
+""", "inactive hide restore fixture")
 write(path, s)
 
 Path("FineTuneTests/AudioAppIdentityTests.swift").write_text("""import AppKit
