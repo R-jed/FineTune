@@ -1,0 +1,35 @@
+name: Compose full product acceptance
+
+on:
+  push:
+    branches:
+      - integration/full-product-acceptance
+    paths:
+      - .github/workflows/integration-compose.yml
+
+permissions:
+  contents: write
+
+jobs:
+  compose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: integration/full-product-acceptance
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+      - name: Add RT lifetime fixes
+        run: |
+          git cherry-pick c1e09abbf1920aeb47a43933056773edd31ab23f
+          git cherry-pick 2af531d32cf17a763e20f167f0893fd2d241db28
+      - name: Remove one-shot workflow
+        run: |
+          rm .github/workflows/integration-compose.yml
+          git add -A
+          git commit -m "chore: remove one-shot integration workflow"
+      - name: Push integration branch
+        run: git push origin HEAD:integration/full-product-acceptance
