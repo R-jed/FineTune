@@ -105,6 +105,7 @@ struct AppRowControls: View {
             )
             .frame(width: sliderWidth)
             .opacity(showMutedIcon ? 0.5 : 1.0)
+            .scrollWheelStep(sliderBinding, in: 0.0...1.0)
 
             // Editable volume percentage (shows slider position, not raw gain)
             EditablePercentage(
