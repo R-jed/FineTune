@@ -22,10 +22,25 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-      - name: Add RT lifetime fixes
+      - name: Add Biquad lifetime fix
+        run: git cherry-pick c1e09abbf1920aeb47a43933056773edd31ab23f
+      - name: Add tap generation fix using its ProcessTapController as the merge base
         run: |
-          git cherry-pick c1e09abbf1920aeb47a43933056773edd31ab23f
-          git cherry-pick 2af531d32cf17a763e20f167f0893fd2d241db28
+          if ! git cherry-pick 2af531d32cf17a763e20f167f0893fd2d241db28; then
+            git checkout --theirs FineTune/Audio/Engine/ProcessTapController.swift
+            git add FineTune/Audio/Engine/ProcessTapController.swift
+            git cherry-pick --continue
+          fi
+      - name: Reapply source meter changes onto generation-safe callback
+        run: |
+          git show 6c32af3dc552b3aab270e81d9c59ecaa1dfd0078 -- FineTune/Audio/Engine/ProcessTapController.swift > /tmp/source-meter.patch
+          if ! git apply --3way /tmp/source-meter.patch; then
+            echo "Semantic merge still has unresolved overlap:"
+            git diff --cc -- FineTune/Audio/Engine/ProcessTapController.swift || true
+            exit 1
+          fi
+          git add FineTune/Audio/Engine/ProcessTapController.swift
+          git commit -m "fix: integrate source meter with tap generations"
       - name: Remove one-shot workflow
         run: |
           rm .github/workflows/integration-compose.yml
