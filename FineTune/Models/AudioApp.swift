@@ -48,9 +48,17 @@ struct AudioApp: Identifiable, Hashable {
 
     func hash(into hasher: inout Hasher) {
         hasher.combine(id)
+        hasher.combine(persistenceIdentifier)
+        hasher.combine(processObjectIDs)
+        hasher.combine(isHelperBacked)
+        hasher.combine(isAudioActive)
     }
 
     static func == (lhs: AudioApp, rhs: AudioApp) -> Bool {
         lhs.id == rhs.id
+            && lhs.persistenceIdentifier == rhs.persistenceIdentifier
+            && lhs.processObjectIDs == rhs.processObjectIDs
+            && lhs.isHelperBacked == rhs.isHelperBacked
+            && lhs.isAudioActive == rhs.isAudioActive
     }
 }
