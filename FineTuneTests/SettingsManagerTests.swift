@@ -160,6 +160,43 @@ struct SelectedAppPinningTests {
         #expect(!manager.isIgnored(info.persistenceIdentifier))
     }
 
+    @Test("Hiding preserves pin and per-app settings so restore is reversible")
+    func hidingPreservesPinnedStateAndSettings() {
+        let manager = SettingsManager(
+            directory: FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+        )
+        let info = PinnedAppInfo(
+            persistenceIdentifier: "com.example.hidden",
+            displayName: "Hidden Player",
+            bundleID: "com.example.hidden"
+        )
+        manager.pinApp(info.persistenceIdentifier, info: info)
+        manager.setVolume(for: info.persistenceIdentifier, to: 0.42)
+        manager.setMute(for: info.persistenceIdentifier, to: true)
+        manager.setBoost(for: info.persistenceIdentifier, to: .x2)
+        manager.setDeviceRouting(for: info.persistenceIdentifier, deviceUID: "uid-hidden")
+
+        manager.ignoreApp(
+            info.persistenceIdentifier,
+            info: IgnoredAppInfo(
+                persistenceIdentifier: info.persistenceIdentifier,
+                displayName: info.displayName,
+                bundleID: info.bundleID
+            )
+        )
+
+        #expect(manager.isPinned(info.persistenceIdentifier))
+        #expect(manager.getVolume(for: info.persistenceIdentifier) == 0.42)
+        #expect(manager.getMute(for: info.persistenceIdentifier) == true)
+        #expect(manager.getBoost(for: info.persistenceIdentifier) == .x2)
+        #expect(manager.getDeviceRouting(for: info.persistenceIdentifier) == "uid-hidden")
+
+        manager.unignoreApp(info.persistenceIdentifier)
+        #expect(manager.isPinned(info.persistenceIdentifier))
+        #expect(!manager.isIgnored(info.persistenceIdentifier))
+    }
+
     @Test("Pinned apps keep the order chosen by the user")
     func pinnedAppOrderCanBeChanged() {
         let manager = SettingsManager(
