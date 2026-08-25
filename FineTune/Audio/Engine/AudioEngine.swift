@@ -47,11 +47,6 @@ final class AudioEngine {
     private var lastAutoSwitchOverrideTime: Date?
     private var pendingCleanup: [pid_t: Task<Void, Never>] = [:]  // Grace period for stale tap cleanup
     private var staleCleanupTask: Task<Void, Never>?  // Debounced cleanup scheduling
-    private let unpinRemovalDelay: Duration
-    private var autoHideWhenSilent: [String: PinnedAppInfo] = [:]
-    private var visibleDuringUnpinGrace: Set<String> = []
-    private var hiddenAfterUnpin: Set<String> = []
-    private var pendingUnpinRemoval: [String: Task<Void, Never>] = [:]
     private var healthMonitorTask: Task<Void, Never>?  // Periodic tap health monitor
     private var tapRecoveryCooldownUntil: [pid_t: Date] = [:]  // Prevents tap recreation thrashing
     private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "FineTune", category: "AudioEngine")
@@ -185,7 +180,6 @@ final class AudioEngine {
         deviceVolumeMonitor: (any DeviceVolumeProviding)? = nil,
         tapFactory: (@MainActor (AudioApp, [String], String?) throws -> any ProcessTapControlling)? = nil,
         isAlive: ((AudioDeviceID) -> Bool)? = nil,
-        unpinRemovalDelay: Duration = .seconds(10),
         startMonitorsAutomatically: Bool = true
     ) {
         self.permission = permission
@@ -195,7 +189,6 @@ final class AudioEngine {
         self.autoEQProfileManager = autoEQProfileManager
         self.volumeState = VolumeState(settingsManager: manager)
         self.isAliveCheck = isAlive ?? { $0.isDeviceAlive() }
-        self.unpinRemovalDelay = unpinRemovalDelay
 
         // If a custom deviceProvider is given, use it directly.
         // Otherwise create a real AudioDeviceMonitor (needed by DeviceVolumeMonitor and default tap factory).
@@ -355,7 +348,6 @@ final class AudioEngine {
 
         processMonitor.onAppsChanged = { [weak self] apps in
             self?.invalidateTapsWithChangedProcesses(apps)
-            self?.updateUnpinnedAppVisibility(apps)
             self?.applyPersistedSettings()
             self?.scheduleStaleCleanup()
         }
@@ -421,17 +413,14 @@ final class AudioEngine {
         )
         let activeApps = apps
             .filter { !appListCoordinator.isIgnored(identifier: $0.persistenceIdentifier) }
-            .filter { !hiddenAfterUnpin.contains($0.persistenceIdentifier) }
         let activeAppsByIdentifier = Dictionary(
             activeApps.map { ($0.persistenceIdentifier, $0) },
             uniquingKeysWith: { $0.merging($1) }
         )
         let activeIdentifiers = Set(activeAppsByIdentifier.keys)
-        let graceApps = autoHideWhenSilent.values.filter {
-            visibleDuringUnpinGrace.contains($0.persistenceIdentifier)
-        }
-        let inactivePinned = (appListCoordinator.pinnedAppInfo() + graceApps)
+        let inactivePinned = appListCoordinator.pinnedAppInfo()
             .filter { !activeIdentifiers.contains($0.persistenceIdentifier) }
+            .filter { !appListCoordinator.isIgnored(identifier: $0.persistenceIdentifier) }
             .map { DisplayableApp.pinnedInactive($0) }
 
         return (activeAppsByIdentifier.values.map { DisplayableApp.active($0) } + inactivePinned)
@@ -449,93 +438,19 @@ final class AudioEngine {
 
     /// Pin an active app so it remains visible when inactive.
     func pinApp(_ app: AudioApp) {
-        clearUnpinVisibilityState(app.persistenceIdentifier)
         appListCoordinator.pinApp(app)
     }
 
     /// Add an app selected from disk and immediately apply its saved settings if running.
     func pinApp(_ info: PinnedAppInfo) {
-        clearUnpinVisibilityState(info.persistenceIdentifier)
         appListCoordinator.pinApp(info)
         applyPersistedSettings()
     }
 
-    /// Unpin an app by its persistence identifier.
+    /// Unpin an app by its persistence identifier. Running apps remain visible.
+    /// Pinning only controls whether the row persists after the process exits.
     func unpinApp(_ identifier: String) {
-        let app = apps.first { $0.persistenceIdentifier == identifier }
-        let info = app.map {
-            PinnedAppInfo(
-                persistenceIdentifier: $0.persistenceIdentifier,
-                displayName: $0.name,
-                bundleID: $0.bundleID
-            )
-        } ?? appListCoordinator.pinnedAppInfo().first { $0.persistenceIdentifier == identifier }
-
         appListCoordinator.unpinApp(identifier)
-        guard let info else { return }
-
-        autoHideWhenSilent[identifier] = info
-        hiddenAfterUnpin.remove(identifier)
-        if app?.isAudioActive == true {
-            pendingUnpinRemoval.removeValue(forKey: identifier)?.cancel()
-            visibleDuringUnpinGrace.remove(identifier)
-        } else {
-            scheduleUnpinRemoval(identifier)
-        }
-    }
-
-    private func clearUnpinVisibilityState(_ identifier: String) {
-        pendingUnpinRemoval.removeValue(forKey: identifier)?.cancel()
-        autoHideWhenSilent.removeValue(forKey: identifier)
-        visibleDuringUnpinGrace.remove(identifier)
-        hiddenAfterUnpin.remove(identifier)
-    }
-
-    private func updateUnpinnedAppVisibility(_ apps: [AudioApp]) {
-        let appsByIdentifier = Dictionary(
-            apps.map { ($0.persistenceIdentifier, $0) },
-            uniquingKeysWith: { current, _ in current }
-        )
-
-        for identifier in autoHideWhenSilent.keys {
-            if appsByIdentifier[identifier]?.isAudioActive == true {
-                pendingUnpinRemoval.removeValue(forKey: identifier)?.cancel()
-                visibleDuringUnpinGrace.remove(identifier)
-                hiddenAfterUnpin.remove(identifier)
-            } else if pendingUnpinRemoval[identifier] == nil && !hiddenAfterUnpin.contains(identifier) {
-                scheduleUnpinRemoval(identifier)
-            }
-        }
-    }
-
-    private func scheduleUnpinRemoval(_ identifier: String) {
-        pendingUnpinRemoval.removeValue(forKey: identifier)?.cancel()
-        visibleDuringUnpinGrace.insert(identifier)
-        if unpinRemovalDelay == .zero {
-            finishUnpinRemoval(identifier)
-            return
-        }
-        pendingUnpinRemoval[identifier] = Task { @MainActor in
-            try? await Task.sleep(for: unpinRemovalDelay)
-            guard !Task.isCancelled else { return }
-            finishUnpinRemoval(identifier)
-        }
-    }
-
-    private func finishUnpinRemoval(_ identifier: String) {
-        guard !appListCoordinator.isPinned(identifier: identifier) else {
-            clearUnpinVisibilityState(identifier)
-            return
-        }
-        guard apps.first(where: { $0.persistenceIdentifier == identifier })?.isAudioActive != true else {
-            pendingUnpinRemoval.removeValue(forKey: identifier)
-            visibleDuringUnpinGrace.remove(identifier)
-            return
-        }
-
-        visibleDuringUnpinGrace.remove(identifier)
-        hiddenAfterUnpin.insert(identifier)
-        pendingUnpinRemoval.removeValue(forKey: identifier)
     }
 
     func moveApp(_ identifier: String, to targetIdentifier: String) {
@@ -562,13 +477,7 @@ final class AudioEngine {
     /// then tears down the live tap so audio returns to natural volume.
     func ignoreApp(_ app: AudioApp) {
         appListCoordinator.recordIgnore(app)
-
-        if let tap = taps.removeValue(forKey: app.id) {
-            tap.invalidate()
-        }
-        appDeviceRouting.removeValue(forKey: app.id)
-        followsDefault.remove(app.id)
-        appliedPIDs.remove(app.id)
+        retireTap(for: app.id, resetRuntimeState: true)
     }
 
     func ignoreApp(_ info: PinnedAppInfo) {
@@ -1919,13 +1828,37 @@ final class AudioEngine {
     }
 
     private func invalidateTapsWithChangedProcesses(_ apps: [AudioApp]) {
-        for app in apps {
-            guard let tap = taps[app.id],
-                  Set(tap.app.processObjectIDs) != Set(app.processObjectIDs) else { continue }
-            logger.info("Invalidating tap for \(app.name, privacy: .public) PID \(app.id): process objects changed from \(tap.app.processObjectIDs.description, privacy: .public) to \(app.processObjectIDs.description, privacy: .public)")
-            taps.removeValue(forKey: app.id)?.invalidate()
-            appliedPIDs.remove(app.id)
+        let appsByPID = Dictionary(
+            apps.map { ($0.id, $0) },
+            uniquingKeysWith: { _, latest in latest }
+        )
+        let liveIdentifiers = Set(apps.map(\.persistenceIdentifier))
+
+        for (pid, tap) in Array(taps) {
+            if let app = appsByPID[pid] {
+                let identityChanged = app.persistenceIdentifier != tap.app.persistenceIdentifier
+                let processObjectsChanged = Set(app.processObjectIDs) != Set(tap.app.processObjectIDs)
+                guard identityChanged || processObjectsChanged else { continue }
+
+                logger.info("Retiring tap for PID \(pid): app identity or process objects changed")
+                retireTap(for: pid, resetRuntimeState: identityChanged)
+            } else if liveIdentifiers.contains(tap.app.persistenceIdentifier) {
+                logger.info("Retiring tap for PID \(pid): representative PID moved")
+                retireTap(for: pid, resetRuntimeState: true)
+            }
         }
+    }
+
+    private func retireTap(for pid: pid_t, resetRuntimeState: Bool) {
+        pendingCleanup.removeValue(forKey: pid)?.cancel()
+        taps.removeValue(forKey: pid)?.invalidate()
+        appliedPIDs.remove(pid)
+
+        guard resetRuntimeState else { return }
+        appDeviceRouting.removeValue(forKey: pid)
+        followsDefault.remove(pid)
+        volumeState.removeVolume(for: pid)
+        tapRecoveryCooldownUntil.removeValue(forKey: pid)
     }
 
     private func cleanupStaleTaps() {

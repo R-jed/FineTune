@@ -405,17 +405,6 @@ final class SettingsManager {
     func ignoreApp(_ identifier: String, info: IgnoredAppInfo) {
         settings.ignoredApps.insert(identifier)
         settings.ignoredAppInfo[identifier] = info
-        // Hiding is mutually exclusive with pinning
-        settings.pinnedApps.remove(identifier)
-        settings.pinnedAppInfo.removeValue(forKey: identifier)
-        // Clear per-app settings — FineTune won't interact with this app
-        settings.appVolumes.removeValue(forKey: identifier)
-        settings.appBoosts.removeValue(forKey: identifier)
-        settings.appMutes.removeValue(forKey: identifier)
-        settings.appDeviceRouting.removeValue(forKey: identifier)
-        settings.appEQSettings.removeValue(forKey: identifier)
-        settings.appDeviceSelectionMode.removeValue(forKey: identifier)
-        settings.appSelectedDeviceUIDs.removeValue(forKey: identifier)
         scheduleSave()
     }
 

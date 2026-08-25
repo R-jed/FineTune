@@ -138,8 +138,7 @@ private struct Fixture {
 @MainActor
 private func makeFixture(
     supportsAutoEQ: Bool = true,
-    deviceVolume: Float = 0.75,
-    unpinRemovalDelay: Duration = .seconds(10)
+    deviceVolume: Float = 0.75
 ) -> Fixture {
     let tempDir = FileManager.default.temporaryDirectory
         .appendingPathComponent(UUID().uuidString)
@@ -192,7 +191,6 @@ private func makeFixture(
             box.last = tap
             return tap
         },
-        unpinRemovalDelay: unpinRemovalDelay,
         startMonitorsAutomatically: false
     )
 
@@ -254,7 +252,7 @@ struct AudioEngineTapInitialStateTests {
 
     @Test("Unpinning a quiet running app keeps it visible")
     func unpinnedQuietRunningAppRemainsVisible() {
-        let fix = makeFixture(unpinRemovalDelay: .zero)
+        let fix = makeFixture()
         let quietApp = AudioApp(
             id: fix.app.id,
             processObjectIDs: [],
@@ -322,6 +320,7 @@ struct AudioEngineTapInitialStateTests {
     @Test("Hide and restore preserves a manually added inactive app and its settings")
     func hideRestorePreservesInactivePinnedApp() {
         let fix = makeFixture()
+        fix.processMonitor.activeApps = []
         let info = PinnedAppInfo(
             persistenceIdentifier: "com.test.manual",
             displayName: "Manual App",

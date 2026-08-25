@@ -7,7 +7,9 @@ import UniformTypeIdentifiers
 /// Lightweight value for detecting process list changes without comparing icons/names.
 private struct AppFingerprint: Hashable {
     let pid: pid_t
+    let persistenceIdentifier: String
     let objectIDs: [AudioObjectID]
+    let isHelperBacked: Bool
     let isAudioActive: Bool
 }
 
@@ -362,10 +364,22 @@ final class AudioProcessMonitor: AudioProcessMonitoring {
 
             // Only fire callback if the app list actually changed (avoids churn from periodic refresh)
             let oldSet = Set(activeApps.map {
-                AppFingerprint(pid: $0.id, objectIDs: $0.processObjectIDs, isAudioActive: $0.isAudioActive)
+                AppFingerprint(
+                    pid: $0.id,
+                    persistenceIdentifier: $0.persistenceIdentifier,
+                    objectIDs: $0.processObjectIDs,
+                    isHelperBacked: $0.isHelperBacked,
+                    isAudioActive: $0.isAudioActive
+                )
             })
             let newSet = Set(sorted.map {
-                AppFingerprint(pid: $0.id, objectIDs: $0.processObjectIDs, isAudioActive: $0.isAudioActive)
+                AppFingerprint(
+                    pid: $0.id,
+                    persistenceIdentifier: $0.persistenceIdentifier,
+                    objectIDs: $0.processObjectIDs,
+                    isHelperBacked: $0.isHelperBacked,
+                    isAudioActive: $0.isAudioActive
+                )
             })
 
             activeApps = sorted
