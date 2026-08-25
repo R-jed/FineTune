@@ -33,6 +33,11 @@ struct AppRowWithLevelPolling: View {
     let onRenameUserPreset: (UUID, String) -> Void
     let isEQExpanded: Bool
     let onEQToggle: () -> Void
+    let sliderWidth: CGFloat
+    let isPinned: Bool
+    let onTogglePin: () -> Void
+    let onHide: () -> Void
+    let onMoveApp: (String) -> Bool
     let isFocused: Bool
 
     @State private var displayLevel: Float = 0
@@ -69,6 +74,11 @@ struct AppRowWithLevelPolling: View {
         onRenameUserPreset: @escaping (UUID, String) -> Void = { _, _ in },
         isEQExpanded: Bool = false,
         onEQToggle: @escaping () -> Void = {},
+        sliderWidth: CGFloat = DesignTokens.Dimensions.sliderWidth,
+        isPinned: Bool = false,
+        onTogglePin: @escaping () -> Void = {},
+        onHide: @escaping () -> Void = {},
+        onMoveApp: @escaping (String) -> Bool = { _ in false },
         isFocused: Bool = false
     ) {
         self.app = app
@@ -101,6 +111,11 @@ struct AppRowWithLevelPolling: View {
         self.onRenameUserPreset = onRenameUserPreset
         self.isEQExpanded = isEQExpanded
         self.onEQToggle = onEQToggle
+        self.sliderWidth = sliderWidth
+        self.isPinned = isPinned
+        self.onTogglePin = onTogglePin
+        self.onHide = onHide
+        self.onMoveApp = onMoveApp
         self.isFocused = isFocused
     }
 
@@ -135,6 +150,11 @@ struct AppRowWithLevelPolling: View {
             onRenameUserPreset: onRenameUserPreset,
             isEQExpanded: isEQExpanded,
             onEQToggle: onEQToggle,
+            sliderWidth: sliderWidth,
+            isPinned: isPinned,
+            onTogglePin: onTogglePin,
+            onHide: onHide,
+            onMoveApp: onMoveApp,
             isFocused: isFocused
         )
         .onAppear {

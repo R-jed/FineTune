@@ -47,6 +47,11 @@ final class AudioEngine {
     private var lastAutoSwitchOverrideTime: Date?
     private var pendingCleanup: [pid_t: Task<Void, Never>] = [:]  // Grace period for stale tap cleanup
     private var staleCleanupTask: Task<Void, Never>?  // Debounced cleanup scheduling
+    private let unpinRemovalDelay: Duration
+    private var autoHideWhenSilent: [String: PinnedAppInfo] = [:]
+    private var visibleDuringUnpinGrace: Set<String> = []
+    private var hiddenAfterUnpin: Set<String> = []
+    private var pendingUnpinRemoval: [String: Task<Void, Never>] = [:]
     private var healthMonitorTask: Task<Void, Never>?  // Periodic tap health monitor
     private var tapRecoveryCooldownUntil: [pid_t: Date] = [:]  // Prevents tap recreation thrashing
     private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "FineTune", category: "AudioEngine")
@@ -180,6 +185,7 @@ final class AudioEngine {
         deviceVolumeMonitor: (any DeviceVolumeProviding)? = nil,
         tapFactory: (@MainActor (AudioApp, [String], String?) throws -> any ProcessTapControlling)? = nil,
         isAlive: ((AudioDeviceID) -> Bool)? = nil,
+        unpinRemovalDelay: Duration = .seconds(10),
         startMonitorsAutomatically: Bool = true
     ) {
         self.permission = permission
@@ -189,6 +195,7 @@ final class AudioEngine {
         self.autoEQProfileManager = autoEQProfileManager
         self.volumeState = VolumeState(settingsManager: manager)
         self.isAliveCheck = isAlive ?? { $0.isDeviceAlive() }
+        self.unpinRemovalDelay = unpinRemovalDelay
 
         // If a custom deviceProvider is given, use it directly.
         // Otherwise create a real AudioDeviceMonitor (needed by DeviceVolumeMonitor and default tap factory).
@@ -350,6 +357,8 @@ final class AudioEngine {
         }
 
         processMonitor.onAppsChanged = { [weak self] apps in
+            self?.invalidateTapsWithChangedProcesses(apps)
+            self?.updateUnpinnedAppVisibility(apps)
             self?.applyPersistedSettings()
             self?.scheduleStaleCleanup()
         }
@@ -407,47 +416,137 @@ final class AudioEngine {
 
     // MARK: - Displayable Apps (Active + Pinned Inactive)
 
-    /// Combined list of active apps and pinned inactive apps for UI display.
-    /// Pinned apps appear first (sorted alphabetically), then unpinned active apps (sorted alphabetically).
+    /// Combined list of apps producing audio and pinned apps whose process is unavailable.
+    /// Every app follows the same user-defined order; unseen apps follow alphabetically.
     var displayableApps: [DisplayableApp] {
+        let orderRank = Dictionary(
+            uniqueKeysWithValues: settingsManager.appOrder.enumerated().map { ($1, $0) }
+        )
         let activeApps = apps
             .filter { !appListCoordinator.isIgnored(identifier: $0.persistenceIdentifier) }
-        let activeIdentifiers = Set(activeApps.map { $0.persistenceIdentifier })
-
-        // Get pinned apps that are not currently active
-        let pinnedInactiveInfos = appListCoordinator.pinnedAppInfo()
+            .filter { !hiddenAfterUnpin.contains($0.persistenceIdentifier) }
+        let activeAppsByIdentifier = Dictionary(
+            activeApps.map { ($0.persistenceIdentifier, $0) },
+            uniquingKeysWith: { $0.merging($1) }
+        )
+        let activeIdentifiers = Set(activeAppsByIdentifier.keys)
+        let graceApps = autoHideWhenSilent.values.filter {
+            visibleDuringUnpinGrace.contains($0.persistenceIdentifier)
+        }
+        let inactivePinned = (appListCoordinator.pinnedAppInfo() + graceApps)
             .filter { !activeIdentifiers.contains($0.persistenceIdentifier) }
-
-        // Pinned active apps (sorted alphabetically)
-        let pinnedActive = activeApps
-            .filter { appListCoordinator.isPinned(identifier: $0.persistenceIdentifier) }
-            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-            .map { DisplayableApp.active($0) }
-
-        // Pinned inactive apps (sorted alphabetically)
-        let pinnedInactive = pinnedInactiveInfos
-            .sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
             .map { DisplayableApp.pinnedInactive($0) }
 
-        // Unpinned active apps (sorted alphabetically)
-        let unpinnedActive = activeApps
-            .filter { !appListCoordinator.isPinned(identifier: $0.persistenceIdentifier) }
-            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-            .map { DisplayableApp.active($0) }
-
-        return pinnedActive + pinnedInactive + unpinnedActive
+        return (activeAppsByIdentifier.values.map { DisplayableApp.active($0) } + inactivePinned)
+            .sorted { lhs, rhs in
+                let lhsRank = orderRank[lhs.id]
+                let rhsRank = orderRank[rhs.id]
+                if let lhsRank, let rhsRank { return lhsRank < rhsRank }
+                if lhsRank != nil { return true }
+                if rhsRank != nil { return false }
+                return lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName) == .orderedAscending
+            }
     }
 
     // MARK: - Pinning
 
     /// Pin an active app so it remains visible when inactive.
     func pinApp(_ app: AudioApp) {
+        clearUnpinVisibilityState(app.persistenceIdentifier)
         appListCoordinator.pinApp(app)
+    }
+
+    /// Add an app selected from disk and immediately apply its saved settings if running.
+    func pinApp(_ info: PinnedAppInfo) {
+        clearUnpinVisibilityState(info.persistenceIdentifier)
+        appListCoordinator.pinApp(info)
+        applyPersistedSettings()
     }
 
     /// Unpin an app by its persistence identifier.
     func unpinApp(_ identifier: String) {
+        let app = apps.first { $0.persistenceIdentifier == identifier }
+        let info = app.map {
+            PinnedAppInfo(
+                persistenceIdentifier: $0.persistenceIdentifier,
+                displayName: $0.name,
+                bundleID: $0.bundleID
+            )
+        } ?? appListCoordinator.pinnedAppInfo().first { $0.persistenceIdentifier == identifier }
+
         appListCoordinator.unpinApp(identifier)
+        guard let info else { return }
+
+        autoHideWhenSilent[identifier] = info
+        hiddenAfterUnpin.remove(identifier)
+        if app?.isAudioActive == true {
+            pendingUnpinRemoval.removeValue(forKey: identifier)?.cancel()
+            visibleDuringUnpinGrace.remove(identifier)
+        } else {
+            scheduleUnpinRemoval(identifier)
+        }
+    }
+
+    private func clearUnpinVisibilityState(_ identifier: String) {
+        pendingUnpinRemoval.removeValue(forKey: identifier)?.cancel()
+        autoHideWhenSilent.removeValue(forKey: identifier)
+        visibleDuringUnpinGrace.remove(identifier)
+        hiddenAfterUnpin.remove(identifier)
+    }
+
+    private func updateUnpinnedAppVisibility(_ apps: [AudioApp]) {
+        let appsByIdentifier = Dictionary(
+            apps.map { ($0.persistenceIdentifier, $0) },
+            uniquingKeysWith: { current, _ in current }
+        )
+
+        for identifier in autoHideWhenSilent.keys {
+            if appsByIdentifier[identifier]?.isAudioActive == true {
+                pendingUnpinRemoval.removeValue(forKey: identifier)?.cancel()
+                visibleDuringUnpinGrace.remove(identifier)
+                hiddenAfterUnpin.remove(identifier)
+            } else if pendingUnpinRemoval[identifier] == nil && !hiddenAfterUnpin.contains(identifier) {
+                scheduleUnpinRemoval(identifier)
+            }
+        }
+    }
+
+    private func scheduleUnpinRemoval(_ identifier: String) {
+        pendingUnpinRemoval.removeValue(forKey: identifier)?.cancel()
+        visibleDuringUnpinGrace.insert(identifier)
+        if unpinRemovalDelay == .zero {
+            finishUnpinRemoval(identifier)
+            return
+        }
+        pendingUnpinRemoval[identifier] = Task { @MainActor in
+            try? await Task.sleep(for: unpinRemovalDelay)
+            guard !Task.isCancelled else { return }
+            finishUnpinRemoval(identifier)
+        }
+    }
+
+    private func finishUnpinRemoval(_ identifier: String) {
+        guard !appListCoordinator.isPinned(identifier: identifier) else {
+            clearUnpinVisibilityState(identifier)
+            return
+        }
+        guard apps.first(where: { $0.persistenceIdentifier == identifier })?.isAudioActive != true else {
+            pendingUnpinRemoval.removeValue(forKey: identifier)
+            visibleDuringUnpinGrace.remove(identifier)
+            return
+        }
+
+        visibleDuringUnpinGrace.remove(identifier)
+        hiddenAfterUnpin.insert(identifier)
+        pendingUnpinRemoval.removeValue(forKey: identifier)
+    }
+
+    func moveApp(_ identifier: String, to targetIdentifier: String) {
+        appListCoordinator.moveApp(
+            identifier,
+            to: targetIdentifier,
+            currentOrder: displayableApps.map(\.id)
+        )
     }
 
     /// Check if an app is pinned.
@@ -473,6 +572,10 @@ final class AudioEngine {
         appDeviceRouting.removeValue(forKey: app.id)
         followsDefault.remove(app.id)
         appliedPIDs.remove(app.id)
+    }
+
+    func ignoreApp(_ info: PinnedAppInfo) {
+        appListCoordinator.recordIgnore(info)
     }
 
     /// Unhide an app by its persistence identifier.
@@ -732,7 +835,7 @@ final class AudioEngine {
         guard let app = apps.first(where: { $0.bundleID == bundleID }) else {
             return false
         }
-        return app.processObjectIDs.contains { $0.readProcessIsRunning() }
+        return app.isAudioActive
     }
 
     func setMute(for app: AudioApp, to muted: Bool) {
@@ -1051,6 +1154,7 @@ final class AudioEngine {
     /// Creates a tap with the specified device UIDs
     private func ensureTapWithDevices(for app: AudioApp, deviceUIDs: [String]) {
         guard !deviceUIDs.isEmpty else { return }
+        guard !app.processObjectIDs.isEmpty else { return }
         guard taps[app.id] == nil else { return }
         guard permission.status == .authorized else { return }
 
@@ -1212,6 +1316,7 @@ final class AudioEngine {
     }
 
     private func ensureTapExists(for app: AudioApp, deviceUID: String) {
+        guard !app.processObjectIDs.isEmpty else { return }
         guard taps[app.id] == nil else { return }
         guard permission.status == .authorized else { return }
 
@@ -1817,6 +1922,16 @@ final class AudioEngine {
         return outputUIDs.contains(defaultUID) ? defaultUID : nil
     }
 
+    private func invalidateTapsWithChangedProcesses(_ apps: [AudioApp]) {
+        for app in apps {
+            guard let tap = taps[app.id],
+                  Set(tap.app.processObjectIDs) != Set(app.processObjectIDs) else { continue }
+            logger.info("Invalidating tap for \(app.name, privacy: .public) PID \(app.id): process objects changed from \(tap.app.processObjectIDs.description, privacy: .public) to \(app.processObjectIDs.description, privacy: .public)")
+            taps.removeValue(forKey: app.id)?.invalidate()
+            appliedPIDs.remove(app.id)
+        }
+    }
+
     private func cleanupStaleTaps() {
         let activePIDs = Set(apps.map { $0.id })
         let stalePIDs = Set(taps.keys).subtracting(activePIDs)
@@ -1922,7 +2037,9 @@ final class AudioEngine {
 
                     // Only health-check apps that are actively streaming (isRunning=true).
                     // Paused apps have no callbacks, which is normal — not a health signal.
-                    let isActivelyStreaming = self.processMonitor.activeApps.contains { $0.id == pid }
+                    let isActivelyStreaming = self.processMonitor.activeApps.contains {
+                        $0.id == pid && $0.isAudioActive
+                    }
                     guard isActivelyStreaming else {
                         consecutiveMisses[pid] = 0
                         continue

@@ -33,6 +33,11 @@ struct AppRow: View {
     let onRenameUserPreset: (UUID, String) -> Void
     let isEQExpanded: Bool
     let onEQToggle: () -> Void
+    let sliderWidth: CGFloat
+    let isPinned: Bool
+    let onTogglePin: () -> Void
+    let onHide: () -> Void
+    let onMoveApp: (String) -> Bool
     let isFocused: Bool
 
     @State private var isIconHovered = false
@@ -68,6 +73,11 @@ struct AppRow: View {
         onRenameUserPreset: @escaping (UUID, String) -> Void = { _, _ in },
         isEQExpanded: Bool = false,
         onEQToggle: @escaping () -> Void = {},
+        sliderWidth: CGFloat = DesignTokens.Dimensions.sliderWidth,
+        isPinned: Bool = false,
+        onTogglePin: @escaping () -> Void = {},
+        onHide: @escaping () -> Void = {},
+        onMoveApp: @escaping (String) -> Bool = { _ in false },
         isFocused: Bool = false
     ) {
         self.app = app
@@ -99,6 +109,11 @@ struct AppRow: View {
         self.onRenameUserPreset = onRenameUserPreset
         self.isEQExpanded = isEQExpanded
         self.onEQToggle = onEQToggle
+        self.sliderWidth = sliderWidth
+        self.isPinned = isPinned
+        self.onTogglePin = onTogglePin
+        self.onHide = onHide
+        self.onMoveApp = onMoveApp
         self.isFocused = isFocused
         // Initialize local EQ state for reactive UI updates
         self._localEQSettings = State(initialValue: eqSettings)
@@ -155,6 +170,14 @@ struct AppRow: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .layoutPriority(1)
+                .contentShape(Rectangle())
+                .draggable(app.persistenceIdentifier) {
+                    Text(app.name)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 6))
+                }
 
                 // Shared controls section
                 AppRowControls(
@@ -169,6 +192,7 @@ struct AppRow: View {
                     deviceSelectionMode: deviceSelectionMode,
                     boost: boost,
                     isEQExpanded: isEQExpanded,
+                    sliderWidth: sliderWidth,
                     onVolumeChange: onVolumeChange,
                     onMuteChange: onMuteChange,
                     onBoostChange: onBoostChange,
@@ -177,6 +201,8 @@ struct AppRow: View {
                     onDeviceModeChange: onDeviceModeChange,
                     onSelectFollowDefault: onSelectFollowDefault,
                     onEQToggle: onEQToggle,
+                    isPinned: isPinned,
+                    onTogglePin: onTogglePin,
                     isRowFocused: isFocused
                 )
             }
@@ -207,6 +233,16 @@ struct AppRow: View {
         .onChange(of: eqSettings) { _, newValue in
             // Sync from parent when external EQ settings change
             localEQSettings = newValue
+        }
+        .contextMenu {
+            Button("Hide app", systemImage: "eye.slash", action: onHide)
+        }
+        .accessibilityAction(named: "Hide app", onHide)
+        .dropDestination(for: String.self) { identifiers, _ in
+            guard let sourceIdentifier = identifiers.first,
+                  sourceIdentifier != app.persistenceIdentifier
+            else { return false }
+            return onMoveApp(sourceIdentifier)
         }
     }
 }

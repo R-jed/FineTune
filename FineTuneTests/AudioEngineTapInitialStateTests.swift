@@ -114,6 +114,11 @@ final class StubProcessMonitor: AudioProcessMonitoring {
     var onAppsChanged: (([AudioApp]) -> Void)?
     func start() {}
     func stop() {}
+
+    func setActiveApps(_ apps: [AudioApp]) {
+        activeApps = apps
+        onAppsChanged?(apps)
+    }
 }
 
 // MARK: - Fixture
@@ -122,6 +127,7 @@ final class StubProcessMonitor: AudioProcessMonitoring {
 private struct Fixture {
     let engine: AudioEngine
     let settings: SettingsManager
+    let processMonitor: StubProcessMonitor
     let deviceMonitor: MockAudioDeviceMonitor
     let deviceVolume: MockDeviceVolumeProviding
     let app: AudioApp
@@ -132,7 +138,8 @@ private struct Fixture {
 @MainActor
 private func makeFixture(
     supportsAutoEQ: Bool = true,
-    deviceVolume: Float = 0.75
+    deviceVolume: Float = 0.75,
+    unpinRemovalDelay: Duration = .seconds(10)
 ) -> Fixture {
     let tempDir = FileManager.default.temporaryDirectory
         .appendingPathComponent(UUID().uuidString)
@@ -150,10 +157,11 @@ private func makeFixture(
 
     let mockVolume = MockDeviceVolumeProviding(deviceMonitor: deviceMonitor)
     mockVolume.volumes[device.id] = deviceVolume
+    mockVolume.defaultDeviceUID = device.uid
 
     let app = AudioApp(
         id: 12345,
-        processObjectIDs: [],
+        processObjectIDs: [AudioObjectID(999)],
         name: "TestApp",
         icon: NSImage(),
         bundleID: "com.test.tapinitial"
@@ -184,12 +192,14 @@ private func makeFixture(
             box.last = tap
             return tap
         },
+        unpinRemovalDelay: unpinRemovalDelay,
         startMonitorsAutomatically: false
     )
 
     return Fixture(
         engine: engine,
         settings: settings,
+        processMonitor: processMonitor,
         deviceMonitor: deviceMonitor,
         deviceVolume: mockVolume,
         app: app,
@@ -208,6 +218,229 @@ private final class TapBox {
 @Suite("AudioEngine.tapInitialState — first-sound fix (PR-1)")
 @MainActor
 struct AudioEngineTapInitialStateTests {
+
+    @Test("A process object disappearing and returning rebuilds the tap")
+    func processObjectReturningRebuildsTap() {
+        let fix = makeFixture()
+        fix.engine.applyPersistedSettings()
+        let originalTap = fix.lastTap()
+
+        let quietApp = AudioApp(
+            id: fix.app.id,
+            processObjectIDs: [],
+            name: fix.app.name,
+            icon: fix.app.icon,
+            bundleID: fix.app.bundleID,
+            isAudioActive: false
+        )
+        fix.processMonitor.setActiveApps([quietApp])
+
+        #expect(originalTap?.events.contains(.invalidate) == true)
+        #expect(fix.engine.getAudioLevel(for: quietApp) == 0)
+
+        let resumedApp = AudioApp(
+            id: fix.app.id,
+            processObjectIDs: [AudioObjectID(1000)],
+            name: fix.app.name,
+            icon: fix.app.icon,
+            bundleID: fix.app.bundleID,
+            isAudioActive: true
+        )
+        fix.processMonitor.setActiveApps([resumedApp])
+
+        #expect(fix.lastTap() !== originalTap)
+        #expect(fix.lastTap()?.app.processObjectIDs == resumedApp.processObjectIDs)
+    }
+
+    @Test("Unpinning an audible app keeps it visible")
+    func unpinnedRunningAppRemainsVisible() {
+        let fix = makeFixture(unpinRemovalDelay: .zero)
+        fix.engine.pinApp(fix.app)
+
+        fix.engine.unpinApp(fix.app.persistenceIdentifier)
+
+        #expect(fix.engine.displayableApps.map(\.id) == [fix.app.persistenceIdentifier])
+    }
+
+    @Test("A quiet app remains visible during the unpin grace period")
+    func quietAppRemainsDuringGracePeriod() {
+        let fix = makeFixture()
+        let quietApp = AudioApp(
+            id: fix.app.id,
+            processObjectIDs: [],
+            name: fix.app.name,
+            icon: fix.app.icon,
+            bundleID: fix.app.bundleID,
+            isAudioActive: false
+        )
+        fix.processMonitor.activeApps = [quietApp]
+        fix.engine.pinApp(quietApp)
+
+        fix.engine.unpinApp(quietApp.persistenceIdentifier)
+        #expect(fix.engine.displayableApps.map(\.id) == [quietApp.persistenceIdentifier])
+    }
+
+    @Test("A quiet app leaves after grace and returns when audio starts")
+    func unpinnedQuietAppLeavesAfterGracePeriod() {
+        let fix = makeFixture(unpinRemovalDelay: .zero)
+        let quietApp = AudioApp(
+            id: fix.app.id,
+            processObjectIDs: [],
+            name: fix.app.name,
+            icon: fix.app.icon,
+            bundleID: fix.app.bundleID,
+            isAudioActive: false
+        )
+        fix.processMonitor.activeApps = [quietApp]
+        fix.engine.pinApp(quietApp)
+
+        fix.engine.unpinApp(quietApp.persistenceIdentifier)
+        #expect(fix.engine.displayableApps.isEmpty)
+
+        let audibleApp = AudioApp(
+            id: quietApp.id,
+            processObjectIDs: [AudioObjectID(999)],
+            name: quietApp.name,
+            icon: quietApp.icon,
+            bundleID: quietApp.bundleID,
+            isAudioActive: true
+        )
+        fix.processMonitor.setActiveApps([audibleApp])
+        #expect(fix.engine.displayableApps.map(\.id) == [audibleApp.persistenceIdentifier])
+    }
+
+    @Test("Multiple processes for one bundle produce one visible row")
+    func duplicateBundleProducesOneRow() {
+        let fix = makeFixture()
+        let quietProcess = AudioApp(
+            id: fix.app.id,
+            processObjectIDs: [AudioObjectID(999)],
+            name: fix.app.name,
+            icon: fix.app.icon,
+            bundleID: fix.app.bundleID,
+            isAudioActive: false
+        )
+        let secondProcess = AudioApp(
+            id: 54321,
+            processObjectIDs: [AudioObjectID(1000)],
+            name: fix.app.name,
+            icon: fix.app.icon,
+            bundleID: fix.app.bundleID,
+            isAudioActive: true
+        )
+        fix.processMonitor.activeApps = [quietProcess, secondProcess]
+
+        #expect(fix.engine.displayableApps.map(\.id) == [fix.app.persistenceIdentifier])
+        guard case .active(let merged) = fix.engine.displayableApps.first else {
+            Issue.record("Expected one active merged app")
+            return
+        }
+        #expect(merged.processObjectIDs == [AudioObjectID(999), AudioObjectID(1000)])
+        #expect(merged.isAudioActive)
+    }
+
+    @Test("Pinned app order is shared by running and inactive apps")
+    func pinnedOrderSpansRunningAndInactiveApps() {
+        let fix = makeFixture()
+        let inactive = PinnedAppInfo(
+            persistenceIdentifier: "com.test.inactive",
+            displayName: "Inactive",
+            bundleID: "com.test.inactive"
+        )
+        fix.engine.pinApp(fix.app)
+        fix.engine.pinApp(inactive)
+
+        fix.engine.moveApp(inactive.persistenceIdentifier, to: fix.app.persistenceIdentifier)
+
+        #expect(
+            fix.engine.displayableApps.map(\.id) == [
+                inactive.persistenceIdentifier,
+                fix.app.persistenceIdentifier,
+            ]
+        )
+    }
+
+    @Test("Every recognized app can be moved in the visible order")
+    func unpinnedAppsCanBeReordered() {
+        let fix = makeFixture()
+        let second = AudioApp(
+            id: 54321,
+            processObjectIDs: [],
+            name: "Zulu App",
+            icon: NSImage(),
+            bundleID: "com.test.zulu"
+        )
+        fix.processMonitor.activeApps = [fix.app, second]
+
+        fix.engine.moveApp(second.persistenceIdentifier, to: fix.app.persistenceIdentifier)
+
+        #expect(
+            fix.engine.displayableApps.map(\.id) == [
+                second.persistenceIdentifier,
+                fix.app.persistenceIdentifier,
+            ]
+        )
+    }
+
+    @Test("Pinned and unpinned apps share one movable order")
+    func appOrderCrossesPinBoundary() {
+        let fix = makeFixture()
+        let unpinned = AudioApp(
+            id: 54321,
+            processObjectIDs: [],
+            name: "Unpinned",
+            icon: NSImage(),
+            bundleID: "com.test.unpinned"
+        )
+        fix.processMonitor.activeApps = [fix.app, unpinned]
+        fix.engine.pinApp(fix.app)
+
+        fix.engine.moveApp(unpinned.persistenceIdentifier, to: fix.app.persistenceIdentifier)
+
+        #expect(
+            fix.engine.displayableApps.map(\.id) == [
+                unpinned.persistenceIdentifier,
+                fix.app.persistenceIdentifier,
+            ]
+        )
+    }
+
+    @Test("One-click mute updates live audio and persistence")
+    func muteUpdatesTapAndPersistence() throws {
+        let fix = makeFixture()
+        fix.engine.setDevice(for: fix.app, deviceUID: fix.device.uid)
+        let tap = try #require(fix.lastTap())
+
+        fix.engine.setMute(for: fix.app, to: true)
+
+        #expect(fix.engine.isMuted(for: fix.app))
+        #expect(tap.isMuted)
+        #expect(fix.settings.getMute(for: fix.app.persistenceIdentifier) == true)
+
+        fix.engine.setMute(for: fix.app, to: false)
+
+        #expect(!fix.engine.isMuted(for: fix.app))
+        #expect(!tap.isMuted)
+        #expect(fix.settings.getMute(for: fix.app.persistenceIdentifier) == false)
+    }
+
+    @Test("Hiding tears down live audio and restoring provisions it again")
+    func hideAndRestoreUpdatesLiveAudio() throws {
+        let fix = makeFixture()
+        fix.engine.setDevice(for: fix.app, deviceUID: fix.device.uid)
+        let firstTap = try #require(fix.lastTap())
+
+        fix.engine.ignoreApp(fix.app)
+
+        #expect(fix.engine.displayableApps.isEmpty)
+        #expect(firstTap.events.contains(.invalidate))
+
+        fix.engine.unignoreApp(fix.app.persistenceIdentifier)
+        let restoredTap = try #require(fix.lastTap())
+
+        #expect(fix.engine.displayableApps.map(\.id) == [fix.app.persistenceIdentifier])
+        #expect(restoredTap !== firstTap)
+    }
 
     // MARK: Single-knob derivation
 

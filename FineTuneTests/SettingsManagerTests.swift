@@ -6,6 +6,222 @@ import Testing
 import Foundation
 @testable import FineTune
 
+// MARK: - Pinned App Selection
+
+@Suite("PinnedAppInfo — app bundle selection")
+struct PinnedAppInfoSelectionTests {
+
+    @Test("Valid app bundle produces stable pinned metadata")
+    func validAppBundle() throws {
+        let appURL = try makeAppBundle(
+            displayName: "Example Player",
+            bundleIdentifier: "com.example.player"
+        )
+        defer { try? FileManager.default.removeItem(at: appURL.deletingLastPathComponent()) }
+
+        let info = try #require(
+            PinnedAppInfo(
+                appURL: appURL,
+                excludingBundleIdentifier: "com.finetuneapp.FineTune"
+            )
+        )
+
+        #expect(info.persistenceIdentifier == "com.example.player")
+        #expect(info.displayName == "Example Player")
+        #expect(info.bundleID == "com.example.player")
+    }
+
+    @Test("Own app bundle and missing app bundle are rejected")
+    func rejectsOwnAndMissingApps() throws {
+        let appURL = try makeAppBundle(
+            displayName: "FineTune",
+            bundleIdentifier: "com.finetuneapp.FineTune"
+        )
+        let root = appURL.deletingLastPathComponent()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        #expect(
+            PinnedAppInfo(
+                appURL: appURL,
+                excludingBundleIdentifier: "com.finetuneapp.FineTune"
+            ) == nil
+        )
+        #expect(
+            PinnedAppInfo(
+                appURL: root.appendingPathComponent("Missing.app"),
+                excludingBundleIdentifier: "com.finetuneapp.FineTune"
+            ) == nil
+        )
+    }
+
+    @Test("App bundle without an executable is rejected")
+    func rejectsDamagedAppBundle() throws {
+        let appURL = try makeAppBundle(
+            displayName: "Broken Player",
+            bundleIdentifier: "com.example.broken",
+            includeExecutable: false
+        )
+        defer { try? FileManager.default.removeItem(at: appURL.deletingLastPathComponent()) }
+
+        #expect(
+            PinnedAppInfo(
+                appURL: appURL,
+                excludingBundleIdentifier: "com.finetuneapp.FineTune"
+            ) == nil
+        )
+    }
+
+    private func makeAppBundle(
+        displayName: String,
+        bundleIdentifier: String,
+        includeExecutable: Bool = true
+    ) throws -> URL {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let appURL = root.appendingPathComponent("Example.app", isDirectory: true)
+        let contentsURL = appURL.appendingPathComponent("Contents", isDirectory: true)
+        try FileManager.default.createDirectory(at: contentsURL, withIntermediateDirectories: true)
+
+        let plist: [String: Any] = [
+            "CFBundleDisplayName": displayName,
+            "CFBundleExecutable": "Example",
+            "CFBundleIdentifier": bundleIdentifier,
+            "CFBundleName": "Example",
+            "CFBundlePackageType": "APPL",
+        ]
+        let data = try PropertyListSerialization.data(
+            fromPropertyList: plist,
+            format: .xml,
+            options: 0
+        )
+        try data.write(to: contentsURL.appendingPathComponent("Info.plist"))
+        if includeExecutable {
+            let executableURL = contentsURL
+                .appendingPathComponent("MacOS", isDirectory: true)
+                .appendingPathComponent("Example")
+            try FileManager.default.createDirectory(
+                at: executableURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            FileManager.default.createFile(atPath: executableURL.path, contents: Data())
+            try FileManager.default.setAttributes(
+                [.posixPermissions: 0o755],
+                ofItemAtPath: executableURL.path
+            )
+        }
+        return appURL
+    }
+}
+
+@Suite("SettingsManager — selected app pinning")
+@MainActor
+struct SelectedAppPinningTests {
+
+    @Test("Selected app is pinned once and initially follows the system output")
+    func pinningIsIdempotentAndFollowsDefault() {
+        let manager = SettingsManager(
+            directory: FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+        )
+        let info = PinnedAppInfo(
+            persistenceIdentifier: "com.example.player",
+            displayName: "Example Player",
+            bundleID: "com.example.player"
+        )
+
+        manager.pinApp(info.persistenceIdentifier, info: info)
+        manager.pinApp(info.persistenceIdentifier, info: info)
+
+        #expect(manager.getPinnedAppInfo() == [info])
+        #expect(manager.isFollowingDefault(for: info.persistenceIdentifier))
+    }
+
+    @Test("Explicitly adding an ignored app makes it visible and pinned")
+    func addingIgnoredAppRestoresVisibility() {
+        let manager = SettingsManager(
+            directory: FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+        )
+        let info = PinnedAppInfo(
+            persistenceIdentifier: "com.example.player",
+            displayName: "Example Player",
+            bundleID: "com.example.player"
+        )
+        let ignored = IgnoredAppInfo(
+            persistenceIdentifier: info.persistenceIdentifier,
+            displayName: info.displayName,
+            bundleID: info.bundleID
+        )
+        manager.ignoreApp(info.persistenceIdentifier, info: ignored)
+
+        manager.pinApp(info.persistenceIdentifier, info: info)
+
+        #expect(manager.isPinned(info.persistenceIdentifier))
+        #expect(!manager.isIgnored(info.persistenceIdentifier))
+    }
+
+    @Test("Pinned apps keep the order chosen by the user")
+    func pinnedAppOrderCanBeChanged() {
+        let manager = SettingsManager(
+            directory: FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+        )
+        let first = PinnedAppInfo(
+            persistenceIdentifier: "com.example.first",
+            displayName: "First",
+            bundleID: "com.example.first"
+        )
+        let second = PinnedAppInfo(
+            persistenceIdentifier: "com.example.second",
+            displayName: "Second",
+            bundleID: "com.example.second"
+        )
+        let third = PinnedAppInfo(
+            persistenceIdentifier: "com.example.third",
+            displayName: "Third",
+            bundleID: "com.example.third"
+        )
+        manager.pinApp(first.persistenceIdentifier, info: first)
+        manager.pinApp(second.persistenceIdentifier, info: second)
+        manager.pinApp(third.persistenceIdentifier, info: third)
+
+        manager.moveApp(
+            third.persistenceIdentifier,
+            to: first.persistenceIdentifier,
+            currentOrder: [first, second, third].map(\.persistenceIdentifier)
+        )
+
+        #expect(manager.getPinnedAppInfo() == [third, first, second])
+
+        manager.moveApp(
+            third.persistenceIdentifier,
+            to: second.persistenceIdentifier,
+            currentOrder: [third, first, second].map(\.persistenceIdentifier)
+        )
+
+        #expect(manager.getPinnedAppInfo() == [first, second, third])
+    }
+
+    @Test("Resetting all settings clears the custom app order")
+    func resetClearsAppOrder() {
+        let manager = SettingsManager(
+            directory: FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+        )
+        let info = PinnedAppInfo(
+            persistenceIdentifier: "com.example.player",
+            displayName: "Example Player",
+            bundleID: "com.example.player"
+        )
+        manager.pinApp(info.persistenceIdentifier, info: info)
+        #expect(manager.appOrder == [info.persistenceIdentifier])
+
+        manager.resetAllSettings()
+
+        #expect(manager.appOrder.isEmpty)
+    }
+}
+
 // MARK: - Settings JSON Round-Trip
 
 @Suite("SettingsManager.Settings — JSON serialization")
@@ -30,7 +246,8 @@ struct SettingsJSONTests {
         original.appMutes = ["com.test.app": true]
         original.appBoosts = ["com.test.app": 2.0]
         original.appDeviceRouting = ["com.test.app": "device-uid-123"]
-        original.pinnedApps = Set(["com.test.app"])
+        original.pinnedApps = Set(["com.test.second", "com.test.app"])
+        original.appOrder = ["com.test.second", "com.test.app"]
         original.outputDevicePriority = ["uid-a", "uid-b", "uid-c"]
         original.ddcVolumes = ["monitor-1": 75]
         original.ddcMuteStates = ["monitor-1": false]
@@ -47,6 +264,7 @@ struct SettingsJSONTests {
         #expect(decoded.appBoosts == original.appBoosts)
         #expect(decoded.appDeviceRouting == original.appDeviceRouting)
         #expect(decoded.pinnedApps == original.pinnedApps)
+        #expect(decoded.appOrder == original.appOrder)
         #expect(decoded.outputDevicePriority == original.outputDevicePriority)
         #expect(decoded.ddcVolumes == original.ddcVolumes)
         #expect(decoded.ddcMuteStates == original.ddcMuteStates)

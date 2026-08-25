@@ -72,9 +72,9 @@ private struct VUMeterBar: View {
     let barCount: Int
     var isMuted: Bool = false
 
-    /// dB thresholds for 8 bars covering 40dB range
+    /// dB thresholds for 8 bars covering a 60 dB range
     /// Matches professional audio meter standards (logarithmic scale)
-    private static let dbThresholds: [Float] = [-40, -30, -20, -14, -10, -6, -3, 0]
+    private static let dbThresholds: [Float] = [-60, -42, -30, -20, -14, -8, -3, 0]
 
     /// Threshold for this bar (0-1) using dB scale
     /// Converts dB to linear: 10^(dB/20)

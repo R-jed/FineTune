@@ -55,6 +55,9 @@ struct MenuBarPopupView: View {
     /// Task that auto-clears the import error after 3 seconds
     @State private var importErrorClearTask: Task<Void, Never>?
 
+    /// Localizable error shown when one or more selected bundles are invalid.
+    @State private var appSelectionError: LocalizedStringResource?
+
     /// Memoized paired Bluetooth devices
     @State private var pairedDevices: [PairedBluetoothDevice] = []
 
@@ -99,6 +102,7 @@ struct MenuBarPopupView: View {
     @State private var textEntry = PopupTextEntryCoordinator()
 
     @Environment(\.openSettings) private var openSettings
+    @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
 
     // MARK: - Resolved Dimensions
 
@@ -106,7 +110,15 @@ struct MenuBarPopupView: View {
         audioEngine.settingsManager.appSettings.popupSize.dimensions
     }
 
-    var body: some View {
+    private var appSliderWidth: CGFloat {
+        switch audioEngine.settingsManager.appSettings.popupSize {
+        case .compact: 100
+        case .comfortable: 120
+        case .spacious: DesignTokens.Dimensions.sliderWidth
+        }
+    }
+
+    private var popupLayout: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
             HStack(alignment: .top) {
                 deviceTabsHeader
@@ -125,11 +137,7 @@ struct MenuBarPopupView: View {
             .padding(.bottom, DesignTokens.Spacing.xs)
 
             ScrollViewReader { proxy in
-                ScrollView {
-                    mainContent(scrollProxy: proxy)
-                }
-                .scrollIndicators(.never)
-                .frame(maxHeight: popupDimensions.maxContentHeight)
+                mainContent(scrollProxy: proxy)
                 .onChange(of: selectedRow) { _, newFocus in
                     guard let newFocus else { return }
                     withAnimation(DesignTokens.Animation.hover) {
@@ -137,9 +145,18 @@ struct MenuBarPopupView: View {
                     }
                 }
             }
+
+            Divider()
+                .padding(.top, DesignTokens.Spacing.xs)
+
+            footer
         }
         .padding(popupDimensions.contentPadding)
         .frame(width: popupDimensions.width)
+    }
+
+    private var stateObservedPopup: some View {
+        popupLayout
         .background(
             WindowAppearanceBridge(appearance: audioEngine.settingsManager.appSettings.appearance.nsAppearance)
                 .frame(width: 0, height: 0)
@@ -197,6 +214,10 @@ struct MenuBarPopupView: View {
         .onChange(of: deviceVolumeMonitor.defaultDeviceID) { _, _ in
             updateSortedDevices()
         }
+    }
+
+    var body: some View {
+        stateObservedPopup
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { notification in
             // Global notification — fires for every window in the process. Filter to
             // FluidMenuBarExtra's popup window so unrelated windows (the HID-tap
@@ -218,10 +239,16 @@ struct MenuBarPopupView: View {
             guard let window = notification.object as? NSWindow,
                   String(describing: type(of: window)).contains("FluidMenuBarExtra")
             else { return }
-            isPopupVisible = false
-            popupVisibility.isVisible = false
             hasKeyboardEngaged = false
             selectedRow = nil
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(350))
+                if !window.isVisible {
+                    isPopupVisible = false
+                    popupVisibility.isVisible = false
+                    resetToRootPage()
+                }
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in
             // SwiftUI Menu tracking (e.g. sample-rate picker in the device
@@ -341,21 +368,26 @@ struct MenuBarPopupView: View {
 
     @ViewBuilder
     private func mainContent(scrollProxy: ScrollViewProxy) -> some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
-            // Devices section (tabbed: Output / Input)
-            devicesSection
+        if isEditingDevicePriority {
+            ScrollView {
+                devicesSection
+            }
+            .scrollIndicators(.never)
+            .frame(maxHeight: popupDimensions.maxContentHeight)
+        } else {
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+                devicesSection
 
-            Divider()
-                .padding(.vertical, DesignTokens.Spacing.xs)
+                Divider()
+                    .padding(.vertical, DesignTokens.Spacing.xs)
 
-            // Apps section (active + pinned inactive + hidden in edit mode)
-            appsSection(scrollProxy: scrollProxy)
+                appsSection(scrollProxy: scrollProxy)
+            }
+        }
+    }
 
-            Divider()
-                .padding(.vertical, DesignTokens.Spacing.xs)
-
-            // Footer: support link + quit
-            HStack {
+    private var footer: some View {
+        HStack {
                 Button {
                     NSWorkspace.shared.open(DesignTokens.Links.support)
                 } label: {
@@ -365,9 +397,7 @@ struct MenuBarPopupView: View {
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(isSupportHovered ? Color(nsColor: .systemPink) : DesignTokens.Colors.textTertiary)
                 .onHover { hovering in
-                    withAnimation(DesignTokens.Animation.hover) {
-                        isSupportHovered = hovering
-                    }
+                    isSupportHovered = hovering
                 }
                 .accessibilityLabel("Donate to FineTune")
                 .help("Donate to FineTune")
@@ -389,7 +419,6 @@ struct MenuBarPopupView: View {
                 .glassButtonStyle()
                 .accessibilityLabel("Quit FineTune")
                 .help("Quit FineTune (⌘Q)")
-            }
         }
     }
 
@@ -451,7 +480,7 @@ struct MenuBarPopupView: View {
         return HStack(spacing: 2) {
             // Output (speaker) button
             Button {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                withAnimation(accessibilityReduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.75)) {
                     showingInputDevices = false
                 }
             } label: {
@@ -474,7 +503,7 @@ struct MenuBarPopupView: View {
 
             // Input (mic) button
             Button {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                withAnimation(accessibilityReduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.75)) {
                     showingInputDevices = true
                 }
             } label: {
@@ -731,13 +760,13 @@ struct MenuBarPopupView: View {
                 Image(systemName: "speaker.slash")
                     .font(.title)
                     .foregroundStyle(DesignTokens.Colors.textTertiary)
-                Text("No apps playing audio")
+                Text("No audio apps running")
                     .font(.callout)
                     .foregroundStyle(DesignTokens.Colors.textSecondary)
 
                 let ignoredCount = audioEngine.settingsManager.getIgnoredAppInfo().count
                 if ignoredCount > 0 {
-                    (Text(verbatim: "\(ignoredCount) ") + Text("ignored · edit to manage"))
+                    (Text(verbatim: "\(ignoredCount) ") + Text("hidden"))
                         .font(DesignTokens.Typography.caption)
                         .foregroundStyle(DesignTokens.Colors.textTertiary)
                 }
@@ -752,107 +781,85 @@ struct MenuBarPopupView: View {
         HStack {
             SectionHeader(title: "Apps")
             Spacer()
-            let ignoredCount = audioEngine.settingsManager.getIgnoredAppInfo().count
-            if ignoredCount > 0 && !isEditingDevicePriority {
-                (Text(verbatim: "\(ignoredCount) ") + Text("ignored"))
-                    .font(DesignTokens.Typography.caption)
-                    .foregroundStyle(DesignTokens.Colors.textTertiary)
-            }
-        }
-        .padding(.bottom, DesignTokens.Spacing.xs)
-
-        if permission.status != .authorized {
-            PermissionBannerView(permission: permission)
-        } else if isEditingDevicePriority {
-            appEditModeContent
-        } else if audioEngine.displayableApps.isEmpty {
-            emptyStateView
-        } else {
-            appsContent(scrollProxy: scrollProxy)
-        }
-    }
-
-    /// Edit mode content for apps: simplified rows with eye toggle + hidden section at bottom.
-    private let appEditColumns = [
-        GridItem(.flexible(), spacing: DesignTokens.Spacing.xs),
-        GridItem(.flexible(), spacing: DesignTokens.Spacing.xs)
-    ]
-
-    @ViewBuilder
-    private var appEditModeContent: some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
-            // Visible apps in 2-column grid
-            LazyVGrid(columns: appEditColumns, spacing: DesignTokens.Spacing.xs) {
-                ForEach(audioEngine.displayableApps) { displayableApp in
-                    switch displayableApp {
-                    case .active(let app):
-                        AppEditRow(
-                            icon: app.icon,
-                            name: app.name,
-                            isIgnored: false,
-                            isPinned: audioEngine.isPinned(app),
-                            onToggleVisibility: { audioEngine.ignoreApp(app) },
-                            onTogglePin: {
-                                if audioEngine.isPinned(app) {
-                                    audioEngine.unpinApp(app.persistenceIdentifier)
-                                } else {
-                                    audioEngine.pinApp(app)
-                                }
-                            }
-                        )
-                    case .pinnedInactive(let info):
-                        AppEditRow(
-                            icon: displayableApp.icon,
-                            name: info.displayName,
-                            isIgnored: false,
-                            isPinned: true,
-                            onToggleVisibility: {
-                                let hiddenInfo = IgnoredAppInfo(
-                                    persistenceIdentifier: info.persistenceIdentifier,
-                                    displayName: info.displayName,
-                                    bundleID: info.bundleID
-                                )
-                                audioEngine.settingsManager.ignoreApp(info.persistenceIdentifier, info: hiddenInfo)
-                            },
-                            onTogglePin: {
-                                audioEngine.unpinApp(info.persistenceIdentifier)
-                            }
-                        )
-                    }
-                }
-            }
-
-            // Ignored apps section
             let ignoredApps = audioEngine.settingsManager.getIgnoredAppInfo()
                 .sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
             if !ignoredApps.isEmpty {
-                Divider()
-                    .padding(.vertical, DesignTokens.Spacing.xs)
-
-                Text("Ignored")
-                    .sectionHeaderStyle()
-                    .padding(.bottom, DesignTokens.Spacing.xs)
-
-                LazyVGrid(columns: appEditColumns, spacing: DesignTokens.Spacing.xs) {
-                    ForEach(ignoredApps, id: \.persistenceIdentifier) { info in
-                        AppEditRow(
-                            icon: DisplayableApp.loadIcon(bundleID: info.bundleID),
-                            name: info.displayName,
-                            isIgnored: true,
-                            isPinned: false,
-                            onToggleVisibility: { audioEngine.unignoreApp(info.persistenceIdentifier) },
-                            onTogglePin: {}
-                        )
-                    }
+                IgnoredAppsMenu(ignoredApps: ignoredApps) { identifier in
+                    audioEngine.unignoreApp(identifier)
                 }
             }
+            AddApplicationsButton(action: selectApplications)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.bottom, DesignTokens.Spacing.xs)
+
+        if let appSelectionError {
+            Label {
+                Text(appSelectionError)
+            } icon: {
+                Image(systemName: "exclamationmark.triangle.fill")
+            }
+            .font(DesignTokens.Typography.caption)
+            .foregroundStyle(.orange)
+            .padding(.bottom, DesignTokens.Spacing.xs)
+        }
+
+        if permission.status != .authorized {
+            PermissionBannerView(permission: permission)
+        } else if audioEngine.displayableApps.isEmpty {
+            emptyStateView
+        } else {
+            ScrollView {
+                appsContent(scrollProxy: scrollProxy)
+            }
+            .scrollIndicators(.visible)
+            .frame(height: appViewportHeight)
+        }
+    }
+
+    private var appViewportHeight: CGFloat {
+        let collapsedRowHeight = DesignTokens.Dimensions.rowContentHeight + 12
+        if expandedRowID != nil {
+            return collapsedRowHeight * 6
+        }
+        return collapsedRowHeight * CGFloat(min(audioEngine.displayableApps.count, 6))
+    }
+
+    private func selectApplications() {
+        NSApp.keyWindow?.resignKey()
+
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.applicationBundle]
+        panel.allowsMultipleSelection = true
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.directoryURL = URL(fileURLWithPath: "/Applications", isDirectory: true)
+
+        let localization = LocalizationContext(
+            language: audioEngine.settingsManager.appSettings.language
+        )
+        panel.message = localization.localized("Choose one or more applications to add.")
+        panel.prompt = localization.localized("Add")
+        NSApp.activate()
+        panel.begin { response in
+            guard response == .OK else { return }
+
+            let selected = panel.urls.compactMap { PinnedAppInfo(appURL: $0) }
+            Task { @MainActor in
+                for info in selected {
+                    audioEngine.pinApp(info)
+                }
+                appSelectionError = selected.count == panel.urls.count
+                    ? nil
+                    : LocalizedStringResource(
+                        "Some applications could not be added because they were invalid, missing a bundle identifier, or were FineTune."
+                    )
+            }
+        }
     }
 
     private func appsContent(scrollProxy: ScrollViewProxy) -> some View {
         let presets = audioEngine.settingsManager.getUserPresets()
-        return VStack(alignment: .leading, spacing: 0) {
+        return LazyVStack(alignment: .leading, spacing: 0) {
             ForEach(audioEngine.displayableApps) { displayableApp in
                 switch displayableApp {
                 case .active(let app):
@@ -932,9 +939,25 @@ struct MenuBarPopupView: View {
                 onEQToggle: {
                     toggleEQ(for: displayableApp.id, scrollProxy: scrollProxy)
                 },
+                sliderWidth: appSliderWidth,
+                isPinned: audioEngine.isPinned(app),
+                onTogglePin: {
+                    if audioEngine.isPinned(app) {
+                        audioEngine.unpinApp(app.persistenceIdentifier)
+                    } else {
+                        audioEngine.pinApp(app)
+                    }
+                },
+                onHide: {
+                    audioEngine.ignoreApp(app)
+                },
+                onMoveApp: { sourceIdentifier in
+                    audioEngine.moveApp(sourceIdentifier, to: app.persistenceIdentifier)
+                    return true
+                },
                 isFocused: hasKeyboardEngaged && selectedRow == .app(persistenceID: displayableApp.id)
             )
-            .id(PopupKeyboardNavModel.RowID.app(persistenceID: displayableApp.id))
+            .id(app.id)
         }
     }
 
@@ -999,6 +1022,17 @@ struct MenuBarPopupView: View {
             isEQExpanded: expandedRowID == displayableApp.id,
             onEQToggle: {
                 toggleEQ(for: displayableApp.id, scrollProxy: scrollProxy)
+            },
+            sliderWidth: appSliderWidth,
+            onTogglePin: {
+                audioEngine.unpinApp(identifier)
+            },
+            onHide: {
+                audioEngine.ignoreApp(info)
+            },
+            onMoveApp: { sourceIdentifier in
+                audioEngine.moveApp(sourceIdentifier, to: identifier)
+                return true
             },
             isFocused: hasKeyboardEngaged && selectedRow == .app(persistenceID: displayableApp.id)
         )
@@ -1075,6 +1109,13 @@ struct MenuBarPopupView: View {
         persistEditableOrder()
         isEditingDevicePriority = false
         expandedDeviceUID = nil
+    }
+
+    private func resetToRootPage() {
+        exitEditModeSaving()
+        expandedRowID = nil
+        expandedDeviceUID = nil
+        showingInputDevices = false
     }
 
     /// Merges device list changes into `editableDeviceOrder` while preserving the user's reordering.
@@ -1470,6 +1511,107 @@ struct MenuBarPopupView: View {
                 end tell
                 """)
             script?.executeAndReturnError(nil)
+        }
+    }
+}
+
+private struct IgnoredAppsMenu: View {
+    let ignoredApps: [IgnoredAppInfo]
+    let onRestore: (String) -> Void
+
+    var body: some View {
+        Menu {
+            ForEach(ignoredApps, id: \.persistenceIdentifier) { app in
+                Button {
+                    onRestore(app.persistenceIdentifier)
+                } label: {
+                    Label {
+                        Text(verbatim: app.displayName)
+                    } icon: {
+                        Image(systemName: "eye")
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "eye.slash")
+                    .font(.system(size: 10))
+                Text(verbatim: "\(ignoredApps.count) ") + Text("hidden")
+            }
+            .font(DesignTokens.Typography.caption)
+            .foregroundStyle(DesignTokens.Colors.textTertiary)
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .accessibilityLabel("Hidden apps")
+        .help("Hidden apps")
+    }
+}
+
+private struct AddApplicationsButton: View {
+    let action: () -> Void
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var isHovered = false
+    @State private var isTooltipVisible = false
+    @State private var tooltipTask: Task<Void, Never>?
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "plus")
+                .font(.system(size: 12, weight: .semibold))
+                .frame(
+                    minWidth: DesignTokens.Dimensions.minTouchTarget,
+                    minHeight: DesignTokens.Dimensions.minTouchTarget
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Add Applications")
+        .onHover(perform: updateHover)
+        .overlay(alignment: .bottomTrailing) {
+            Text("Add Applications")
+                .font(DesignTokens.Typography.caption)
+                .foregroundStyle(DesignTokens.Colors.textPrimary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 6))
+                .fixedSize()
+                .opacity(isTooltipVisible ? 1 : 0)
+                .scaleEffect(isTooltipVisible ? 1 : 0.96, anchor: .topTrailing)
+                .blur(radius: isTooltipVisible || reduceMotion ? 0 : 4)
+                .offset(y: 30)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
+        .zIndex(10)
+        .onDisappear {
+            tooltipTask?.cancel()
+        }
+    }
+
+    private func updateHover(_ hovering: Bool) {
+        isHovered = hovering
+        tooltipTask?.cancel()
+
+        if hovering {
+            tooltipTask = Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(450))
+                guard !Task.isCancelled, isHovered else { return }
+                if reduceMotion {
+                    isTooltipVisible = true
+                } else {
+                    withAnimation(.easeOut(duration: 0.15)) {
+                        isTooltipVisible = true
+                    }
+                }
+            }
+        } else {
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                isTooltipVisible = false
+            }
         }
     }
 }

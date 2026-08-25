@@ -24,8 +24,16 @@ final class AppListCoordinator {
         settingsManager.pinApp(app.persistenceIdentifier, info: info)
     }
 
+    func pinApp(_ info: PinnedAppInfo) {
+        settingsManager.pinApp(info.persistenceIdentifier, info: info)
+    }
+
     func unpinApp(_ identifier: String) {
         settingsManager.unpinApp(identifier)
+    }
+
+    func moveApp(_ identifier: String, to targetIdentifier: String, currentOrder: [String]) {
+        settingsManager.moveApp(identifier, to: targetIdentifier, currentOrder: currentOrder)
     }
 
     func isPinned(_ app: AudioApp) -> Bool {
@@ -49,6 +57,17 @@ final class AppListCoordinator {
             bundleID: app.bundleID
         )
         settingsManager.ignoreApp(app.persistenceIdentifier, info: info)
+    }
+
+    func recordIgnore(_ info: PinnedAppInfo) {
+        settingsManager.ignoreApp(
+            info.persistenceIdentifier,
+            info: IgnoredAppInfo(
+                persistenceIdentifier: info.persistenceIdentifier,
+                displayName: info.displayName,
+                bundleID: info.bundleID
+            )
+        )
     }
 
     func clearIgnore(_ identifier: String) {

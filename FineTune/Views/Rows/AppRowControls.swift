@@ -1,7 +1,7 @@
 // FineTune/Views/Rows/AppRowControls.swift
 import SwiftUI
 
-/// Shared controls for app rows: mute button, volume slider, percentage, VU meter, device picker, EQ button.
+/// Shared controls for app rows: mute button, volume slider, percentage, VU meter, device picker, EQ, and pin.
 /// Used by both AppRow (active apps) and InactiveAppRow (pinned inactive apps).
 struct AppRowControls: View {
     let volume: Float
@@ -15,6 +15,7 @@ struct AppRowControls: View {
     let deviceSelectionMode: DeviceSelectionMode
     let boost: BoostLevel
     let isEQExpanded: Bool
+    var sliderWidth: CGFloat = DesignTokens.Dimensions.sliderWidth
     let onVolumeChange: (Float) -> Void
     let onMuteChange: (Bool) -> Void
     let onBoostChange: (BoostLevel) -> Void
@@ -23,10 +24,13 @@ struct AppRowControls: View {
     let onDeviceModeChange: (DeviceSelectionMode) -> Void
     let onSelectFollowDefault: () -> Void
     let onEQToggle: () -> Void
+    var isPinned: Bool = false
+    var onTogglePin: () -> Void = {}
     var isRowFocused: Bool = false
 
     @State private var dragOverrideValue: Double?
     @State private var isEQButtonHovered = false
+    @State private var isPinButtonHovered = false
 
     private var sliderValue: Double {
         dragOverrideValue ?? VolumeMapping.gainToSlider(volume)
@@ -65,6 +69,16 @@ struct AppRowControls: View {
         }
     }
 
+    private var pinButtonColor: Color {
+        if isPinned {
+            return DesignTokens.Colors.interactiveActive
+        } else if isPinButtonHovered {
+            return DesignTokens.Colors.interactiveHover
+        } else {
+            return DesignTokens.Colors.interactiveDefault
+        }
+    }
+
     var body: some View {
         HStack(spacing: DesignTokens.Spacing.sm) {
             // Mute button
@@ -89,9 +103,8 @@ struct AppRowControls: View {
                     }
                 }
             )
-            .frame(width: DesignTokens.Dimensions.sliderWidth)
+            .frame(width: sliderWidth)
             .opacity(showMutedIcon ? 0.5 : 1.0)
-            .scrollWheelStep(sliderBinding, in: 0.0...1.0)
 
             // Editable volume percentage (shows slider position, not raw gain)
             EditablePercentage(
@@ -157,6 +170,25 @@ struct AppRowControls: View {
             .help(isEQExpanded ? "Close Equalizer" : "Equalizer")
             .animation(.spring(response: 0.3, dampingFraction: 0.75), value: isEQExpanded)
             .animation(DesignTokens.Animation.hover, value: isEQButtonHovered)
+
+            // Pin toggle
+            Button(action: onTogglePin) {
+                Image(systemName: isPinned ? "pin.fill" : "pin")
+                    .font(.system(size: 12))
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(pinButtonColor)
+                    .frame(
+                        minWidth: DesignTokens.Dimensions.minTouchTarget,
+                        minHeight: DesignTokens.Dimensions.minTouchTarget
+                    )
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(isPinned ? "Unpin app" : "Pin app")
+            .onHover { isPinButtonHovered = $0 }
+            .help(isPinned ? "Unpin app" : "Pin app")
+            .animation(DesignTokens.Animation.hover, value: isPinButtonHovered)
+
         }
         .fixedSize()
     }

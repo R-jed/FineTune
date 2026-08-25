@@ -9,6 +9,7 @@ struct AudioApp: Identifiable, Hashable {
     let icon: NSImage
     let bundleID: String?
     let isHelperBacked: Bool
+    let isAudioActive: Bool
 
     init(
         id: pid_t,
@@ -16,7 +17,8 @@ struct AudioApp: Identifiable, Hashable {
         name: String,
         icon: NSImage,
         bundleID: String?,
-        isHelperBacked: Bool = false
+        isHelperBacked: Bool = false,
+        isAudioActive: Bool = true
     ) {
         self.id = id
         self.processObjectIDs = processObjectIDs
@@ -24,10 +26,24 @@ struct AudioApp: Identifiable, Hashable {
         self.icon = icon
         self.bundleID = bundleID
         self.isHelperBacked = isHelperBacked
+        self.isAudioActive = isAudioActive
     }
 
     var persistenceIdentifier: String {
         bundleID ?? "name:\(name)"
+    }
+
+    func merging(_ other: AudioApp) -> AudioApp {
+        let primary = id <= other.id ? self : other
+        return AudioApp(
+            id: primary.id,
+            processObjectIDs: Array(Set(processObjectIDs).union(other.processObjectIDs)).sorted(),
+            name: primary.name,
+            icon: primary.icon,
+            bundleID: primary.bundleID,
+            isHelperBacked: isHelperBacked || other.isHelperBacked,
+            isAudioActive: isAudioActive || other.isAudioActive
+        )
     }
 
     func hash(into hasher: inout Hasher) {

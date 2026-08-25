@@ -36,6 +36,10 @@ struct InactiveAppRow: View {
     let onRenameUserPreset: (UUID, String) -> Void
     let isEQExpanded: Bool
     let onEQToggle: () -> Void
+    let sliderWidth: CGFloat
+    let onTogglePin: () -> Void
+    let onHide: () -> Void
+    let onMoveApp: (String) -> Bool
     let isFocused: Bool
 
     @State private var localEQSettings: EQSettings
@@ -69,6 +73,10 @@ struct InactiveAppRow: View {
         onRenameUserPreset: @escaping (UUID, String) -> Void = { _, _ in },
         isEQExpanded: Bool = false,
         onEQToggle: @escaping () -> Void = {},
+        sliderWidth: CGFloat = DesignTokens.Dimensions.sliderWidth,
+        onTogglePin: @escaping () -> Void = {},
+        onHide: @escaping () -> Void = {},
+        onMoveApp: @escaping (String) -> Bool = { _ in false },
         isFocused: Bool = false
     ) {
         self.appInfo = appInfo
@@ -99,6 +107,10 @@ struct InactiveAppRow: View {
         self.onRenameUserPreset = onRenameUserPreset
         self.isEQExpanded = isEQExpanded
         self.onEQToggle = onEQToggle
+        self.sliderWidth = sliderWidth
+        self.onTogglePin = onTogglePin
+        self.onHide = onHide
+        self.onMoveApp = onMoveApp
         self.isFocused = isFocused
         self._localEQSettings = State(initialValue: eqSettings)
     }
@@ -139,6 +151,14 @@ struct InactiveAppRow: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .layoutPriority(1)
+                .contentShape(Rectangle())
+                .draggable(appInfo.persistenceIdentifier) {
+                    Text(appInfo.displayName)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 6))
+                }
 
                 // Shared controls section (VU meter always 0 for inactive apps)
                 AppRowControls(
@@ -153,6 +173,7 @@ struct InactiveAppRow: View {
                     deviceSelectionMode: deviceSelectionMode,
                     boost: boost,
                     isEQExpanded: isEQExpanded,
+                    sliderWidth: sliderWidth,
                     onVolumeChange: onVolumeChange,
                     onMuteChange: onMuteChange,
                     onBoostChange: onBoostChange,
@@ -161,6 +182,8 @@ struct InactiveAppRow: View {
                     onDeviceModeChange: onDeviceModeChange,
                     onSelectFollowDefault: onSelectFollowDefault,
                     onEQToggle: onEQToggle,
+                    isPinned: true,
+                    onTogglePin: onTogglePin,
                     isRowFocused: isFocused
                 )
             }
@@ -190,6 +213,16 @@ struct InactiveAppRow: View {
         }
         .onChange(of: eqSettings) { _, newValue in
             localEQSettings = newValue
+        }
+        .contextMenu {
+            Button("Hide app", systemImage: "eye.slash", action: onHide)
+        }
+        .accessibilityAction(named: "Hide app", onHide)
+        .dropDestination(for: String.self) { identifiers, _ in
+            guard let sourceIdentifier = identifiers.first,
+                  sourceIdentifier != appInfo.persistenceIdentifier
+            else { return false }
+            return onMoveApp(sourceIdentifier)
         }
     }
 }

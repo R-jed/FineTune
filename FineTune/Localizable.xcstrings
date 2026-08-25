@@ -1,6 +1,20 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Add" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Add" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加" } }
+      }
+    },
+    "Add Applications" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Add Applications" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加应用程序" } }
+      }
+    },
     "App Mute" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -20,6 +34,13 @@
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "App Volume Up" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "提高应用音量" } }
+      }
+    },
+    "Choose one or more applications to add." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose one or more applications to add." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择一个或多个要添加的应用程序。" } }
       }
     },
     "Classic" : {
@@ -48,6 +69,13 @@
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Compact" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "紧凑" } }
+      }
+    },
+    "Some applications could not be added because they were invalid, missing a bundle identifier, or were FineTune." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Some applications could not be added because they were invalid, missing a bundle identifier, or were FineTune." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "部分应用程序无法添加：文件无效、缺少软件包标识符，或所选应用程序为 FineTune。" } }
       }
     },
     "Dark" : {
@@ -744,16 +772,10 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已配对" } }
       }
     },
-    "No apps playing audio" : {
+    "No audio apps running" : {
       "extractionState" : "manual",
       "localizations" : {
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "没有应用正在播放音频" } }
-      }
-    },
-    "ignored · edit to manage" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "个已忽略应用 · 编辑以管理" } }
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "没有正在运行的音频应用" } }
       }
     },
     "Apps" : {
@@ -762,17 +784,17 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "应用" } }
       }
     },
-    "ignored" : {
+    "hidden" : {
       "extractionState" : "manual",
       "generatesSymbol" : false,
       "localizations" : {
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "个已忽略应用" } }
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "个隐藏应用" } }
       }
     },
-    "Ignored" : {
+    "Hidden apps" : {
       "extractionState" : "manual",
       "localizations" : {
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已忽略" } }
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "隐藏的应用" } }
       }
     },
     "Utility" : {
@@ -1603,16 +1625,10 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "取消固定应用" } }
       }
     },
-    "Ignore app" : {
+    "Hide app" : {
       "extractionState" : "manual",
       "localizations" : {
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "忽略应用" } }
-      }
-    },
-    "Stop ignoring" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "取消忽略" } }
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "隐藏应用" } }
       }
     },
     "Close Equalizer" : {

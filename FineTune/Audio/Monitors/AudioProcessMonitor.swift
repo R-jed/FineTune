@@ -2,11 +2,13 @@
 import AppKit
 import AudioToolbox
 import os
+import UniformTypeIdentifiers
 
 /// Lightweight value for detecting process list changes without comparing icons/names.
 private struct AppFingerprint: Hashable {
     let pid: pid_t
     let objectIDs: [AudioObjectID]
+    let isAudioActive: Bool
 }
 
 @Observable
@@ -75,11 +77,31 @@ final class AudioProcessMonitor: AudioProcessMonitoring {
         return false
     }
 
+    static func shouldIncludeUserApplication(
+        activationPolicy: NSApplication.ActivationPolicy,
+        isTerminated: Bool,
+        bundleURL: URL?,
+        isAudioActive: Bool = false
+    ) -> Bool {
+        guard !isTerminated, let bundleURL, bundleURL.pathExtension == "app" else { return false }
+        if activationPolicy == .regular { return true }
+
+        let path = bundleURL.standardizedFileURL.path
+        let appBundleCount = bundleURL.standardizedFileURL.pathComponents
+            .filter { $0.hasSuffix(".app") }
+            .count
+        return isAudioActive
+            && activationPolicy == .accessory
+            && !path.hasPrefix("/System/Library/")
+            && appBundleCount == 1
+    }
+
     // Property listeners
     private var processListListenerBlock: AudioObjectPropertyListenerBlock?
     private var processListenerBlocks: [AudioObjectID: AudioObjectPropertyListenerBlock] = [:]
     private var monitoredProcesses: Set<AudioObjectID> = []
     private var periodicRefreshTask: Task<Void, Never>?
+    private var workspaceObserverTokens: [NSObjectProtocol] = []
 
     private var processListAddress = AudioObjectPropertyAddress(
         mSelector: kAudioHardwarePropertyProcessObjectList,
@@ -104,12 +126,18 @@ final class AudioProcessMonitor: AudioProcessMonitoring {
     /// Uses Apple's responsibility API first, falls back to process tree walking.
     private func findResponsibleApp(
         for pid: pid_t,
-        in runningAppsByPID: [pid_t: NSRunningApplication]
+        in runningAppsByPID: [pid_t: NSRunningApplication],
+        isAudioActive: Bool
     ) -> NSRunningApplication? {
         // First try Apple's responsibility API (works for XPC services like Safari's WebKit processes)
         if let responsiblePID = getResponsiblePID(for: pid),
            let app = runningAppsByPID[responsiblePID],
-           app.bundleURL?.pathExtension == "app" {
+           Self.shouldIncludeUserApplication(
+               activationPolicy: app.activationPolicy,
+               isTerminated: app.isTerminated,
+               bundleURL: app.bundleURL,
+               isAudioActive: isAudioActive
+           ) {
             return app
         }
 
@@ -122,7 +150,12 @@ final class AudioProcessMonitor: AudioProcessMonitoring {
 
             // Check if this PID is a proper app bundle (.app, not .xpc service)
             if let app = runningAppsByPID[currentPID],
-               app.bundleURL?.pathExtension == "app" {
+               Self.shouldIncludeUserApplication(
+                   activationPolicy: app.activationPolicy,
+                   isTerminated: app.isTerminated,
+                   bundleURL: app.bundleURL,
+                   isAudioActive: isAudioActive
+               ) {
                 return app
             }
 
@@ -164,6 +197,18 @@ final class AudioProcessMonitor: AudioProcessMonitoring {
             logger.error("Failed to add process list listener: \(status)")
         }
 
+        let workspaceCenter = NSWorkspace.shared.notificationCenter
+        workspaceObserverTokens = [
+            NSWorkspace.didLaunchApplicationNotification,
+            NSWorkspace.didTerminateApplicationNotification,
+        ].map { name in
+            workspaceCenter.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    self?.refresh()
+                }
+            }
+        }
+
         // Initial refresh
         refresh()
 
@@ -177,6 +222,10 @@ final class AudioProcessMonitor: AudioProcessMonitoring {
 
         periodicRefreshTask?.cancel()
         periodicRefreshTask = nil
+
+        let workspaceCenter = NSWorkspace.shared.notificationCenter
+        workspaceObserverTokens.forEach(workspaceCenter.removeObserver)
+        workspaceObserverTokens.removeAll()
 
         // Remove process list listener
         if let block = processListListenerBlock {
@@ -213,16 +262,41 @@ final class AudioProcessMonitor: AudioProcessMonitoring {
 
             var appsByPID: [pid_t: AudioApp] = [:]
 
+            for app in runningApps where app.processIdentifier != myPID {
+                guard Self.shouldIncludeUserApplication(
+                    activationPolicy: app.activationPolicy,
+                    isTerminated: app.isTerminated,
+                    bundleURL: app.bundleURL
+                ), let name = app.localizedName else { continue }
+
+                appsByPID[app.processIdentifier] = AudioApp(
+                    id: app.processIdentifier,
+                    processObjectIDs: [],
+                    name: name,
+                    icon: app.icon ?? NSWorkspace.shared.icon(for: .applicationBundle),
+                    bundleID: app.bundleIdentifier,
+                    isAudioActive: false
+                )
+            }
+
             for objectID in processIDs {
                 guard let pid = try? objectID.readProcessPID(), pid != myPID else { continue }
-                guard objectID.readProcessIsRunning() else { continue }
+                let isAudioActive = objectID.readProcessIsRunning()
 
                 // Try to find the parent app (for helper processes like Safari Graphics and Media)
                 let directApp = runningAppsByPID[pid]
 
-                // Check if it's a real app bundle (.app), not an XPC service (.xpc)
-                let isRealApp = directApp?.bundleURL?.pathExtension == "app"
-                let resolvedApp = isRealApp ? directApp : findResponsibleApp(for: pid, in: runningAppsByPID)
+                let directIsUserApp = directApp.map {
+                    Self.shouldIncludeUserApplication(
+                        activationPolicy: $0.activationPolicy,
+                        isTerminated: $0.isTerminated,
+                        bundleURL: $0.bundleURL,
+                        isAudioActive: isAudioActive
+                    )
+                } ?? false
+                let resolvedApp = directIsUserApp
+                    ? directApp
+                    : findResponsibleApp(for: pid, in: runningAppsByPID, isAudioActive: isAudioActive)
                 let parentPID = resolvedApp?.processIdentifier ?? pid
                 let isHelper = parentPID != pid
 
@@ -234,6 +308,14 @@ final class AudioProcessMonitor: AudioProcessMonitoring {
                     ?? NSImage(systemSymbolName: "app.fill", accessibilityDescription: nil)
                     ?? NSImage()
                 let bundleID = resolvedApp?.bundleIdentifier ?? objectID.readProcessBundleID()
+
+                guard let resolvedApp,
+                      Self.shouldIncludeUserApplication(
+                          activationPolicy: resolvedApp.activationPolicy,
+                          isTerminated: resolvedApp.isTerminated,
+                          bundleURL: resolvedApp.bundleURL,
+                          isAudioActive: isAudioActive
+                      ) else { continue }
 
                 // Skip system daemons (siri, coreaudio, etc.) - they shouldn't appear in the apps list
                 if isSystemDaemon(bundleID: bundleID, name: name) { continue }
@@ -250,7 +332,8 @@ final class AudioProcessMonitor: AudioProcessMonitoring {
                             name: existing.name,
                             icon: existing.icon,
                             bundleID: existing.bundleID,
-                            isHelperBacked: existing.isHelperBacked || isHelper
+                            isHelperBacked: existing.isHelperBacked || isHelper,
+                            isAudioActive: existing.isAudioActive || isAudioActive
                         )
                     }
                 } else {
@@ -260,7 +343,8 @@ final class AudioProcessMonitor: AudioProcessMonitoring {
                         name: name,
                         icon: icon,
                         bundleID: bundleID,
-                        isHelperBacked: isHelper
+                        isHelperBacked: isHelper,
+                        isAudioActive: isAudioActive
                     )
                 }
             }
@@ -268,11 +352,21 @@ final class AudioProcessMonitor: AudioProcessMonitoring {
             // Update per-process listeners
             updateProcessListeners(for: processIDs)
 
-            let sorted = appsByPID.values.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+            let appsByIdentifier = Dictionary(
+                appsByPID.values.map { ($0.persistenceIdentifier, $0) },
+                uniquingKeysWith: { $0.merging($1) }
+            )
+            let sorted = appsByIdentifier.values.sorted {
+                $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+            }
 
             // Only fire callback if the app list actually changed (avoids churn from periodic refresh)
-            let oldSet = Set(activeApps.map { AppFingerprint(pid: $0.id, objectIDs: $0.processObjectIDs) })
-            let newSet = Set(sorted.map { AppFingerprint(pid: $0.id, objectIDs: $0.processObjectIDs) })
+            let oldSet = Set(activeApps.map {
+                AppFingerprint(pid: $0.id, objectIDs: $0.processObjectIDs, isAudioActive: $0.isAudioActive)
+            })
+            let newSet = Set(sorted.map {
+                AppFingerprint(pid: $0.id, objectIDs: $0.processObjectIDs, isAudioActive: $0.isAudioActive)
+            })
 
             activeApps = sorted
             if oldSet != newSet {

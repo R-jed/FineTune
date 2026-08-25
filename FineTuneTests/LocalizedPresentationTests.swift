@@ -111,9 +111,6 @@ struct LocalizedPresentationTests {
         #expect(chinese.localized("No Input") == "无输入设备")
         #expect(chinese.localized("Output Devices") == "输出设备")
         #expect(chinese.localized("Input Devices") == "输入设备")
-        #expect(english.localized("ignored") == "ignored")
-        #expect(chinese.localized("ignored") == "个已忽略应用")
-        #expect(chinese.localized("ignored · edit to manage") == "个已忽略应用 · 编辑以管理")
         #expect(chinese.localized("Quit FineTune") == "退出 FineTune")
     }
 
@@ -219,8 +216,9 @@ struct LocalizedPresentationTests {
             ("Set as default", "设为默认设备"),
             ("Pin app", "固定应用"),
             ("Unpin app", "取消固定应用"),
-            ("Ignore app", "忽略应用"),
-            ("Stop ignoring", "取消忽略"),
+            ("Hide app", "隐藏应用"),
+            ("Hidden apps", "隐藏的应用"),
+            ("Add Applications", "添加应用程序"),
             ("Close Equalizer", "关闭均衡器"),
             ("Connect", "连接"),
             ("Couldn't connect", "无法连接"),
