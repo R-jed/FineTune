@@ -53,23 +53,17 @@ final class ProcessTapController: ProcessTapControlling {
     /// Current ramped volume for secondary tap during crossfade
     private nonisolated(unsafe) var _secondaryCurrentVolume: Float = 1.0
     /// Emergency silence flag - zeroes output immediately (used during destructive device switch)
-    /// Unlike _isMuted, this bypasses all processing including source metering.
+    /// Unlike _isMuted, this bypasses all processing including VU metering
     private nonisolated(unsafe) var _forceSilence: Bool = false
-    /// User-controlled mute - still tracks source activity but outputs silence.
+    /// User-controlled mute - still tracks VU levels but outputs silence
     private nonisolated(unsafe) var _isMuted: Bool = false
     // Device volume compensation removed — was dead code (always 1.0).
     // If implementing, ensure both primary and secondary callbacks disable
     // compensation during crossfade to avoid gain jumps (RT-013).
-    /// Source-activity display level owned by the primary HAL callback.
+    /// Smoothed peak level for VU meter display (exponential moving average)
     private nonisolated(unsafe) var _peakLevel: Float = 0.0
-    /// Separate source-activity level for the secondary tap during crossfade.
+    /// Separate peak level for secondary tap during crossfade (avoids torn RMW from concurrent callbacks)
     private nonisolated(unsafe) var _secondaryPeakLevel: Float = 0.0
-    /// Audio-frame hold state keeps one-buffer transients visible to the 30 fps UI.
-    private nonisolated(unsafe) var _primaryMeterHoldFramesRemaining: Int = 0
-    private nonisolated(unsafe) var _secondaryMeterHoldFramesRemaining: Int = 0
-    /// Actual callback sample rates so meter release is independent of device rate.
-    private nonisolated(unsafe) var _primaryMeterSampleRate: Float = 48_000
-    private nonisolated(unsafe) var _secondaryMeterSampleRate: Float = 48_000
     private nonisolated(unsafe) var _currentDeviceVolume: Float = 1.0
     private nonisolated(unsafe) var _isDeviceMuted: Bool = false
     private nonisolated(unsafe) var _primaryPreferredStereoLeftChannel: Int = 0
@@ -120,24 +114,53 @@ final class ProcessTapController: ProcessTapControlling {
 
     // MARK: - Non-RT State (modified only from main thread)
 
+    /// VU meter smoothing factor. 0.3 gives ~30ms attack/decay at typical 30fps UI refresh.
+    /// Lower = smoother but slower response; higher = jittery but more responsive.
+    private let levelSmoothingFactor: Float = 0.3
     /// Volume ramp coefficient computed as: 1 - exp(-1 / (sampleRate * rampTime))
     /// Default 0.0007 corresponds to ~30ms ramp at 48kHz. Prevents clicks on volume changes.
     private nonisolated(unsafe) var rampCoefficient: Float = 0.0007
     private nonisolated(unsafe) var secondaryRampCoefficient: Float = 0.0007
-    private nonisolated(unsafe) var eqProcessor: EQProcessor?
-    private nonisolated(unsafe) var autoEQProcessor: AutoEQProcessor?
-    private nonisolated(unsafe) var loudnessCompensator: LoudnessCompensator?
-    private nonisolated(unsafe) var loudnessEqualizerProcessor: LoudnessEqualizer?
+    /// DSP object ownership is grouped by IO-proc generation. Each callback captures
+    /// one TapProcessorState at creation, so crossfade promotion can change callback
+    /// roles without making an in-flight callback observe another tap's processors.
+    private var processorGenerations = TapProcessorGenerations()
+
+    private var eqProcessor: EQProcessor? {
+        get { processorGenerations.primary.eqProcessor }
+        set { processorGenerations.primary.eqProcessor = newValue }
+    }
+    private var autoEQProcessor: AutoEQProcessor? {
+        get { processorGenerations.primary.autoEQProcessor }
+        set { processorGenerations.primary.autoEQProcessor = newValue }
+    }
+    private var loudnessCompensator: LoudnessCompensator? {
+        get { processorGenerations.primary.loudnessCompensator }
+        set { processorGenerations.primary.loudnessCompensator = newValue }
+    }
+    private var loudnessEqualizerProcessor: LoudnessEqualizer? {
+        get { processorGenerations.primary.loudnessEqualizerProcessor }
+        set { processorGenerations.primary.loudnessEqualizerProcessor = newValue }
+    }
     /// Last effective loudness volume (device × app) passed to updateLoudnessCompensation.
     /// Used by createSecondaryTap to initialize secondary compensator with the correct volume.
     private var _lastLoudnessVolume: Float = 1.0
-    /// Independent EQ processors for secondary tap during crossfade.
-    /// Each tap needs its own biquad delay buffers — sharing would corrupt filter state
-    /// because both callbacks write concurrently from different HAL I/O threads.
-    private nonisolated(unsafe) var secondaryEQProcessor: EQProcessor?
-    private nonisolated(unsafe) var secondaryAutoEQProcessor: AutoEQProcessor?
-    private nonisolated(unsafe) var secondaryLoudnessCompensator: LoudnessCompensator?
-    private nonisolated(unsafe) var secondaryLoudnessEqualizerProcessor: LoudnessEqualizer?
+    private var secondaryEQProcessor: EQProcessor? {
+        get { processorGenerations.secondary.eqProcessor }
+        set { processorGenerations.secondary.eqProcessor = newValue }
+    }
+    private var secondaryAutoEQProcessor: AutoEQProcessor? {
+        get { processorGenerations.secondary.autoEQProcessor }
+        set { processorGenerations.secondary.autoEQProcessor = newValue }
+    }
+    private var secondaryLoudnessCompensator: LoudnessCompensator? {
+        get { processorGenerations.secondary.loudnessCompensator }
+        set { processorGenerations.secondary.loudnessCompensator = newValue }
+    }
+    private var secondaryLoudnessEqualizerProcessor: LoudnessEqualizer? {
+        get { processorGenerations.secondary.loudnessEqualizerProcessor }
+        set { processorGenerations.secondary.loudnessEqualizerProcessor = newValue }
+    }
 
     // Target device UIDs for synchronized multi-output (first is clock source)
     private var targetDeviceUIDs: [String]
@@ -663,7 +686,8 @@ final class ProcessTapController: ProcessTapControlling {
         nextCallbackID += 1
         _primaryCallbackID = nextCallbackID
         let activateCallbackID = nextCallbackID
-        err = AudioDeviceCreateIOProcIDWithBlock(&primaryResources.deviceProcID, primaryResources.aggregateDeviceID, queue) { @Sendable [weak self] _, inInputData, _, outOutputData, _ in
+        let activateProcessorState = processorGenerations.primary
+        err = AudioDeviceCreateIOProcIDWithBlock(&primaryResources.deviceProcID, primaryResources.aggregateDeviceID, queue) { @Sendable [weak self, activateProcessorState] _, inInputData, _, outOutputData, _ in
             guard let self else {
                 // Zero output to prevent garbage audio if controller is deallocated
                 let outputs = UnsafeMutableAudioBufferListPointer(outOutputData)
@@ -672,7 +696,12 @@ final class ProcessTapController: ProcessTapControlling {
                 }
                 return
             }
-            self.processAudioCallback(inInputData, to: outOutputData, callbackID: activateCallbackID)
+            self.processAudioCallback(
+                inInputData,
+                to: outOutputData,
+                callbackID: activateCallbackID,
+                processorState: activateProcessorState
+            )
         }
         guard err == noErr else {
             cleanupPartialActivation()
@@ -684,13 +713,6 @@ final class ProcessTapController: ProcessTapControlling {
         // Seed the ramp target before AudioDeviceStart so the first IOProc callback
         // ramps from userVolume→userVolume (no-op) instead of 1.0→userVolume.
         _primaryCurrentVolume = _volume
-
-        // Reset source meter before starting the IO proc.
-        _peakLevel = 0
-        _primaryMeterHoldFramesRemaining = 0
-        _primaryMeterSampleRate = Float(sampleRate)
-        _secondaryPeakLevel = 0
-        _secondaryMeterHoldFramesRemaining = 0
 
         // Reset output gate to armed; size the ramp/hold windows from device sample rate.
         _outputGateRawPhase = 0
@@ -855,10 +877,6 @@ final class ProcessTapController: ProcessTapControlling {
         _lastRenderHostTime = 0
         _activationHostTime = 0
         _hasRenderedAudio = false
-        _peakLevel = 0
-        _secondaryPeakLevel = 0
-        _primaryMeterHoldFramesRemaining = 0
-        _secondaryMeterHoldFramesRemaining = 0
 
         crossfadeTask?.cancel()
         crossfadeTask = nil
@@ -869,15 +887,16 @@ final class ProcessTapController: ProcessTapControlling {
         _primaryCallbackID = 0
         _secondaryCallbackID = 0
 
+        // Rotate processor generations immediately. A callback that already passed
+        // the role check keeps the state captured by its IO proc, while any later
+        // activation populates fresh state.
+        processorGenerations.reset()
+
         return true
     }
 
-    /// Shared epilogue for invalidation. Clears EQ state and resets the reentrant guard.
+    /// Shared epilogue for invalidation. Resets the reentrant guard.
     private func endInvalidation() {
-        secondaryEQProcessor = nil
-        secondaryAutoEQProcessor = nil
-        secondaryLoudnessCompensator = nil
-        secondaryLoudnessEqualizerProcessor = nil
         _invalidating = false
     }
 
@@ -975,8 +994,45 @@ final class ProcessTapController: ProcessTapControlling {
         logger.info("[CROSSFADE] Complete")
     }
 
+    private func makeProcessorState(
+        sampleRate: Double,
+        copying source: TapProcessorState
+    ) -> TapProcessorState {
+        let state = TapProcessorState()
+
+        let eq = EQProcessor(sampleRate: sampleRate)
+        if let settings = source.eqProcessor?.currentSettings {
+            eq.updateSettings(settings)
+        }
+        state.eqProcessor = eq
+
+        let autoEQ = AutoEQProcessor(sampleRate: sampleRate)
+        if !(source.autoEQProcessor?.isPreampEnabled ?? true) {
+            autoEQ.setPreampEnabled(false)
+        }
+        if let profile = source.autoEQProcessor?.currentProfile {
+            autoEQ.updateProfile(profile)
+        }
+        state.autoEQProcessor = autoEQ
+
+        state.loudnessEqualizerProcessor = LoudnessEqualizer(
+            settings: source.loudnessEqualizerProcessor?.currentSettings ?? LoudnessEqualizerSettings(),
+            sampleRate: Float(sampleRate)
+        )
+
+        let loudness = LoudnessCompensator(sampleRate: sampleRate)
+        loudness.updateForVolume(_lastLoudnessVolume)
+        if !(source.loudnessCompensator?.isEnabled ?? false) {
+            loudness.setEnabled(false)
+        }
+        state.loudnessCompensator = loudness
+
+        return state
+    }
+
     private func createSecondaryTap(for outputUIDs: [String]) throws {
         precondition(!outputUIDs.isEmpty, "Must have at least one output device")
+        processorGenerations.resetSecondary()
 
         let (tapDesc, tapID) = try createProcessTap(preferredDeviceUID: preferredTapSourceDeviceUID)
         secondaryResources.tapDescription = tapDesc
@@ -1024,37 +1080,17 @@ final class ProcessTapController: ProcessTapControlling {
         secondaryRampCoefficient = 1 - exp(-1 / (Float(sampleRate) * rampTimeSeconds))
 
         _secondaryCurrentVolume = _primaryCurrentVolume
-        _secondaryPeakLevel = 0
-        _secondaryMeterHoldFramesRemaining = 0
-        _secondaryMeterSampleRate = Float(sampleRate)
 
-        // Create independent EQ processors for the secondary tap.
-        // Each tap needs its own biquad delay buffers — sharing would corrupt filter state
-        // because both callbacks run concurrently on different HAL I/O threads.
-        let secEQ = EQProcessor(sampleRate: sampleRate)
-        if let settings = eqProcessor?.currentSettings {
-            secEQ.updateSettings(settings)
-        }
-        secondaryEQProcessor = secEQ
-
-        let secAutoEQ = AutoEQProcessor(sampleRate: sampleRate)
-        if let profile = autoEQProcessor?.currentProfile {
-            secAutoEQ.updateProfile(profile)
-        }
-        secondaryAutoEQProcessor = secAutoEQ
-
-        let secLoudnessEqualizer = LoudnessEqualizer(settings: loudnessEqualizerProcessor?.currentSettings ?? LoudnessEqualizerSettings(), sampleRate: Float(sampleRate))
-        secondaryLoudnessEqualizerProcessor = secLoudnessEqualizer
-
-        let secLoudness = LoudnessCompensator(sampleRate: sampleRate)
-        secLoudness.updateForVolume(_lastLoudnessVolume)
-        if !(loudnessCompensator?.isEnabled ?? false) { secLoudness.setEnabled(false) }
-        secondaryLoudnessCompensator = secLoudness
+        let secondaryProcessorState = makeProcessorState(
+            sampleRate: sampleRate,
+            copying: processorGenerations.primary
+        )
+        processorGenerations.replaceSecondary(with: secondaryProcessorState)
 
         nextCallbackID += 1
         _secondaryCallbackID = nextCallbackID
         let secondaryCallbackID = nextCallbackID
-        err = AudioDeviceCreateIOProcIDWithBlock(&secondaryResources.deviceProcID, secondaryResources.aggregateDeviceID, queue) { @Sendable [weak self] _, inInputData, _, outOutputData, _ in
+        err = AudioDeviceCreateIOProcIDWithBlock(&secondaryResources.deviceProcID, secondaryResources.aggregateDeviceID, queue) { @Sendable [weak self, secondaryProcessorState] _, inInputData, _, outOutputData, _ in
             guard let self else {
                 // Zero output to prevent garbage audio if controller is deallocated
                 let outputs = UnsafeMutableAudioBufferListPointer(outOutputData)
@@ -1063,7 +1099,12 @@ final class ProcessTapController: ProcessTapControlling {
                 }
                 return
             }
-            self.processAudioCallback(inInputData, to: outOutputData, callbackID: secondaryCallbackID)
+            self.processAudioCallback(
+                inInputData,
+                to: outOutputData,
+                callbackID: secondaryCallbackID,
+                processorState: secondaryProcessorState
+            )
         }
         guard err == noErr else {
             secondaryResources.destroy()
@@ -1087,15 +1128,11 @@ final class ProcessTapController: ProcessTapControlling {
 
     /// Tears down any in-progress secondary tap (used by re-entrant crossfade guard).
     private func cleanupSecondaryTap() {
-        guard secondaryResources.isActive else { return }
         _secondaryCallbackID = 0
-        _secondaryPeakLevel = 0
-        _secondaryMeterHoldFramesRemaining = 0
-        secondaryResources.destroy()
-        secondaryEQProcessor = nil
-        secondaryAutoEQProcessor = nil
-        secondaryLoudnessCompensator = nil
-        secondaryLoudnessEqualizerProcessor = nil
+        if secondaryResources.isActive {
+            secondaryResources.destroy()
+        }
+        processorGenerations.resetSecondary()
     }
 
     private func promoteSecondaryToPrimary() {
@@ -1107,49 +1144,21 @@ final class ProcessTapController: ProcessTapControlling {
             rampCoefficient = 1 - exp(-1 / (Float(deviceSampleRate) * rampTimeSeconds))
         }
 
-        // Adopt secondary EQ processors as primary.
-        // The old primary processors may still be referenced by a just-completed primary callback,
-        // so defer their deallocation to ensure no use-after-free on the RT thread.
-        let oldEQ = eqProcessor
-        let oldAutoEQ = autoEQProcessor
-        let oldLoudness = loudnessCompensator
-        let oldLoudnessEqualizer = loudnessEqualizerProcessor
-        eqProcessor = secondaryEQProcessor
-        autoEQProcessor = secondaryAutoEQProcessor
-        loudnessCompensator = secondaryLoudnessCompensator
-        loudnessEqualizerProcessor = secondaryLoudnessEqualizerProcessor
-        secondaryEQProcessor = nil
-        secondaryAutoEQProcessor = nil
-        secondaryLoudnessCompensator = nil
-        secondaryLoudnessEqualizerProcessor = nil
-
-        // Deferred cleanup: hold old processors alive briefly so any in-flight RT callback
-        // that read the pointer before the swap finishes its buffer without accessing freed memory.
-        // 0.5s is conservative — audio callbacks run at ~5ms intervals.
-        if oldEQ != nil || oldAutoEQ != nil || oldLoudness != nil || oldLoudnessEqualizer != nil {
-            DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) {
-                _ = oldEQ
-                _ = oldAutoEQ
-                _ = oldLoudness
-                _ = oldLoudnessEqualizer
-            }
-        }
+        // Promote ownership of the secondary processor generation. Existing IO proc
+        // closures keep the processor-state objects they captured at creation, so the
+        // old primary can finish only on its old DSP state and the promoted callback
+        // keeps the same state it used while secondary.
+        processorGenerations.promoteSecondary()
 
         _primaryCurrentVolume = _secondaryCurrentVolume
         _secondaryCurrentVolume = 0
         _primaryPreferredStereoLeftChannel = _secondaryPreferredStereoLeftChannel
         _primaryPreferredStereoRightChannel = _secondaryPreferredStereoRightChannel
-        _peakLevel = _secondaryPeakLevel
-        _primaryMeterHoldFramesRemaining = _secondaryMeterHoldFramesRemaining
-        _primaryMeterSampleRate = _secondaryMeterSampleRate
-        _secondaryPeakLevel = 0
-        _secondaryMeterHoldFramesRemaining = 0
 
-        // Reassign callback role AFTER all state is swapped.
-        // The barrier ensures the HAL I/O thread sees the updated EQ processors,
-        // volume, meter state, ramp coefficient, and stereo channels BEFORE it sees the new
-        // _primaryCallbackID and switches to primary-role behavior.
-        OSMemoryBarrier()  // Flush all prior state stores before publishing new role
+        // Reassign callback role AFTER role-dependent gain/channel state is swapped.
+        // DSP identity is already fixed by the IO proc's captured processor generation.
+        // The barrier publishes the remaining role metadata before the callback ID.
+        OSMemoryBarrier()
         _primaryCallbackID = _secondaryCallbackID
         _secondaryCallbackID = 0
 
@@ -1233,12 +1242,17 @@ final class ProcessTapController: ProcessTapControlling {
             throw CrossfadeError.deviceNotReady
         }
 
+        let switchSampleRate = (try? newResources.aggregateDeviceID.readNominalSampleRate()) ?? 48000
+        let switchProcessorState = makeProcessorState(
+            sampleRate: switchSampleRate,
+            copying: processorGenerations.primary
+        )
+        rampCoefficient = 1 - exp(-1 / (Float(switchSampleRate) * 0.030))
+
         nextCallbackID += 1
         _primaryCallbackID = nextCallbackID
-        _peakLevel = 0
-        _primaryMeterHoldFramesRemaining = 0
         let switchCallbackID = nextCallbackID
-        err = AudioDeviceCreateIOProcIDWithBlock(&newResources.deviceProcID, newResources.aggregateDeviceID, queue) { @Sendable [weak self] _, inInputData, _, outOutputData, _ in
+        err = AudioDeviceCreateIOProcIDWithBlock(&newResources.deviceProcID, newResources.aggregateDeviceID, queue) { @Sendable [weak self, switchProcessorState] _, inInputData, _, outOutputData, _ in
             guard let self else {
                 // Zero output to prevent garbage audio if controller is deallocated
                 let outputs = UnsafeMutableAudioBufferListPointer(outOutputData)
@@ -1247,7 +1261,12 @@ final class ProcessTapController: ProcessTapControlling {
                 }
                 return
             }
-            self.processAudioCallback(inInputData, to: outOutputData, callbackID: switchCallbackID)
+            self.processAudioCallback(
+                inInputData,
+                to: outOutputData,
+                callbackID: switchCallbackID,
+                processorState: switchProcessorState
+            )
         }
         guard err == noErr else {
             newResources.destroy()
@@ -1262,33 +1281,22 @@ final class ProcessTapController: ProcessTapControlling {
             throw CrossfadeError.tapCreationFailed(err)
         }
 
+        // Publish the fresh processor generation before retiring the old IO proc.
+        // The old callback remains bound to its captured old generation while the
+        // new callback can only reach switchProcessorState.
+        processorGenerations.replacePrimary(with: switchProcessorState)
+
         // Destroy old resources, adopt new
         primaryResources.destroy()
         primaryResources = newResources
         targetDeviceUIDs = outputUIDs
         currentDeviceUIDs = outputUIDs
 
-        if let deviceSampleRate = try? primaryResources.aggregateDeviceID.readNominalSampleRate() {
-            _primaryMeterSampleRate = Float(deviceSampleRate)
-            rampCoefficient = 1 - exp(-1 / (Float(deviceSampleRate) * 0.030))
-            eqProcessor?.updateSampleRate(deviceSampleRate)
-            autoEQProcessor?.updateSampleRate(deviceSampleRate)
-            loudnessCompensator?.updateSampleRate(deviceSampleRate)
-
-            // LoudnessEqualizer is immutable — swap to new instance at new sample rate
-            if let oldLE = loudnessEqualizerProcessor {
-                let newLE = LoudnessEqualizer(
-                    settings: oldLE.currentSettings,
-                    sampleRate: Float(deviceSampleRate)
-                )
-                loudnessEqualizerProcessor = newLE
-                DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 0.5) { _ = oldLE }
-            }
-        }
     }
 
     private func cleanupPartialActivation() {
         primaryResources.destroy()
+        processorGenerations.reset()
     }
 
     /// Advance the output-gate state machine for one buffer and return the multiplier
@@ -1507,7 +1515,7 @@ final class ProcessTapController: ProcessTapControlling {
     ///
     /// After crossfade promotion, the promoted IO proc's callbackID is reassigned
     /// to match _primaryCallbackID, so it seamlessly switches to primary-role
-    /// state (correct source meter, EQ processors, volume variable, crossfade curve).
+    /// state (correct peak level, EQ processors, volume variable, crossfade curve).
     ///
     /// **RT SAFETY CONSTRAINTS — DO NOT:**
     /// - Allocate memory (malloc, Array append, String operations)
@@ -1518,7 +1526,8 @@ final class ProcessTapController: ProcessTapControlling {
     nonisolated private func processAudioCallback(
         _ inputBufferList: UnsafePointer<AudioBufferList>,
         to outputBufferList: UnsafeMutablePointer<AudioBufferList>,
-        callbackID: UInt32
+        callbackID: UInt32,
+        processorState: TapProcessorState
     ) {
         _lastRenderHostTime = mach_absolute_time()
         _hasRenderedAudio = true
@@ -1551,53 +1560,28 @@ final class ProcessTapController: ProcessTapControlling {
             return
         }
 
-        // Measure only the trailing tap input buffers that processMappedBuffers uses for output.
-        // Scanning every Float catches negative peaks and all channels in both interleaved and
-        // non-interleaved layouts without assuming a channel stride.
-        let inputBufferCount = inputBuffers.count
-        let outputBufferCount = outputBuffers.count
-        let mappedBufferCount = min(inputBufferCount, outputBufferCount)
-        let mappedInputStart = inputBufferCount > outputBufferCount
-            ? inputBufferCount - outputBufferCount
-            : 0
-
-        var rawPeak: Float = 0
-        var totalSamplesThisBuffer = 0
-        if mappedBufferCount > 0 {
-            for inputIndex in mappedInputStart..<(mappedInputStart + mappedBufferCount) {
-                let inputBuffer = inputBuffers[inputIndex]
-                guard let inputData = inputBuffer.mData else { continue }
-                let channels = max(1, Int(inputBuffer.mNumberChannels))
-                let sampleCount = Int(inputBuffer.mDataByteSize) / MemoryLayout<Float>.size
-                guard sampleCount > 0 else { continue }
-
-                if totalSamplesThisBuffer == 0 {
-                    totalSamplesThisBuffer = sampleCount / channels
-                }
-
-                let inputSamples = inputData.assumingMemoryBound(to: Float.self)
-                let bufferPeak = SourceActivityMeter.maximumMagnitude(inputSamples, count: sampleCount)
-                if bufferPeak > rawPeak { rawPeak = bufferPeak }
+        // Track peak level for VU meter
+        var maxPeak: Float = 0.0
+        var totalSamplesThisBuffer: Int = 0
+        for inputBuffer in inputBuffers {
+            guard let inputData = inputBuffer.mData else { continue }
+            let inputSamples = inputData.assumingMemoryBound(to: Float.self)
+            let channels = max(1, Int(inputBuffer.mNumberChannels))
+            let sampleCount = Int(inputBuffer.mDataByteSize) / MemoryLayout<Float>.size
+            if totalSamplesThisBuffer == 0 {
+                totalSamplesThisBuffer = sampleCount / channels
+            }
+            for i in stride(from: 0, to: sampleCount, by: channels) {
+                let absSample = abs(inputSamples[i])
+                if absSample > maxPeak { maxPeak = absSample }
             }
         }
-        rawPeak = min(rawPeak, 1.0)
+        let rawPeak = min(maxPeak, 1.0)
 
         if isPrimary {
-            SourceActivityMeter.advance(
-                level: &_peakLevel,
-                holdFramesRemaining: &_primaryMeterHoldFramesRemaining,
-                rawPeak: rawPeak,
-                frameCount: totalSamplesThisBuffer,
-                sampleRate: _primaryMeterSampleRate
-            )
+            _peakLevel = _peakLevel + levelSmoothingFactor * (rawPeak - _peakLevel)
         } else {
-            SourceActivityMeter.advance(
-                level: &_secondaryPeakLevel,
-                holdFramesRemaining: &_secondaryMeterHoldFramesRemaining,
-                rawPeak: rawPeak,
-                frameCount: totalSamplesThisBuffer,
-                sampleRate: _secondaryMeterSampleRate
-            )
+            _secondaryPeakLevel = _secondaryPeakLevel + levelSmoothingFactor * (rawPeak - _secondaryPeakLevel)
             // Only the secondary callback advances crossfade progress (single-writer pattern).
             _ = crossfadeState.updateProgress(samples: totalSamplesThisBuffer)
         }
@@ -1637,10 +1621,13 @@ final class ProcessTapController: ProcessTapControlling {
         let rampCoeff: Float
         let stereoLeft: Int
         let stereoRight: Int
-        let eqProc: EQProcessor?
-        let autoEQProc: AutoEQProcessor?
-        let loudnessEqualizerProc: LoudnessEqualizer?
-        let loudnessCompensatorProc: LoudnessCompensator?
+        // DSP identity comes from the IO proc generation captured at creation.
+        // Role changes affect gains/channels only; they never redirect a callback
+        // onto another tap's mutable processor state.
+        let eqProc = processorState.eqProcessor
+        let autoEQProc = processorState.autoEQProcessor
+        let loudnessEqualizerProc = processorState.loudnessEqualizerProcessor
+        let loudnessCompensatorProc = processorState.loudnessCompensator
 
         if isPrimary {
             currentVol = _primaryCurrentVolume
@@ -1651,10 +1638,6 @@ final class ProcessTapController: ProcessTapControlling {
             rampCoeff = rampCoefficient
             stereoLeft = _primaryPreferredStereoLeftChannel
             stereoRight = _primaryPreferredStereoRightChannel
-            eqProc = eqProcessor
-            autoEQProc = autoEQProcessor
-            loudnessEqualizerProc = loudnessEqualizerProcessor
-            loudnessCompensatorProc = loudnessCompensator
         } else {
             currentVol = _secondaryCurrentVolume
             // Secondary uses sine curve (0→1).
@@ -1663,10 +1646,6 @@ final class ProcessTapController: ProcessTapControlling {
             rampCoeff = secondaryRampCoefficient
             stereoLeft = _secondaryPreferredStereoLeftChannel
             stereoRight = _secondaryPreferredStereoRightChannel
-            eqProc = secondaryEQProcessor
-            autoEQProc = secondaryAutoEQProcessor
-            loudnessEqualizerProc = secondaryLoudnessEqualizerProcessor
-            loudnessCompensatorProc = secondaryLoudnessCompensator
         }
 
         Self.processMappedBuffers(
