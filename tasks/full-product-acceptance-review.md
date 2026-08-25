@@ -33,6 +33,10 @@ This review treats the integrated product as one system. Earlier PR titles do no
 
 Settings writes must be ordered. An older debounced save may never finish after a newer save or termination flush and overwrite newer state. A synchronous flush must drain prior queued writes and leave the current in-memory snapshot last on disk.
 
+## TDD evidence
+
+Focused regression tests have been added for quiet-running unpin visibility, representative-PID migration, same-PID app identity replacement, reversible Hide/Restore, and `VolumeState` identity reset. The production implementation has intentionally not been changed yet; the next CI run is the red-state proof for these invariants.
+
 ## Acceptance gates
 
 Before local macOS acceptance:
