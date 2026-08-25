@@ -53,17 +53,23 @@ final class ProcessTapController: ProcessTapControlling {
     /// Current ramped volume for secondary tap during crossfade
     private nonisolated(unsafe) var _secondaryCurrentVolume: Float = 1.0
     /// Emergency silence flag - zeroes output immediately (used during destructive device switch)
-    /// Unlike _isMuted, this bypasses all processing including VU metering
+    /// Unlike _isMuted, this bypasses all processing including source metering.
     private nonisolated(unsafe) var _forceSilence: Bool = false
-    /// User-controlled mute - still tracks VU levels but outputs silence
+    /// User-controlled mute - still tracks source activity but outputs silence.
     private nonisolated(unsafe) var _isMuted: Bool = false
     // Device volume compensation removed — was dead code (always 1.0).
     // If implementing, ensure both primary and secondary callbacks disable
     // compensation during crossfade to avoid gain jumps (RT-013).
-    /// Smoothed peak level for VU meter display (exponential moving average)
+    /// Source-activity display level owned by the primary HAL callback.
     private nonisolated(unsafe) var _peakLevel: Float = 0.0
-    /// Separate peak level for secondary tap during crossfade (avoids torn RMW from concurrent callbacks)
+    /// Separate source-activity level for the secondary tap during crossfade.
     private nonisolated(unsafe) var _secondaryPeakLevel: Float = 0.0
+    /// Audio-frame hold state keeps one-buffer transients visible to the 30 fps UI.
+    private nonisolated(unsafe) var _primaryMeterHoldFramesRemaining: Int = 0
+    private nonisolated(unsafe) var _secondaryMeterHoldFramesRemaining: Int = 0
+    /// Actual callback sample rates so meter release is independent of device rate.
+    private nonisolated(unsafe) var _primaryMeterSampleRate: Float = 48_000
+    private nonisolated(unsafe) var _secondaryMeterSampleRate: Float = 48_000
     private nonisolated(unsafe) var _currentDeviceVolume: Float = 1.0
     private nonisolated(unsafe) var _isDeviceMuted: Bool = false
     private nonisolated(unsafe) var _primaryPreferredStereoLeftChannel: Int = 0
@@ -114,9 +120,6 @@ final class ProcessTapController: ProcessTapControlling {
 
     // MARK: - Non-RT State (modified only from main thread)
 
-    /// VU meter smoothing factor. 0.3 gives ~30ms attack/decay at typical 30fps UI refresh.
-    /// Lower = smoother but slower response; higher = jittery but more responsive.
-    private let levelSmoothingFactor: Float = 0.3
     /// Volume ramp coefficient computed as: 1 - exp(-1 / (sampleRate * rampTime))
     /// Default 0.0007 corresponds to ~30ms ramp at 48kHz. Prevents clicks on volume changes.
     private nonisolated(unsafe) var rampCoefficient: Float = 0.0007
@@ -682,6 +685,13 @@ final class ProcessTapController: ProcessTapControlling {
         // ramps from userVolume→userVolume (no-op) instead of 1.0→userVolume.
         _primaryCurrentVolume = _volume
 
+        // Reset source meter before starting the IO proc.
+        _peakLevel = 0
+        _primaryMeterHoldFramesRemaining = 0
+        _primaryMeterSampleRate = Float(sampleRate)
+        _secondaryPeakLevel = 0
+        _secondaryMeterHoldFramesRemaining = 0
+
         // Reset output gate to armed; size the ramp/hold windows from device sample rate.
         _outputGateRawPhase = 0
         _outputGateProgress = 0
@@ -845,6 +855,10 @@ final class ProcessTapController: ProcessTapControlling {
         _lastRenderHostTime = 0
         _activationHostTime = 0
         _hasRenderedAudio = false
+        _peakLevel = 0
+        _secondaryPeakLevel = 0
+        _primaryMeterHoldFramesRemaining = 0
+        _secondaryMeterHoldFramesRemaining = 0
 
         crossfadeTask?.cancel()
         crossfadeTask = nil
@@ -1010,6 +1024,9 @@ final class ProcessTapController: ProcessTapControlling {
         secondaryRampCoefficient = 1 - exp(-1 / (Float(sampleRate) * rampTimeSeconds))
 
         _secondaryCurrentVolume = _primaryCurrentVolume
+        _secondaryPeakLevel = 0
+        _secondaryMeterHoldFramesRemaining = 0
+        _secondaryMeterSampleRate = Float(sampleRate)
 
         // Create independent EQ processors for the secondary tap.
         // Each tap needs its own biquad delay buffers — sharing would corrupt filter state
@@ -1072,6 +1089,8 @@ final class ProcessTapController: ProcessTapControlling {
     private func cleanupSecondaryTap() {
         guard secondaryResources.isActive else { return }
         _secondaryCallbackID = 0
+        _secondaryPeakLevel = 0
+        _secondaryMeterHoldFramesRemaining = 0
         secondaryResources.destroy()
         secondaryEQProcessor = nil
         secondaryAutoEQProcessor = nil
@@ -1120,10 +1139,15 @@ final class ProcessTapController: ProcessTapControlling {
         _secondaryCurrentVolume = 0
         _primaryPreferredStereoLeftChannel = _secondaryPreferredStereoLeftChannel
         _primaryPreferredStereoRightChannel = _secondaryPreferredStereoRightChannel
+        _peakLevel = _secondaryPeakLevel
+        _primaryMeterHoldFramesRemaining = _secondaryMeterHoldFramesRemaining
+        _primaryMeterSampleRate = _secondaryMeterSampleRate
+        _secondaryPeakLevel = 0
+        _secondaryMeterHoldFramesRemaining = 0
 
         // Reassign callback role AFTER all state is swapped.
         // The barrier ensures the HAL I/O thread sees the updated EQ processors,
-        // volume, ramp coefficient, and stereo channels BEFORE it sees the new
+        // volume, meter state, ramp coefficient, and stereo channels BEFORE it sees the new
         // _primaryCallbackID and switches to primary-role behavior.
         OSMemoryBarrier()  // Flush all prior state stores before publishing new role
         _primaryCallbackID = _secondaryCallbackID
@@ -1211,6 +1235,8 @@ final class ProcessTapController: ProcessTapControlling {
 
         nextCallbackID += 1
         _primaryCallbackID = nextCallbackID
+        _peakLevel = 0
+        _primaryMeterHoldFramesRemaining = 0
         let switchCallbackID = nextCallbackID
         err = AudioDeviceCreateIOProcIDWithBlock(&newResources.deviceProcID, newResources.aggregateDeviceID, queue) { @Sendable [weak self] _, inInputData, _, outOutputData, _ in
             guard let self else {
@@ -1243,6 +1269,7 @@ final class ProcessTapController: ProcessTapControlling {
         currentDeviceUIDs = outputUIDs
 
         if let deviceSampleRate = try? primaryResources.aggregateDeviceID.readNominalSampleRate() {
+            _primaryMeterSampleRate = Float(deviceSampleRate)
             rampCoefficient = 1 - exp(-1 / (Float(deviceSampleRate) * 0.030))
             eqProcessor?.updateSampleRate(deviceSampleRate)
             autoEQProcessor?.updateSampleRate(deviceSampleRate)
@@ -1480,7 +1507,7 @@ final class ProcessTapController: ProcessTapControlling {
     ///
     /// After crossfade promotion, the promoted IO proc's callbackID is reassigned
     /// to match _primaryCallbackID, so it seamlessly switches to primary-role
-    /// state (correct peak level, EQ processors, volume variable, crossfade curve).
+    /// state (correct source meter, EQ processors, volume variable, crossfade curve).
     ///
     /// **RT SAFETY CONSTRAINTS — DO NOT:**
     /// - Allocate memory (malloc, Array append, String operations)
@@ -1524,28 +1551,53 @@ final class ProcessTapController: ProcessTapControlling {
             return
         }
 
-        // Track peak level for VU meter
-        var maxPeak: Float = 0.0
-        var totalSamplesThisBuffer: Int = 0
-        for inputBuffer in inputBuffers {
-            guard let inputData = inputBuffer.mData else { continue }
-            let inputSamples = inputData.assumingMemoryBound(to: Float.self)
-            let channels = max(1, Int(inputBuffer.mNumberChannels))
-            let sampleCount = Int(inputBuffer.mDataByteSize) / MemoryLayout<Float>.size
-            if totalSamplesThisBuffer == 0 {
-                totalSamplesThisBuffer = sampleCount / channels
-            }
-            for i in stride(from: 0, to: sampleCount, by: channels) {
-                let absSample = abs(inputSamples[i])
-                if absSample > maxPeak { maxPeak = absSample }
+        // Measure only the trailing tap input buffers that processMappedBuffers uses for output.
+        // Scanning every Float catches negative peaks and all channels in both interleaved and
+        // non-interleaved layouts without assuming a channel stride.
+        let inputBufferCount = inputBuffers.count
+        let outputBufferCount = outputBuffers.count
+        let mappedBufferCount = min(inputBufferCount, outputBufferCount)
+        let mappedInputStart = inputBufferCount > outputBufferCount
+            ? inputBufferCount - outputBufferCount
+            : 0
+
+        var rawPeak: Float = 0
+        var totalSamplesThisBuffer = 0
+        if mappedBufferCount > 0 {
+            for inputIndex in mappedInputStart..<(mappedInputStart + mappedBufferCount) {
+                let inputBuffer = inputBuffers[inputIndex]
+                guard let inputData = inputBuffer.mData else { continue }
+                let channels = max(1, Int(inputBuffer.mNumberChannels))
+                let sampleCount = Int(inputBuffer.mDataByteSize) / MemoryLayout<Float>.size
+                guard sampleCount > 0 else { continue }
+
+                if totalSamplesThisBuffer == 0 {
+                    totalSamplesThisBuffer = sampleCount / channels
+                }
+
+                let inputSamples = inputData.assumingMemoryBound(to: Float.self)
+                let bufferPeak = SourceActivityMeter.maximumMagnitude(inputSamples, count: sampleCount)
+                if bufferPeak > rawPeak { rawPeak = bufferPeak }
             }
         }
-        let rawPeak = min(maxPeak, 1.0)
+        rawPeak = min(rawPeak, 1.0)
 
         if isPrimary {
-            _peakLevel = _peakLevel + levelSmoothingFactor * (rawPeak - _peakLevel)
+            SourceActivityMeter.advance(
+                level: &_peakLevel,
+                holdFramesRemaining: &_primaryMeterHoldFramesRemaining,
+                rawPeak: rawPeak,
+                frameCount: totalSamplesThisBuffer,
+                sampleRate: _primaryMeterSampleRate
+            )
         } else {
-            _secondaryPeakLevel = _secondaryPeakLevel + levelSmoothingFactor * (rawPeak - _secondaryPeakLevel)
+            SourceActivityMeter.advance(
+                level: &_secondaryPeakLevel,
+                holdFramesRemaining: &_secondaryMeterHoldFramesRemaining,
+                rawPeak: rawPeak,
+                frameCount: totalSamplesThisBuffer,
+                sampleRate: _secondaryMeterSampleRate
+            )
             // Only the secondary callback advances crossfade progress (single-writer pattern).
             _ = crossfadeState.updateProgress(samples: totalSamplesThisBuffer)
         }
