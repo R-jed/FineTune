@@ -269,9 +269,7 @@ final class AudioEngine {
 
         if startMonitorsAutomatically {
             Task { @MainActor in
-                if self.permission.status == .authorized {
-                    self.processMonitor.start()
-                }
+                self.processMonitor.start()
                 self.deviceMonitor.start()
                 self.bluetoothDeviceMonitor.start()
 
@@ -296,7 +294,7 @@ final class AudioEngine {
             }
         }
 
-        // Start process monitor when permission is granted
+        // Start audio processing when permission is granted
         if startMonitorsAutomatically && permission.status != .authorized {
             observePermissionGranted()
         }
@@ -309,10 +307,9 @@ final class AudioEngine {
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 if self.permission.status == .authorized {
-                    self.processMonitor.start()
                     self.applyPersistedSettings()
                     self.startHealthMonitor()
-                    self.logger.info("Audio capture authorized — process monitor started")
+                    self.logger.info("Audio capture authorized")
                 } else {
                     self.observePermissionGranted()
                 }
@@ -668,10 +665,8 @@ final class AudioEngine {
     }
 
     func start() {
-        // Monitors have internal guards against double-starting
-        if permission.status == .authorized {
-            processMonitor.start()
-        }
+        // App discovery is permission-independent; tap creation remains fail-closed.
+        processMonitor.start()
         deviceMonitor.start()
         applyPersistedSettings()
         if permission.status == .authorized {
@@ -849,9 +844,8 @@ final class AudioEngine {
 
     /// Update EQ settings for an app
     func setEQSettings(_ settings: EQSettings, for app: AudioApp) {
-        guard let tap = taps[app.id] else { return }
-        tap.updateEQSettings(settings)
         settingsManager.setEQSettings(settings, for: app.persistenceIdentifier)
+        taps[app.id]?.updateEQSettings(settings)
     }
 
     /// Get EQ settings for an app
@@ -1223,12 +1217,14 @@ final class AudioEngine {
                         .sorted()  // Deterministic ordering
                     if !availableUIDs.isEmpty {
                         logger.debug("Restoring multi-device mode for \(app.name) with \(availableUIDs.count) device(s)")
+                        // Restore presentation state before tap creation. Silent apps have
+                        // no Core Audio process objects yet but must still render correctly.
+                        appDeviceRouting[app.id] = availableUIDs[0]
                         ensureTapWithDevices(for: app, deviceUIDs: availableUIDs)
 
-                        // Mark as applied if tap created successfully
+                        // Mark as applied only if tap creation succeeded, allowing automatic
+                        // retry when Core Audio process objects appear later.
                         guard taps[app.id] != nil else { continue }
-                        // Set primary device routing so the UI row renders
-                        appDeviceRouting[app.id] = availableUIDs[0]
                         appliedPIDs.insert(app.id)
 
                         // Apply volume (with boost) and mute
