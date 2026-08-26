@@ -25,6 +25,7 @@ struct PairedDeviceRow: View {
                     : DesignTokens.Colors.textPrimary)
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .help(Text(verbatim: device.name))
 
             // Inline error (between name and button)
             if let error = errorMessage {
