@@ -6,9 +6,8 @@ import SwiftUI
 /// `MediaKeyControlRow` so it can compose cleanly inside a `SettingsCard`.
 ///
 /// Renders two states: untrusted (Grant button) and post-grant flourish
-/// (animated checkmark + "Granted" pill). The flourish duration is owned
-/// here because the parent only knows about the trust flag, not the
-/// transient celebration window.
+/// (checkmark + "Granted" pill). The flourish duration is owned here because
+/// the parent only knows about the trust flag, not the transient celebration window.
 @MainActor
 struct AccessibilityPromptStrip: View {
     @Bindable var accessibility: AccessibilityPermissionService
@@ -26,7 +25,6 @@ struct AccessibilityPromptStrip: View {
                 .symbolRenderingMode(.hierarchical)
                 .foregroundStyle(iconColor)
                 .frame(width: 28, alignment: .center)
-                .contentTransition(.symbolEffect(.replace))
 
             Text(message)
                 .font(DesignTokens.Typography.rowDescription)
@@ -56,7 +54,7 @@ struct AccessibilityPromptStrip: View {
         .padding(.vertical, DesignTokens.Spacing.sm)
         .frame(maxWidth: .infinity, alignment: .leading)
         .animation(
-            reduceMotion ? .linear(duration: 0.15) : .spring(response: 0.35, dampingFraction: 0.85),
+            reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.85),
             value: showingGrantedFlourish
         )
         .onChange(of: accessibility.isTrustedCached) { oldValue, newValue in
