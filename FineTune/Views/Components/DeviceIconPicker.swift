@@ -64,10 +64,6 @@ struct DeviceIconPicker: View {
         .padding(DesignTokens.Spacing.md)
         .frame(width: 300)
         .task(id: device.uid) {
-            // Driver-vs-symbol is decided the way AudioDeviceMonitor decides it:
-            // does the driver provide an icon? Probed once per device — the cache
-            // stores only non-nil results, so probing per render would hit
-            // CoreAudio (and disk) for every device without a driver icon.
             driverIconPresent = DeviceIconCache.shared.icon(for: device.uid) {
                 device.id.readDeviceIcon()
             } != nil
@@ -238,6 +234,7 @@ private struct IconCell: View {
     let onSelect: () -> Void
 
     @State private var isHovered = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var descriptor: Text {
         if let category = DeviceIconPicker.localizedCategoryTitle(forSymbol: symbol) {
@@ -267,9 +264,10 @@ private struct IconCell: View {
         }
         .buttonStyle(.plain)
         .onHover { isHovered = $0 }
-        .animation(DesignTokens.Animation.hover, value: isHovered)
+        .animation(reduceMotion ? nil : DesignTokens.Animation.hover, value: isHovered)
         .help(descriptor)
         .accessibilityLabel(Text("Choose device icon") + Text(verbatim: ": ") + descriptor)
+        .accessibilityAddTraits(isHighlighted ? .isSelected : [])
     }
 
     private var fill: Color {
