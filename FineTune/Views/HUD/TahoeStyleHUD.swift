@@ -85,9 +85,9 @@ struct TahoeStyleHUD: View {
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .help(Text(verbatim: deviceName))
 
             HStack(spacing: 8) {
-                // Hard-swap — symbolEffect(.replace.*) cross-fades the whole wave glyph on every bin change.
                 Image(systemName: displayMute ? "speaker.slash.fill" : waveIconName)
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(displayMute
@@ -98,7 +98,8 @@ struct TahoeStyleHUD: View {
                 LiquidGlassSlider(
                     value: sliderBinding,
                     in: 0...1,
-                    showUnityMarker: false
+                    showUnityMarker: false,
+                    accessibilityLabel: Text("System volume")
                 )
                 .opacity(displayMute ? 0.5 : 1.0)
 
@@ -125,7 +126,6 @@ struct TahoeStyleHUD: View {
             onHoverChange?(hovering)
         }
         .onChange(of: sliderFraction) { _, _ in
-            // External source pushed a value; drop the sticky drag snapshot.
             dragValue = nil
         }
         .onChange(of: mute) { _, _ in
