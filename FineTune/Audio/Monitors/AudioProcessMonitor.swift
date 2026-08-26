@@ -98,6 +98,50 @@ final class AudioProcessMonitor: AudioProcessMonitoring {
             && appBundleCount == 1
     }
 
+    /// Fast path for newly-created HAL process objects. It only attaches objects whose PID
+    /// already matches a known direct user-app row. Helper/XPC objects deliberately miss this
+    /// path and continue through the full responsibility-resolution refresh below.
+    static func mergeNewDirectProcessObjects(
+        into apps: [AudioApp],
+        processIDs: [AudioObjectID],
+        knownProcessIDs: Set<AudioObjectID>,
+        pidForProcess: (AudioObjectID) -> pid_t?,
+        isRunning: (AudioObjectID) -> Bool
+    ) -> [AudioApp]? {
+        let added = Set(processIDs).subtracting(knownProcessIDs)
+        guard !added.isEmpty else { return nil }
+
+        var appsByPID = Dictionary(
+            apps.map { ($0.id, $0) },
+            uniquingKeysWith: { _, latest in latest }
+        )
+        var changed = false
+
+        for objectID in added.sorted() {
+            guard let pid = pidForProcess(objectID),
+                  let existing = appsByPID[pid],
+                  !existing.isHelperBacked,
+                  !existing.processObjectIDs.contains(objectID) else { continue }
+
+            var mergedIDs = existing.processObjectIDs
+            mergedIDs.append(objectID)
+            mergedIDs.sort()
+            appsByPID[pid] = AudioApp(
+                id: existing.id,
+                processObjectIDs: mergedIDs,
+                name: existing.name,
+                icon: existing.icon,
+                bundleID: existing.bundleID,
+                isHelperBacked: false,
+                isAudioActive: existing.isAudioActive || isRunning(objectID)
+            )
+            changed = true
+        }
+
+        guard changed else { return nil }
+        return apps.map { appsByPID[$0.id] ?? $0 }
+    }
+
     // Property listeners
     private var processListListenerBlock: AudioObjectPropertyListenerBlock?
     private var processListenerBlocks: [AudioObjectID: AudioObjectPropertyListenerBlock] = [:]
@@ -181,10 +225,12 @@ final class AudioProcessMonitor: AudioProcessMonitoring {
 
         logger.debug("Starting audio process monitor")
 
-        // Set up listener first
-        processListListenerBlock = { [weak self] numberAddresses, addresses in
-            Task { @MainActor [weak self] in
-                self?.refresh()
+        // This listener is explicitly delivered on DispatchQueue.main. Enter the MainActor
+        // synchronously so a new process object can reach AudioEngine before a second queue hop.
+        processListListenerBlock = { [weak self] _, _ in
+            let notificationUptime = ProcessInfo.processInfo.systemUptime
+            MainActor.assumeIsolated {
+                self?.refresh(processListNotificationUptime: notificationUptime)
             }
         }
 
@@ -252,9 +298,29 @@ final class AudioProcessMonitor: AudioProcessMonitoring {
         }
     }
 
-    private func refresh() {
+    private func refresh(processListNotificationUptime: TimeInterval? = nil) {
         do {
             let processIDs = try AudioObjectID.readProcessList()
+
+            // Time-critical path for macOS versions where bundle-targeted prearming is unavailable.
+            // Existing quiet GUI apps are already known by PID, so a newly-created direct HAL
+            // process object can be published to AudioEngine before NSWorkspace/helper discovery.
+            if let fastApps = Self.mergeNewDirectProcessObjects(
+                into: activeApps,
+                processIDs: processIDs,
+                knownProcessIDs: monitoredProcesses,
+                pidForProcess: { try? $0.readProcessPID() },
+                isRunning: { $0.readProcessIsRunning() }
+            ) {
+                activeApps = fastApps
+                onAppsChanged?(activeApps)
+
+                if let started = processListNotificationUptime {
+                    let elapsedMs = (ProcessInfo.processInfo.systemUptime - started) * 1000
+                    logger.debug("Fast process-object provisioning callback completed in \(elapsedMs, format: .fixed(precision: 2)) ms")
+                }
+            }
+
             let runningApps = NSWorkspace.shared.runningApplications
             let runningAppsByPID = Dictionary(
                 runningApps.map { ($0.processIdentifier, $0) },

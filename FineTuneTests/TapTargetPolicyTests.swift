@@ -22,19 +22,25 @@ struct TapTargetPolicyTests {
         )
     }
 
-    @Test("Quiet direct bundle builds a restoring muted mixdown tap")
+    @Test("Quiet direct bundle prearm is available only where Core Audio supports it")
     func quietDirectBundleBuildsPrearmDescription() throws {
         let source = app()
-        let description = try #require(TapTargetPolicy.bundlePrearmDescription(for: source))
 
-        #expect(description.processes.isEmpty)
-        #expect(description.bundleIDs == ["com.test.transient"])
-        #expect(description.isExclusive == false)
-        #expect(description.isMixdown)
-        #expect(description.isMono == false)
-        #expect(description.isPrivate)
-        #expect(description.muteBehavior == .mutedWhenTapped)
-        #expect(description.isProcessRestoreEnabled)
+        if #available(macOS 26.0, *) {
+            let description = try #require(TapTargetPolicy.bundlePrearmDescription(for: source))
+            #expect(TapTargetPolicy.canBundlePrearm(source))
+            #expect(description.processes.isEmpty)
+            #expect(description.bundleIDs == ["com.test.transient"])
+            #expect(description.isExclusive == false)
+            #expect(description.isMixdown)
+            #expect(description.isMono == false)
+            #expect(description.isPrivate)
+            #expect(description.muteBehavior == .mutedWhenTapped)
+            #expect(description.isProcessRestoreEnabled)
+        } else {
+            #expect(!TapTargetPolicy.canBundlePrearm(source))
+            #expect(TapTargetPolicy.bundlePrearmDescription(for: source) == nil)
+        }
     }
 
     @Test("Active process-object and known helper apps stay on process targeting")
@@ -44,7 +50,7 @@ struct TapTargetPolicyTests {
         #expect(!TapTargetPolicy.canBundlePrearm(app(bundleID: nil)))
     }
 
-    @Test("Direct process-object churn keeps a bundle prearm but helper ownership retires it")
+    @Test("Bundle prearm lifetime policy follows platform availability and helper ownership")
     func bundlePrearmLifetimePolicy() {
         let quiet = app()
         let directReady = app(processObjectIDs: [AudioObjectID(9001)])
@@ -58,7 +64,11 @@ struct TapTargetPolicyTests {
             isAudioActive: true
         )
 
-        #expect(TapTargetPolicy.shouldKeepBundlePrearm(existingApp: quiet, updatedApp: directReady))
+        if #available(macOS 26.0, *) {
+            #expect(TapTargetPolicy.shouldKeepBundlePrearm(existingApp: quiet, updatedApp: directReady))
+        } else {
+            #expect(!TapTargetPolicy.shouldKeepBundlePrearm(existingApp: quiet, updatedApp: directReady))
+        }
         #expect(!TapTargetPolicy.shouldKeepBundlePrearm(existingApp: quiet, updatedApp: helperReady))
         #expect(!TapTargetPolicy.shouldKeepBundlePrearm(existingApp: quiet, updatedApp: differentBundle))
     }
