@@ -153,8 +153,7 @@ struct DeviceRow: View {
                         .font(isDefault ? DesignTokens.Typography.rowNameBold : DesignTokens.Typography.rowName)
                         .lineLimit(1)
                         .help(Text(verbatim: device.name))
-                        .accessibilityValue(isDefault ? Text("Default device") : Text("Not default"))
-                        .accessibilityHint(isDefault ? Text("Current default output device") : Text("Activate to set as default output device"))
+                        .accessibilityValue(isDefault ? Text("Default device") : Text("Set as default"))
                         .accessibilityAction {
                             if !isDefault {
                                 onSetDefault()
@@ -218,7 +217,7 @@ struct DeviceRow: View {
                 onEditingChanged: { editing in
                     isEditing = editing
                 },
-                accessibilityLabel: Text("Output volume for \(device.name)")
+                accessibilityLabel: Text("Volume") + Text(verbatim: ": \(device.name)")
             )
             .opacity(showMutedIcon ? 0.5 : 1.0)
             .onChange(of: sliderValue) { _, newValue in
