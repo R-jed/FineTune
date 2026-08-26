@@ -1,0 +1,58 @@
+name: Branch Cleanup
+
+on:
+  push:
+    branches:
+      - chore/branch-cleanup
+    paths:
+      - .github/workflows/branch-cleanup.yml
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify and delete superseded branches
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          branches=(
+            "docs/project-handoff|052fb6a965c93673af265d80c93359b18bb562f8"
+            "feature/ui-localization|b312698314665d9437a4969ad2f1bd13cfc5453a"
+            "fix/app-discovery-audio-state|ffd9dd2cee00d906a4162c91d59ae46d8c85b608"
+            "fix/rt-biquad-lifetime|c1e09abbf1920aeb47a43933056773edd31ab23f"
+            "fix/source-activity-meter|6c32af3dc552b3aab270e81d9c59ecaa1dfd0078"
+            "fix/tap-callback-lifetime|2af531d32cf17a763e20f167f0893fd2d241db28"
+            "tmp/audioengine-localization-candidate|36fc6051517c2c2dec2c3f54a7b43e4456596837"
+            "tmp/localization-final-review|0b94ebe5343f93a564fc3a54898edb45591ccada"
+          )
+
+          for entry in "${branches[@]}"; do
+            branch="${entry%%|*}"
+            expected="${entry##*|}"
+            current="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/${branch}" --jq '.object.sha')"
+            if [[ "${current}" != "${expected}" ]]; then
+              echo "Ref moved: ${branch}: expected ${expected}, found ${current}"
+              exit 1
+            fi
+          done
+
+          for entry in "${branches[@]}"; do
+            branch="${entry%%|*}"
+            echo "Deleting ${branch}"
+            gh api --method DELETE "repos/${GITHUB_REPOSITORY}/git/refs/heads/${branch}"
+          done
+
+      - name: Delete cleanup branch
+        if: ${{ success() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api --method DELETE "repos/${GITHUB_REPOSITORY}/git/refs/heads/chore/branch-cleanup"
