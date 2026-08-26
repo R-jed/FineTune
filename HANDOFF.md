@@ -24,13 +24,13 @@ Active acceptance branch: `integration/full-product-acceptance`
 
 Pull request: #10, `integration: full product acceptance`
 
-PR #10 integrates the current product/UI/localization work with running-app discovery, source-activity metering, Biquad realtime quiescence, tap processor-generation ownership, identity/lifecycle repairs, and ordered settings persistence.
+PR #10 integrates the current product/UI/localization work with running-app discovery, source-activity metering, Biquad realtime quiescence, tap processor-generation ownership, identity/lifecycle repairs, ordered settings persistence, and the latest app-list interaction refinements.
 
 Verified integration-code head before this handoff refresh:
 
-`83bf4f880246cf959e7cc1f668e181c37ea88ac9`
+`f7c8caa32079c770aac935fef13fd406b2536908`
 
-CI #152 on that exact code head passed Build, the complete non-UI Test suite, test-result upload, and the complete job.
+CI #155 on that exact code head passed Build, the complete non-UI Test suite, test-result upload, and the complete job.
 
 PR #10 is Draft and unmerged. Do not merge it without explicit authorization. The next gate is local macOS acceptance on the final exact head.
 
@@ -99,6 +99,10 @@ Completed and source-reviewed work includes:
 - generated String Catalog collision handling without disabling generated symbols globally
 - localized device-icon category headers, Chinese category search, and localized accessibility descriptors
 - localized AutoEQ catalog failure presentation while detailed network diagnostics remain in logs
+- hidden applications managed through the existing secondary menu while pin remains a first-level row control
+- whole-row drag initiation for visible and inactive application rows
+- native slashed pin state using `pin.slash` for clearer pin-state contrast
+- per-app volume wheel adjustment gated behind Option+scroll so ordinary list scrolling passes through unchanged
 
 The notification integration is commit:
 
@@ -119,6 +123,10 @@ The current acceptance contract is maintained in `tasks/full-product-acceptance-
 
 - running regular applications stay visible without requiring live audio
 - pinning preserves inactive representation, while hiding is reversible presentation state
+- hidden-app restoration remains in the existing secondary menu; do not reintroduce a parallel visibility-edit mode without a new product requirement
+- pin remains a first-level app-row control and uses clearly differentiated native pin states
+- visible and inactive application rows expose the row surface as the drag target instead of requiring a small dedicated handle
+- ordinary wheel/trackpad scrolling must continue scrolling the app list; per-app volume changes through the wheel require an explicit Option modifier while the slider is hovered
 - `persistenceIdentifier` is durable app identity and PID is only the current process representative
 - tap ownership and transient `VolumeState` are reset when representative identity changes
 - source-activity metering, Biquad realtime quiescence, and tap processor-generation ownership retain their reviewed behavior
@@ -142,13 +150,16 @@ Important history:
 - CI #148 exposed one localization test-environment failure while validating a staged settings-write repair; the failure was unrelated to settings write ordering.
 - The settings-write repair was then committed to source, the temporary CI source-rewrite/writeback path was removed, and later fixes restored the full suite.
 - CI #152 at `83bf4f880246cf959e7cc1f668e181c37ea88ac9` passed Build, the complete non-UI Test suite, test-result upload, and the complete job.
+- CI #154 on the first app-list interaction implementation built successfully but exposed nondeterministic setup in `SettingsManagerWriteOrderingTests`: the test waited on `SettingsManager`'s 500 ms debounce/MainActor scheduling before reaching the coordinator invariant.
+- The ordering regression test now drives `SettingsWriteCoordinator` directly, preserving the stale-write-versus-flush proof without depending on debounce scheduling. Product settings-persistence code was unchanged by this correction.
+- CI #155 at `f7c8caa32079c770aac935fef13fd406b2536908` passed Build, the complete non-UI Test suite, test-result upload, and the complete job after the app-list interaction correction and deterministic test repair.
 
-CI #152 details:
+CI #155 details:
 
-- run id: `32914781316`
-- job id: `98016182625`
+- run id: `32919970062`
+- job id: `98031466839`
 
-Treat `83bf4f880246cf959e7cc1f668e181c37ea88ac9` as the verified integration-code baseline before this handoff refresh. If the current branch head is a later documentation-only commit, inspect its diff and exact-head CI before assuming product code changed.
+Treat `f7c8caa32079c770aac935fef13fd406b2536908` as the verified integration-code baseline before this handoff refresh. If the current branch head is a later documentation-only commit, inspect its diff and exact-head CI before assuming product code changed.
 
 ## Full-repository review findings
 
@@ -169,6 +180,10 @@ Confirmed examples include:
 - HAL callbacks retain their processor generation instead of dynamically borrowing a replacement generation
 - Biquad setup retirement waits for a real realtime-reader quiescent point
 - `SettingsManager` serializes persistence writes and its termination flush drains older queued writes
+- the hidden-app interaction reuses the existing secondary `Menu` instead of maintaining a second editing surface
+- row dragging uses the existing row surface as its hit target while preserving row controls
+- unpinned state uses the native `pin.slash` symbol and keeps accessibility label/help text
+- normal scroll events are returned to the app list unchanged unless Option is held over the volume slider
 
 The review also rechecked the full current String Catalog blob after a truncated API response initially produced false-negative searches. Current catalog entries include device-picker, mode-toggle, EQ, AutoEQ, device-inspector, Bluetooth, notification, and HUD resources. Do not repeat the earlier false conclusion that `System Audio`, `Single`, or `hud.muted` are missing.
 
@@ -216,6 +231,10 @@ Automated CI cannot substitute for local macOS runtime acceptance. Do not claim 
 - Sparkle, KeyboardShortcuts, privacy prompts, and standard file-panel chrome under native/FineTune language mismatch
 - permission denial and later grant/recovery behavior
 - quiet-running app visibility across launch/termination and representative-PID changes
+- hidden-app secondary-menu restoration and repeated Hide/Restore behavior on real app state
+- whole-row drag feel, reorder behavior, and whether slider/button interaction stays free of accidental drag initiation
+- visual clarity of the slashed pin state across hover, selection, and appearance modes
+- ordinary list scrolling near/over volume sliders plus intentional Option+scroll adjustment and discoverability
 - routing and tap behavior across real output devices and app lifecycle transitions
 - sleep/wake and application termination persistence behavior
 
@@ -227,7 +246,7 @@ The local macOS acceptance pass must cover the relevant runtime matrix before me
 2. Perform the macOS GUI smoke matrix in explicit English, explicit Simplified Chinese, and both Auto resolution directions.
 3. Check Compact, Comfortable, and Spacious popup layouts for clipping, overlap, wrapping, and truncation.
 4. Exercise representative Output/Input, edit, EQ, AutoEQ, permission, Bluetooth, device-detail, notification, help, and accessibility states.
-5. Exercise app discovery, quiet-running visibility, Hide/Restore, representative-PID changes, routing, sleep/wake, and termination persistence on real macOS hardware.
+5. Exercise app discovery, quiet-running visibility, hidden-app secondary-menu Hide/Restore, whole-row reordering, pin-state clarity, ordinary scrolling versus Option+scroll volume adjustment, representative-PID changes, routing, sleep/wake, and termination persistence on real macOS hardware.
 6. Observe dependency/system-owned language behavior accurately and record it as a boundary without silently extending scope.
 7. Recompare the final PR #10 branch with `main` for unrelated release, signing, appcast, dependency, or business-logic drift.
 8. Keep PR #10 Draft and unmerged until explicit authorization.
@@ -243,6 +262,10 @@ Treat these as high risk:
 - `FineTune/Settings/SettingsManager.swift`
 - `FineTune/Localizable.xcstrings`
 - `FineTune/Views/MenuBarPopupView.swift`
+- `FineTune/Views/Rows/AppRow.swift`
+- `FineTune/Views/Rows/InactiveAppRow.swift`
+- `FineTune/Views/Rows/AppRowControls.swift`
+- `FineTune/Views/Components/ScrollWheelStepModifier.swift`
 - `FineTune/Utilities/LocalizationContext.swift`
 - `FineTune/Settings/Types/AppLanguage.swift`
 - `.github/workflows/ci.yml`
