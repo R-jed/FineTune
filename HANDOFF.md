@@ -1,6 +1,6 @@
 # FineTune Project Handoff
 
-Last updated: 2026-08-24
+Last updated: 2026-08-26
 
 Read this file before changing code. Re-fetch the branch head and every sensitive file before each write.
 
@@ -20,19 +20,23 @@ License: GNU GPL v3. Preserve the original copyright notice.
 
 Stable base: `main`
 
-Active branch: `feature/ui-localization`
+Active acceptance branch: `integration/full-product-acceptance`
 
-Pull request: #5, `feat: add English and Simplified Chinese UI localization`
+Pull request: #10, `integration: full product acceptance`
 
-Verified production-code head before this documentation refresh:
+PR #10 integrates the current product/UI/localization work with running-app discovery, source-activity metering, Biquad realtime quiescence, tap processor-generation ownership, identity/lifecycle repairs, and ordered settings persistence.
 
-`ad4e09077e708de0989b4e5ceb9bab5d8e22c03e`
+Verified integration-code head before this handoff refresh:
 
-CI #87 on that code head passed Build, Test, test-result upload, and the complete job.
+`83bf4f880246cf959e7cc1f668e181c37ea88ac9`
 
-PR #5 is open and unmerged. Do not merge it without explicit authorization.
+CI #152 on that exact code head passed Build, the complete non-UI Test suite, test-result upload, and the complete job.
 
-A documentation-only commit may follow the verified code head above. Do not treat that as code drift. Re-fetch the current branch head before starting work and confirm any later CI result.
+PR #10 is Draft and unmerged. Do not merge it without explicit authorization. The next gate is local macOS acceptance on the final exact head.
+
+A documentation-only commit may follow the verified code head above. Do not treat that as product-code drift. Re-fetch the current branch head before starting work and confirm any later CI result.
+
+The localization source work originated on PR #5. Historical localization details below remain useful, but PR #10 is the current acceptance baseline.
 
 ## Product language specification
 
@@ -58,6 +62,7 @@ Persisted enum identities remain stable:
 - any Chinese identifier -> `zh-Hans`
 - every non-Chinese identifier -> `en`
 - missing or unusable preferred-language data -> `en`
+- only the first preferred language controls the result
 
 Verified examples include `zh-Hans-CN`, `zh-Hant-TW`, `zh_CN`, and `zh` mapping to `zh-Hans`; `en-AU`, `ja-JP`, and `fr-FR` mapping to `en`; an empty list mapping to `en`; and `["ja-JP", "zh-Hans"]` mapping to `en` because only the first item controls Auto.
 
@@ -99,7 +104,7 @@ The notification integration is commit:
 
 `b556b5019b8dc21931416094b0a5c5dc0d30647d`
 
-The final source-review fixes are:
+The final localization source-review fixes are:
 
 - `5ebf8735936b4cc2d52668c2282f4015bb5d161a`: device-icon discovery localization was introduced, but CI #85 found an invalid `String(localized:locale:)` overload use
 - `603a2731f2829d4d2a0e08de8afcf8934e203acc`: corrected the device-icon resource resolution boundary
@@ -107,6 +112,19 @@ The final source-review fixes are:
 - `ad4e09077e708de0989b4e5ceb9bab5d8e22c03e`: localized the AutoEQ catalog failure state using existing FineTune-owned catalog copy
 
 The AutoEQ fix intentionally leaves `AutoEQFetcher`'s detailed English diagnostic strings in its internal state/logging path. The user-facing panel no longer renders those strings verbatim.
+
+## Integrated acceptance invariants
+
+The current acceptance contract is maintained in `tasks/full-product-acceptance-review.md`. In particular:
+
+- running regular applications stay visible without requiring live audio
+- pinning preserves inactive representation, while hiding is reversible presentation state
+- `persistenceIdentifier` is durable app identity and PID is only the current process representative
+- tap ownership and transient `VolumeState` are reset when representative identity changes
+- source-activity metering, Biquad realtime quiescence, and tap processor-generation ownership retain their reviewed behavior
+- settings persistence is ordered so an older debounced write cannot overwrite a newer flush
+
+Do not weaken these invariants to preserve older implementation shortcuts.
 
 ## CI truth
 
@@ -120,20 +138,23 @@ Important history:
 - CI #83 passed after production `AudioEngine` notification integration.
 - CI #84 passed on the documentation-synchronized branch state.
 - CI #85 failed during Build because `DeviceIconPicker` and its test used the wrong `String(localized:locale:)` overload with `LocalizedStringResource`.
-- CI #87 at `ad4e09077e708de0989b4e5ceb9bab5d8e22c03e` passed Build, Test, test-result upload, and the complete job after the final code-review fixes.
+- CI #87 at `ad4e09077e708de0989b4e5ceb9bab5d8e22c03e` passed Build, Test, test-result upload, and the complete job after the localization source-review fixes.
+- CI #148 exposed one localization test-environment failure while validating a staged settings-write repair; the failure was unrelated to settings write ordering.
+- The settings-write repair was then committed to source, the temporary CI source-rewrite/writeback path was removed, and later fixes restored the full suite.
+- CI #152 at `83bf4f880246cf959e7cc1f668e181c37ea88ac9` passed Build, the complete non-UI Test suite, test-result upload, and the complete job.
 
-CI #87 details:
+CI #152 details:
 
-- run id: `32651747504`
-- job id: `97224371006`
+- run id: `32914781316`
+- job id: `98016182625`
 
-Treat `ad4e09077e708de0989b4e5ceb9bab5d8e22c03e` as the verified production-code baseline for this handoff. If the current branch head is a later documentation-only commit, inspect its diff and CI before assuming code changed.
+Treat `83bf4f880246cf959e7cc1f668e181c37ea88ac9` as the verified integration-code baseline before this handoff refresh. If the current branch head is a later documentation-only commit, inspect its diff and exact-head CI before assuming product code changed.
 
 ## Full-repository review findings
 
-The final source review covered both PR-changed files and high-risk unchanged presentation boundaries under `Views`, `Settings`, `Utilities`, `Coordination`, and menu-bar support code.
+The source review covered both PR-changed files and high-risk presentation, app-discovery, settings-persistence, audio-lifetime, and identity boundaries.
 
-Confirmed examples:
+Confirmed examples include:
 
 - `ThemeTilePicker`, popup-size controls, and Shortcuts use localized display resources rather than English `description` values
 - `UpdatesTab` formats relative dates with `LocalizationContext.presentationLocale`
@@ -143,8 +164,13 @@ Confirmed examples:
 - `URLHandler` user-like English strings are logs, not presentation
 - `UpdateManager` delegates standard updater UI to Sparkle, which is a dependency-owned localization boundary
 - menu-bar icon coordinator strings are identity/logging values rather than localized interface prose
+- running-app discovery fingerprints include durable identity, process objects, helper state, and source-audio state
+- same-PID identity replacement rebuilds transient volume state before persisted settings are applied
+- HAL callbacks retain their processor generation instead of dynamically borrowing a replacement generation
+- Biquad setup retirement waits for a real realtime-reader quiescent point
+- `SettingsManager` serializes persistence writes and its termination flush drains older queued writes
 
-The review also rechecked the full current String Catalog blob after a truncated API response initially produced false-negative searches. Current catalog entries do include device-picker, mode-toggle, EQ, AutoEQ, device-inspector, Bluetooth, notification, and HUD resources. Do not repeat the earlier false conclusion that `System Audio`, `Single`, or `hud.muted` are missing.
+The review also rechecked the full current String Catalog blob after a truncated API response initially produced false-negative searches. Current catalog entries include device-picker, mode-toggle, EQ, AutoEQ, device-inspector, Bluetooth, notification, and HUD resources. Do not repeat the earlier false conclusion that `System Audio`, `Single`, or `hud.muted` are missing.
 
 ## Defensive `Untitled` fallback
 
@@ -180,42 +206,48 @@ FineTune ships localized privacy purpose strings and can localize its own custom
 
 ## What remains unproven
 
-The current environment cannot run FineTune's macOS GUI. A direct local clone for an additional machine regex scan was also unavailable because the container could not resolve `github.com`.
-
-Do not claim the following have been visually verified here:
+Automated CI cannot substitute for local macOS runtime acceptance. Do not claim the following have been visually or physically verified until they are observed on the acceptance machine:
 
 - every Settings tab in English, Simplified Chinese, and Auto
 - Compact, Comfortable, and Spacious popup layout
 - all Output/Input/edit/EQ/AutoEQ/device-detail states
 - clipping, wrapping, truncation, visual balance, and translation quality
-- live notification appearance
-- live VoiceOver/help behavior
+- live notification appearance and VoiceOver/help behavior
 - Sparkle, KeyboardShortcuts, privacy prompts, and standard file-panel chrome under native/FineTune language mismatch
+- permission denial and later grant/recovery behavior
+- quiet-running app visibility across launch/termination and representative-PID changes
+- routing and tap behavior across real output devices and app lifecycle transitions
+- sleep/wake and application termination persistence behavior
 
-The local macOS agent should perform this runtime matrix before merge authorization.
+The local macOS acceptance pass must cover the relevant runtime matrix before merge authorization.
 
 ## Final gates before merge authorization
 
-1. Re-fetch the current branch head and confirm CI is green.
+1. Re-fetch the current PR #10 head and confirm exact-head CI is green.
 2. Perform the macOS GUI smoke matrix in explicit English, explicit Simplified Chinese, and both Auto resolution directions.
 3. Check Compact, Comfortable, and Spacious popup layouts for clipping, overlap, wrapping, and truncation.
 4. Exercise representative Output/Input, edit, EQ, AutoEQ, permission, Bluetooth, device-detail, notification, help, and accessibility states.
-5. Observe dependency/system-owned language behavior accurately and record it as a boundary rather than silently extending scope.
-6. Recompare the final feature branch with `main` for unrelated release, signing, appcast, dependency, or business-logic drift.
-7. Keep PR #5 unmerged until explicit authorization.
+5. Exercise app discovery, quiet-running visibility, Hide/Restore, representative-PID changes, routing, sleep/wake, and termination persistence on real macOS hardware.
+6. Observe dependency/system-owned language behavior accurately and record it as a boundary without silently extending scope.
+7. Recompare the final PR #10 branch with `main` for unrelated release, signing, appcast, dependency, or business-logic drift.
+8. Keep PR #10 Draft and unmerged until explicit authorization.
 
 ## Sensitive files
 
 Treat these as high risk:
 
 - `FineTune/Audio/Engine/AudioEngine.swift`
+- `FineTune/Audio/Engine/ProcessTapController.swift`
+- `FineTune/Audio/EQ/BiquadProcessor.swift`
+- `FineTune/Audio/Monitors/AudioProcessMonitor.swift`
+- `FineTune/Settings/SettingsManager.swift`
 - `FineTune/Localizable.xcstrings`
 - `FineTune/Views/MenuBarPopupView.swift`
 - `FineTune/Utilities/LocalizationContext.swift`
 - `FineTune/Settings/Types/AppLanguage.swift`
 - `.github/workflows/ci.yml`
 
-For large or sensitive files, reconstruct from the exact current blob, build a detached candidate, compare the resulting Git diff, and only then advance the feature branch. This process previously caught an accidental missing final newline in the `AudioEngine` candidate before production branch advancement.
+For large or sensitive files, reconstruct from the exact current blob, build a detached candidate, compare the resulting Git diff, and only then advance the acceptance branch.
 
 ## Development rules
 
@@ -233,4 +265,4 @@ Before claiming completion:
 3. Review the final diff against `main`.
 4. Separate automated facts from manual/runtime observations.
 5. Update handoff evidence only when it adds substantive information. Do not create an endless documentation-head recursion merely to record the SHA of the previous documentation commit.
-6. Do not merge PR #5 without explicit authorization.
+6. Do not merge PR #10 without explicit authorization.
