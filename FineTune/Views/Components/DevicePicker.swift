@@ -240,9 +240,8 @@ struct DevicePicker: View {
         .onHover { isButtonHovered = $0 }
         .animation(reduceMotion ? nil : DesignTokens.Animation.hover, value: isButtonHovered)
         .help(triggerText)
-        .accessibilityLabel("Output device")
+        .accessibilityLabel("Device")
         .accessibilityValue(triggerText)
-        .accessibilityHint(isExpanded ? "Close device menu" : "Open device menu")
     }
 
     private var iconOnlyTriggerButton: some View {
@@ -261,9 +260,8 @@ struct DevicePicker: View {
         }
         .buttonStyle(.plain)
         .help(triggerText)
-        .accessibilityLabel("Output device")
+        .accessibilityLabel("Device")
         .accessibilityValue(triggerText)
-        .accessibilityHint(isExpanded ? "Close device menu" : "Open device menu")
         .onHover { isButtonHovered = $0 }
         .animation(reduceMotion ? nil : DesignTokens.Animation.hover, value: isButtonHovered)
     }
@@ -636,9 +634,9 @@ extension DevicePicker {
 }
 
 #Preview("Device Picker - Interactive") {
-    struct InteractivePreview: View {
+    struct MultiModePreview: View {
         @State private var mode: DeviceSelectionMode = .single
-        @State private var selectedUID: String = ""
+        @State private var selectedUID = ""
         @State private var selectedUIDs: Set<String> = []
         @State private var isFollowingDefault = true
 
@@ -689,5 +687,5 @@ extension DevicePicker {
             }
         }
     }
-    return InteractivePreview()
+    return MultiModePreview()
 }
