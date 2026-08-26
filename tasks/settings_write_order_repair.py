@@ -207,9 +207,13 @@ private nonisolated func waitForSignal(
     _ semaphore: DispatchSemaphore,
     timeout: DispatchTimeInterval
 ) async -> Bool {
-    await Task.detached {
-        semaphore.wait(timeout: .now() + timeout) == .success
-    }.value
+    await withCheckedContinuation { continuation in
+        DispatchQueue.global(qos: .utility).async {
+            continuation.resume(
+                returning: semaphore.wait(timeout: .now() + timeout) == .success
+            )
+        }
+    }
 }
 
 @Suite("SettingsManager write ordering")
