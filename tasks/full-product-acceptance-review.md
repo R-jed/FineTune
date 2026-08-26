@@ -35,7 +35,7 @@ Settings writes must be ordered. An older debounced save may never finish after 
 
 ## TDD evidence
 
-Focused regression tests have been added for quiet-running unpin visibility, representative-PID migration, same-PID app identity replacement, reversible Hide/Restore, and `VolumeState` identity reset. The production implementation has intentionally not been changed yet; the next CI run is the red-state proof for these invariants.
+Focused regression tests cover quiet-running unpin visibility, representative-PID migration, same-PID app identity replacement, reversible Hide/Restore, `VolumeState` identity reset, and deterministic settings write ordering. The production repairs now implement these invariants. Final acceptance remains gated by exact-head Build, the complete non-UI test suite, and final diff review.
 
 ## Acceptance gates
 
