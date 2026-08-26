@@ -148,7 +148,7 @@ struct EQPanelView: View {
         .animation(reduceMotion ? nil : DesignTokens.Animation.quick, value: isSaving)
         .animation(reduceMotion ? nil : DesignTokens.Animation.quick, value: isRenaming)
         .confirmationDialog(
-            "Delete preset?",
+            "Delete preset",
             isPresented: isDeleteConfirmationPresented,
             titleVisibility: .visible
         ) {
@@ -288,7 +288,7 @@ struct EQPanelView: View {
         }
         .buttonStyle(.plain)
         .help("Delete preset")
-        .accessibilityLabel("Delete current preset")
+        .accessibilityLabel("Delete preset")
     }
 
     // MARK: - Rename Preset Field
