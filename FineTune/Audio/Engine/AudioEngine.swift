@@ -347,7 +347,7 @@ final class AudioEngine {
         }
 
         processMonitor.onAppsChanged = { [weak self] apps in
-            self?.invalidateTapsWithChangedProcesses(apps)
+            self?.reconcileTapsWithChangedProcesses(apps)
             self?.applyPersistedSettings()
             self?.scheduleStaleCleanup()
         }
@@ -1840,31 +1840,128 @@ final class AudioEngine {
         return outputUIDs.contains(defaultUID) ? defaultUID : nil
     }
 
-    private func invalidateTapsWithChangedProcesses(_ apps: [AudioApp]) {
+    /// Reconciles Core Audio lifecycle changes without dropping a working route first.
+    /// Same-identity targets are kept while they still cover the updated producer set.
+    /// If the target must expand, the replacement is activated before the old tap is invalidated.
+    private func reconcileTapsWithChangedProcesses(_ apps: [AudioApp]) {
         let appsByPID = Dictionary(
             apps.map { ($0.id, $0) },
             uniquingKeysWith: { _, latest in latest }
         )
-        let liveIdentifiers = Set(apps.map(\.persistenceIdentifier))
+        let appsByIdentifier = Dictionary(
+            apps.map { ($0.persistenceIdentifier, $0) },
+            uniquingKeysWith: { $0.merging($1) }
+        )
 
         for (pid, tap) in Array(taps) {
             if let app = appsByPID[pid] {
                 let identityChanged = app.persistenceIdentifier != tap.app.persistenceIdentifier
-                let helperBackingChanged = app.isHelperBacked != tap.app.isHelperBacked
-                let processObjectsChanged = Set(app.processObjectIDs) != Set(tap.app.processObjectIDs)
-                let keepsBundlePrearm = TapTargetPolicy.shouldKeepBundlePrearm(
+                if identityChanged {
+                    logger.info("Retiring tap for PID \(pid): app identity changed")
+                    retireTap(for: pid, resetRuntimeState: true)
+                    continue
+                }
+
+                guard !TapTargetPolicy.shouldKeepBundlePrearm(
                     existingApp: tap.app,
                     updatedApp: app
-                )
-                let processObjectsRequireRebuild = processObjectsChanged && !keepsBundlePrearm
-                guard identityChanged || helperBackingChanged || processObjectsRequireRebuild else { continue }
+                ) else { continue }
 
-                logger.info("Retiring tap for PID \(pid): app identity, helper ownership, or process objects changed")
-                retireTap(for: pid, resetRuntimeState: identityChanged)
-            } else if liveIdentifiers.contains(tap.app.persistenceIdentifier) {
-                logger.info("Retiring tap for PID \(pid): representative PID moved")
-                retireTap(for: pid, resetRuntimeState: true)
+                handoffTap(from: pid, tap: tap, to: app)
+            } else if let app = appsByIdentifier[tap.app.persistenceIdentifier] {
+                handoffTap(from: pid, tap: tap, to: app)
             }
+        }
+    }
+
+    /// Make-before-break handoff for a target that no longer covers the current producer.
+    /// Activation failure leaves the existing tap untouched so an explicit route never loses
+    /// its only working physical tap because of a lifecycle callback.
+    private func handoffTap(
+        from oldPID: pid_t,
+        tap oldTap: any ProcessTapControlling,
+        to updatedApp: AudioApp
+    ) {
+        guard permission.status == .authorized else { return }
+
+        let deviceUIDs = oldTap.currentDeviceUIDs
+        guard !deviceUIDs.isEmpty, canProvisionTap(for: updatedApp) else { return }
+
+        let newPID = updatedApp.id
+        let followsSystemDefault = followsDefault.contains(oldPID)
+
+        if newPID != oldPID {
+            appDeviceRouting[newPID] = deviceUIDs[0]
+            if followsSystemDefault {
+                followsDefault.insert(newPID)
+            } else {
+                followsDefault.remove(newPID)
+            }
+
+            _ = volumeState.loadSavedDeviceSelectionMode(
+                for: newPID,
+                identifier: updatedApp.persistenceIdentifier
+            )
+            _ = volumeState.loadSavedSelectedDeviceUIDs(
+                for: newPID,
+                identifier: updatedApp.persistenceIdentifier
+            )
+            _ = volumeState.loadSavedVolume(
+                for: newPID,
+                identifier: updatedApp.persistenceIdentifier
+            )
+            _ = volumeState.loadSavedBoost(
+                for: newPID,
+                identifier: updatedApp.persistenceIdentifier
+            )
+            _ = volumeState.loadSavedMute(
+                for: newPID,
+                identifier: updatedApp.persistenceIdentifier
+            )
+        }
+
+        let preferredSource = preferredTapSourceDeviceUID(
+            forOutputUIDs: deviceUIDs,
+            isFollowsDefault: followsSystemDefault
+        )
+        var replacement: (any ProcessTapControlling)?
+
+        do {
+            let newTap = try tapFactory(updatedApp, deviceUIDs, preferredSource)
+            replacement = newTap
+            applyTapOutputState(to: newTap, for: newPID, deviceUIDs: deviceUIDs)
+
+            let initial = tapInitialState(
+                forApp: updatedApp,
+                primaryDeviceUID: deviceUIDs[0],
+                deviceVolume: newTap.currentDeviceVolume
+            )
+            try newTap.activate(initial: initial)
+
+            // Publish the replacement only after activation succeeds. At this point both
+            // taps may briefly exist, but there is never a deliberate no-tap interval.
+            taps[newPID] = newTap
+            appliedPIDs.insert(newPID)
+            pendingCleanup.removeValue(forKey: oldPID)?.cancel()
+
+            if initial.autoEQProfile == nil {
+                applyAutoEQToTap(newTap)
+            }
+
+            if newPID != oldPID {
+                taps.removeValue(forKey: oldPID)
+                appliedPIDs.remove(oldPID)
+                appDeviceRouting.removeValue(forKey: oldPID)
+                followsDefault.remove(oldPID)
+                volumeState.removeVolume(for: oldPID)
+                tapRecoveryCooldownUntil.removeValue(forKey: oldPID)
+            }
+
+            oldTap.invalidate()
+            logger.info("Handed off tap for \(updatedApp.name) without dropping route \(deviceUIDs.joined(separator: ","))")
+        } catch {
+            replacement?.invalidate()
+            logger.error("Keeping existing tap for \(updatedApp.name): replacement activation failed: \(error.localizedDescription)")
         }
     }
 

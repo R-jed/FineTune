@@ -53,7 +53,7 @@ struct AudioProcessMonitorTests {
         ))
     }
 
-    @Test("New direct process objects merge into an existing quiet app before full discovery")
+    @Test("New direct process objects merge producer identity before full discovery")
     func fastDirectProcessMerge() throws {
         let quiet = AudioApp(
             id: 501,
@@ -81,14 +81,48 @@ struct AudioProcessMonitorTests {
             pidForProcess: { objectID in
                 objectID == first || objectID == second ? quiet.id : nil
             },
-            isRunning: { $0 == first }
+            isRunning: { $0 == first },
+            producerBundleIDForProcess: { _ in "com.test.direct" }
         ))
 
         #expect(merged.map(\.id) == [quiet.id, other.id])
         #expect(merged[0].persistenceIdentifier == quiet.persistenceIdentifier)
         #expect(merged[0].processObjectIDs == [second, first])
+        #expect(merged[0].producerBundleIDs == ["com.test.direct"])
+        #expect(merged[0].tapBundleIDs == ["com.test.direct"])
         #expect(merged[0].isAudioActive)
         #expect(merged[1].processObjectIDs.isEmpty)
+    }
+
+    @Test("AudioApp merge retains helper producer identity after process-object shrinkage")
+    func appMergeRetainsProducerIdentity() {
+        let direct = AudioApp(
+            id: 501,
+            processObjectIDs: [],
+            name: "Browser",
+            icon: NSImage(),
+            bundleID: "com.test.browser",
+            producerBundleIDs: ["com.test.browser"],
+            isAudioActive: false
+        )
+        let helper = AudioApp(
+            id: 501,
+            processObjectIDs: [AudioObjectID(90)],
+            name: "Browser",
+            icon: NSImage(),
+            bundleID: "com.test.browser",
+            producerBundleIDs: ["com.test.browser.helper"],
+            isHelperBacked: true,
+            isAudioActive: true
+        )
+
+        let merged = direct.merging(helper)
+
+        #expect(merged.processObjectIDs == [AudioObjectID(90)])
+        #expect(merged.producerBundleIDs == ["com.test.browser", "com.test.browser.helper"])
+        #expect(merged.tapBundleIDs == ["com.test.browser", "com.test.browser.helper"])
+        #expect(merged.isHelperBacked)
+        #expect(merged.isAudioActive)
     }
 
     @Test("Helper PID does not bypass responsible-app attribution")
@@ -108,7 +142,8 @@ struct AudioProcessMonitorTests {
             processIDs: [helperObject],
             knownProcessIDs: [],
             pidForProcess: { _ in 9001 },
-            isRunning: { _ in true }
+            isRunning: { _ in true },
+            producerBundleIDForProcess: { _ in "com.test.browser.helper" }
         )
 
         #expect(merged == nil)
@@ -130,6 +165,7 @@ struct AudioProcessMonitorTests {
             name: "Browser",
             icon: NSImage(),
             bundleID: "com.test.browser",
+            producerBundleIDs: ["com.test.browser.helper"],
             isHelperBacked: true,
             isAudioActive: false
         )
@@ -148,7 +184,8 @@ struct AudioProcessMonitorTests {
             processIDs: [newHelperObject],
             knownProcessIDs: [],
             pidForProcess: { _ in helperBacked.id },
-            isRunning: { _ in true }
+            isRunning: { _ in true },
+            producerBundleIDForProcess: { _ in "com.test.browser.helper" }
         )
 
         #expect(knownResult == nil)

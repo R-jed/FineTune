@@ -2,24 +2,36 @@
 import AudioToolbox
 import Foundation
 
-/// Decides when FineTune can arm a process tap before Core Audio exposes
-/// concrete process object IDs. Bundle-targeted taps require macOS 26+;
-/// older supported systems use AudioProcessMonitor's fast process-object path.
+/// Decides whether an existing process tap still covers the same logical app.
+/// macOS 26+ can use bundle-targeted taps, which are stable across HAL process-object churn.
+/// Older supported systems keep using concrete process-object targeting.
 enum TapTargetPolicy {
     static func canBundlePrearm(_ app: AudioApp) -> Bool {
         guard #available(macOS 26.0, *) else { return false }
-        return app.processObjectIDs.isEmpty
-            && !app.isHelperBacked
-            && !(app.bundleID?.isEmpty ?? true)
+        guard !app.tapBundleIDs.isEmpty else { return false }
+
+        // Once concrete process objects exist, require the producer identity reported by
+        // Core Audio. Quiet direct apps can still prearm from the presentation bundle ID.
+        guard app.processObjectIDs.isEmpty || !app.producerBundleIDs.isEmpty else {
+            return false
+        }
+
+        // A helper-backed app with no Core Audio producer identity cannot be safely
+        // bundle-targeted because the presentation app bundle may not produce the audio.
+        if app.isHelperBacked && app.producerBundleIDs.isEmpty {
+            return false
+        }
+
+        return true
     }
 
     static func bundlePrearmDescription(for app: AudioApp) -> CATapDescription? {
-        guard #available(macOS 26.0, *), canBundlePrearm(app), let bundleID = app.bundleID else {
+        guard #available(macOS 26.0, *), canBundlePrearm(app) else {
             return nil
         }
 
         let description = CATapDescription()
-        description.bundleIDs = [bundleID]
+        description.bundleIDs = app.tapBundleIDs
         description.processes = []
         description.isExclusive = false
         description.isMixdown = true
@@ -31,18 +43,20 @@ enum TapTargetPolicy {
         return description
     }
 
-    /// Returns true when an existing tap still covers the updated process target.
-    /// Bundle-prearmed taps follow the same direct app by bundle identity on macOS 26+.
-    /// Concrete taps survive HAL process-list shrinkage, including a transient empty list;
-    /// any newly introduced process object still requires a rebuild so it is captured.
+    /// Returns true when the existing tap target still covers the updated app.
+    /// Bundle targets ignore transient process-object changes and rebuild only when
+    /// a newly learned producer bundle falls outside the current target set.
+    /// Concrete targets survive process-list shrinkage, including a transient empty list.
     static func shouldKeepBundlePrearm(existingApp: AudioApp, updatedApp: AudioApp) -> Bool {
-        guard existingApp.persistenceIdentifier == updatedApp.persistenceIdentifier,
-              existingApp.isHelperBacked == updatedApp.isHelperBacked else {
+        guard existingApp.persistenceIdentifier == updatedApp.persistenceIdentifier else {
             return false
         }
 
         if canBundlePrearm(existingApp) {
-            return true
+            if updatedApp.isHelperBacked && updatedApp.producerBundleIDs.isEmpty {
+                return false
+            }
+            return Set(updatedApp.tapBundleIDs).isSubset(of: Set(existingApp.tapBundleIDs))
         }
 
         let existingIDs = Set(existingApp.processObjectIDs)

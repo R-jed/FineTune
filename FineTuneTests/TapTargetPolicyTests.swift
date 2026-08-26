@@ -9,6 +9,7 @@ struct TapTargetPolicyTests {
     private func app(
         processObjectIDs: [AudioObjectID] = [],
         bundleID: String? = "com.test.transient",
+        producerBundleIDs: [String] = [],
         isHelperBacked: Bool = false
     ) -> AudioApp {
         AudioApp(
@@ -17,6 +18,7 @@ struct TapTargetPolicyTests {
             name: "Transient App",
             icon: NSImage(),
             bundleID: bundleID,
+            producerBundleIDs: producerBundleIDs,
             isHelperBacked: isHelperBacked,
             isAudioActive: !processObjectIDs.isEmpty
         )
@@ -43,47 +45,119 @@ struct TapTargetPolicyTests {
         }
     }
 
-    @Test("Active process-object and known helper apps stay on process targeting")
-    func activeAndHelperAppsDoNotBundlePrearm() {
-        #expect(!TapTargetPolicy.canBundlePrearm(app(processObjectIDs: [AudioObjectID(9001)])))
-        #expect(!TapTargetPolicy.canBundlePrearm(app(isHelperBacked: true)))
+    @Test("macOS 26 bundle targeting covers identified active and helper producers")
+    func activeAndHelperBundleTargeting() throws {
+        let active = app(
+            processObjectIDs: [AudioObjectID(9001)],
+            producerBundleIDs: ["com.test.transient"]
+        )
+        let helper = app(
+            processObjectIDs: [AudioObjectID(9002)],
+            producerBundleIDs: ["com.test.transient.helper"],
+            isHelperBacked: true
+        )
+        let unidentifiedActive = app(processObjectIDs: [AudioObjectID(9003)])
+        let unidentifiedHelper = app(
+            processObjectIDs: [AudioObjectID(9004)],
+            isHelperBacked: true
+        )
+
+        if #available(macOS 26.0, *) {
+            #expect(TapTargetPolicy.canBundlePrearm(active))
+            #expect(TapTargetPolicy.canBundlePrearm(helper))
+            #expect(!TapTargetPolicy.canBundlePrearm(unidentifiedActive))
+            #expect(!TapTargetPolicy.canBundlePrearm(unidentifiedHelper))
+            let helperDescription = try #require(TapTargetPolicy.bundlePrearmDescription(for: helper))
+            #expect(helperDescription.bundleIDs == ["com.test.transient", "com.test.transient.helper"])
+        } else {
+            #expect(!TapTargetPolicy.canBundlePrearm(active))
+            #expect(!TapTargetPolicy.canBundlePrearm(helper))
+            #expect(!TapTargetPolicy.canBundlePrearm(unidentifiedActive))
+            #expect(!TapTargetPolicy.canBundlePrearm(unidentifiedHelper))
+        }
+
         #expect(!TapTargetPolicy.canBundlePrearm(app(bundleID: nil)))
     }
 
-    @Test("Concrete tap survives process-list shrinkage and rebuilds when a new object appears")
-    func concreteTapLifetimePolicy() {
-        let active = app(processObjectIDs: [AudioObjectID(9001), AudioObjectID(9002)])
+    @Test("Existing target ignores lifecycle flicker but rejects uncovered producer identity")
+    func targetLifetimePolicy() {
+        let active = app(
+            processObjectIDs: [AudioObjectID(9001), AudioObjectID(9002)],
+            producerBundleIDs: ["com.test.transient"]
+        )
         let dormant = app()
-        let subset = app(processObjectIDs: [AudioObjectID(9001)])
-        let replacement = app(processObjectIDs: [AudioObjectID(9003)])
-        let superset = app(processObjectIDs: [AudioObjectID(9001), AudioObjectID(9002), AudioObjectID(9003)])
-        let helper = app(processObjectIDs: [AudioObjectID(9001)], isHelperBacked: true)
-        let differentBundle = app(processObjectIDs: [AudioObjectID(9001)], bundleID: "com.test.other")
+        let subset = app(
+            processObjectIDs: [AudioObjectID(9001)],
+            producerBundleIDs: ["com.test.transient"]
+        )
+        let replacement = app(
+            processObjectIDs: [AudioObjectID(9003)],
+            producerBundleIDs: ["com.test.transient"]
+        )
+        let superset = app(
+            processObjectIDs: [AudioObjectID(9001), AudioObjectID(9002), AudioObjectID(9003)],
+            producerBundleIDs: ["com.test.transient"]
+        )
+        let knownHelper = app(
+            processObjectIDs: [AudioObjectID(9003)],
+            producerBundleIDs: ["com.test.transient.helper"],
+            isHelperBacked: true
+        )
+        let differentBundle = app(
+            processObjectIDs: [AudioObjectID(9001)],
+            bundleID: "com.test.other",
+            producerBundleIDs: ["com.test.other"]
+        )
 
         #expect(TapTargetPolicy.shouldKeepBundlePrearm(existingApp: active, updatedApp: dormant))
         #expect(TapTargetPolicy.shouldKeepBundlePrearm(existingApp: active, updatedApp: subset))
-        #expect(!TapTargetPolicy.shouldKeepBundlePrearm(existingApp: active, updatedApp: replacement))
-        #expect(!TapTargetPolicy.shouldKeepBundlePrearm(existingApp: active, updatedApp: superset))
-        #expect(!TapTargetPolicy.shouldKeepBundlePrearm(existingApp: active, updatedApp: helper))
         #expect(!TapTargetPolicy.shouldKeepBundlePrearm(existingApp: active, updatedApp: differentBundle))
+
+        if #available(macOS 26.0, *) {
+            #expect(TapTargetPolicy.shouldKeepBundlePrearm(existingApp: active, updatedApp: replacement))
+            #expect(TapTargetPolicy.shouldKeepBundlePrearm(existingApp: active, updatedApp: superset))
+            #expect(!TapTargetPolicy.shouldKeepBundlePrearm(existingApp: active, updatedApp: knownHelper))
+        } else {
+            #expect(!TapTargetPolicy.shouldKeepBundlePrearm(existingApp: active, updatedApp: replacement))
+            #expect(!TapTargetPolicy.shouldKeepBundlePrearm(existingApp: active, updatedApp: superset))
+            #expect(!TapTargetPolicy.shouldKeepBundlePrearm(existingApp: active, updatedApp: knownHelper))
+        }
     }
 
-    @Test("Bundle prearm survives direct process-object arrival only where supported")
-    func bundlePrearmLifetimePolicy() {
+    @Test("Learned helper producer identity remains covered after process-object disappearance")
+    func learnedHelperIdentitySurvivesFlicker() {
+        let helper = app(
+            processObjectIDs: [AudioObjectID(9002)],
+            producerBundleIDs: ["com.test.transient.helper"],
+            isHelperBacked: true
+        )
+        let helperDormant = app(
+            producerBundleIDs: ["com.test.transient.helper"],
+            isHelperBacked: true
+        )
+
+        #expect(TapTargetPolicy.shouldKeepBundlePrearm(existingApp: helper, updatedApp: helperDormant))
+    }
+
+    @Test("A parent-only prearm must expand when a new helper producer is learned")
+    func helperProducerExpansionRequiresNewTarget() {
         let quiet = app()
-        let directReady = app(processObjectIDs: [AudioObjectID(9001)])
-        let helperReady = app(processObjectIDs: [AudioObjectID(9002)], isHelperBacked: true)
-        let differentBundle = app(
-            processObjectIDs: [AudioObjectID(9003)],
-            bundleID: "com.test.other"
+        let directReady = app(
+            processObjectIDs: [AudioObjectID(9001)],
+            producerBundleIDs: ["com.test.transient"]
+        )
+        let helperReady = app(
+            processObjectIDs: [AudioObjectID(9002)],
+            producerBundleIDs: ["com.test.transient.helper"],
+            isHelperBacked: true
         )
 
         if #available(macOS 26.0, *) {
             #expect(TapTargetPolicy.shouldKeepBundlePrearm(existingApp: quiet, updatedApp: directReady))
+            #expect(!TapTargetPolicy.shouldKeepBundlePrearm(existingApp: quiet, updatedApp: helperReady))
         } else {
             #expect(!TapTargetPolicy.shouldKeepBundlePrearm(existingApp: quiet, updatedApp: directReady))
+            #expect(!TapTargetPolicy.shouldKeepBundlePrearm(existingApp: quiet, updatedApp: helperReady))
         }
-        #expect(!TapTargetPolicy.shouldKeepBundlePrearm(existingApp: quiet, updatedApp: helperReady))
-        #expect(!TapTargetPolicy.shouldKeepBundlePrearm(existingApp: quiet, updatedApp: differentBundle))
     }
 }

@@ -9,6 +9,7 @@ private struct AppFingerprint: Hashable {
     let pid: pid_t
     let persistenceIdentifier: String
     let objectIDs: [AudioObjectID]
+    let producerBundleIDs: [String]
     let isHelperBacked: Bool
     let isAudioActive: Bool
 }
@@ -106,7 +107,8 @@ final class AudioProcessMonitor: AudioProcessMonitoring {
         processIDs: [AudioObjectID],
         knownProcessIDs: Set<AudioObjectID>,
         pidForProcess: (AudioObjectID) -> pid_t?,
-        isRunning: (AudioObjectID) -> Bool
+        isRunning: (AudioObjectID) -> Bool,
+        producerBundleIDForProcess: (AudioObjectID) -> String? = { _ in nil }
     ) -> [AudioApp]? {
         let added = Set(processIDs).subtracting(knownProcessIDs)
         guard !added.isEmpty else { return nil }
@@ -126,12 +128,19 @@ final class AudioProcessMonitor: AudioProcessMonitoring {
             var mergedIDs = existing.processObjectIDs
             mergedIDs.append(objectID)
             mergedIDs.sort()
+
+            var producerBundleIDs = Set(existing.producerBundleIDs)
+            if let producerBundleID = producerBundleIDForProcess(objectID), !producerBundleID.isEmpty {
+                producerBundleIDs.insert(producerBundleID)
+            }
+
             appsByPID[pid] = AudioApp(
                 id: existing.id,
                 processObjectIDs: mergedIDs,
                 name: existing.name,
                 icon: existing.icon,
                 bundleID: existing.bundleID,
+                producerBundleIDs: Array(producerBundleIDs).sorted(),
                 isHelperBacked: false,
                 isAudioActive: existing.isAudioActive || isRunning(objectID)
             )
@@ -310,7 +319,8 @@ final class AudioProcessMonitor: AudioProcessMonitoring {
                 processIDs: processIDs,
                 knownProcessIDs: monitoredProcesses,
                 pidForProcess: { try? $0.readProcessPID() },
-                isRunning: { $0.readProcessIsRunning() }
+                isRunning: { $0.readProcessIsRunning() },
+                producerBundleIDForProcess: { $0.readProcessBundleID() }
             ) {
                 activeApps = fastApps
                 onAppsChanged?(activeApps)
@@ -327,6 +337,10 @@ final class AudioProcessMonitor: AudioProcessMonitoring {
                 uniquingKeysWith: { _, latest in latest }
             )
             let myPID = ProcessInfo.processInfo.processIdentifier
+            let rememberedProducerBundleIDs = Dictionary(
+                activeApps.map { ($0.persistenceIdentifier, Set($0.producerBundleIDs)) },
+                uniquingKeysWith: { $0.union($1) }
+            )
 
             var appsByPID: [pid_t: AudioApp] = [:]
 
@@ -337,12 +351,14 @@ final class AudioProcessMonitor: AudioProcessMonitoring {
                     bundleURL: app.bundleURL
                 ), let name = app.localizedName else { continue }
 
+                let persistenceIdentifier = app.bundleIdentifier ?? "name:\(name)"
                 appsByPID[app.processIdentifier] = AudioApp(
                     id: app.processIdentifier,
                     processObjectIDs: [],
                     name: name,
                     icon: app.icon ?? NSWorkspace.shared.icon(for: .applicationBundle),
                     bundleID: app.bundleIdentifier,
+                    producerBundleIDs: Array(rememberedProducerBundleIDs[persistenceIdentifier] ?? []).sorted(),
                     isAudioActive: false
                 )
             }
@@ -350,6 +366,7 @@ final class AudioProcessMonitor: AudioProcessMonitoring {
             for objectID in processIDs {
                 guard let pid = try? objectID.readProcessPID(), pid != myPID else { continue }
                 let isAudioActive = objectID.readProcessIsRunning()
+                let producerBundleID = objectID.readProcessBundleID()
 
                 // A Core Audio process object is itself enough evidence to keep a top-level
                 // accessory app routable, even while isRunning is false. This lets FineTune
@@ -370,14 +387,14 @@ final class AudioProcessMonitor: AudioProcessMonitoring {
                 let parentPID = resolvedApp?.processIdentifier ?? pid
                 let isHelper = parentPID != pid
 
-                // Use resolved app's info, fall back to Core Audio bundle ID
+                // Use resolved app's info, fall back to the Core Audio producer identity.
                 let name = resolvedApp?.localizedName
-                    ?? objectID.readProcessBundleID()?.components(separatedBy: ".").last
+                    ?? producerBundleID?.components(separatedBy: ".").last
                     ?? "Unknown"
                 let icon = resolvedApp?.icon
                     ?? NSImage(systemSymbolName: "app.fill", accessibilityDescription: nil)
                     ?? NSImage()
-                let bundleID = resolvedApp?.bundleIdentifier ?? objectID.readProcessBundleID()
+                let bundleID = resolvedApp?.bundleIdentifier ?? producerBundleID
 
                 guard let resolvedApp,
                       Self.shouldIncludeUserApplication(
@@ -390,29 +407,42 @@ final class AudioProcessMonitor: AudioProcessMonitoring {
                 // Skip system daemons (siri, coreaudio, etc.) - they shouldn't appear as user apps
                 if isSystemDaemon(bundleID: bundleID, name: name) { continue }
 
-                // Merge helper process objectIDs into parent app entry
+                // Merge helper process objectIDs and producer identities into the parent app entry.
                 if let existing = appsByPID[parentPID] {
                     if !existing.processObjectIDs.contains(objectID) {
                         var mergedIDs = existing.processObjectIDs
                         mergedIDs.append(objectID)
                         mergedIDs.sort()
+
+                        var producerBundleIDs = Set(existing.producerBundleIDs)
+                        if let producerBundleID, !producerBundleID.isEmpty {
+                            producerBundleIDs.insert(producerBundleID)
+                        }
+
                         appsByPID[parentPID] = AudioApp(
                             id: existing.id,
                             processObjectIDs: mergedIDs,
                             name: existing.name,
                             icon: existing.icon,
                             bundleID: existing.bundleID,
+                            producerBundleIDs: Array(producerBundleIDs).sorted(),
                             isHelperBacked: existing.isHelperBacked || isHelper,
                             isAudioActive: existing.isAudioActive || isAudioActive
                         )
                     }
                 } else {
+                    let persistenceIdentifier = bundleID ?? "name:\(name)"
+                    var producerBundleIDs = rememberedProducerBundleIDs[persistenceIdentifier] ?? []
+                    if let producerBundleID, !producerBundleID.isEmpty {
+                        producerBundleIDs.insert(producerBundleID)
+                    }
                     appsByPID[parentPID] = AudioApp(
                         id: parentPID,
                         processObjectIDs: [objectID],
                         name: name,
                         icon: icon,
                         bundleID: bundleID,
+                        producerBundleIDs: Array(producerBundleIDs).sorted(),
                         isHelperBacked: isHelper,
                         isAudioActive: isAudioActive
                     )
@@ -436,6 +466,7 @@ final class AudioProcessMonitor: AudioProcessMonitoring {
                     pid: $0.id,
                     persistenceIdentifier: $0.persistenceIdentifier,
                     objectIDs: $0.processObjectIDs,
+                    producerBundleIDs: $0.producerBundleIDs,
                     isHelperBacked: $0.isHelperBacked,
                     isAudioActive: $0.isAudioActive
                 )
@@ -445,6 +476,7 @@ final class AudioProcessMonitor: AudioProcessMonitoring {
                     pid: $0.id,
                     persistenceIdentifier: $0.persistenceIdentifier,
                     objectIDs: $0.processObjectIDs,
+                    producerBundleIDs: $0.producerBundleIDs,
                     isHelperBacked: $0.isHelperBacked,
                     isAudioActive: $0.isAudioActive
                 )
