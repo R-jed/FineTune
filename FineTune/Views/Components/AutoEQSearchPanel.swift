@@ -18,6 +18,8 @@ struct AutoEQSearchPanel: View {
     var preampEnabled: Bool = true
     var onPreampToggle: (() -> Void)?
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     @State private var searchText = ""
     @State private var debouncedQuery = ""
     @State private var hoveredID: String?
@@ -26,8 +28,9 @@ struct AutoEQSearchPanel: View {
     @State private var highlightedIndex: Int?
     @State private var cachedSearchResult = AutoEQSearchResult(entries: [], totalCount: 0)
     @State private var loadingProfileID: String?
-    @State private var fetchErrorProfileName: String?
+    @State private var fetchFailureEntry: AutoEQCatalogEntry?
     @FocusState private var isSearchFocused: Bool
+    @FocusState private var focusedFavoriteID: String?
 
     private let maxVisibleItems = 6
     private let itemHeight: CGFloat = 28
@@ -134,8 +137,8 @@ struct AutoEQSearchPanel: View {
 
             errorMessages
         }
-        .animation(.easeInOut(duration: 0.2), value: fetchErrorProfileName)
-        .animation(.easeInOut(duration: 0.2), value: importErrorMessage != nil)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: fetchFailureEntry != nil)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: importErrorMessage != nil)
         .background {
             RoundedRectangle(cornerRadius: 10)
                 .fill(DesignTokens.Colors.recessedBackground)
@@ -166,6 +169,7 @@ struct AutoEQSearchPanel: View {
         }
         .onChange(of: debouncedQuery) { _, newQuery in
             highlightedIndex = nil
+            fetchFailureEntry = nil
             cachedSearchResult = profileManager.search(query: newQuery)
         }
         .onAppear { isSearchFocused = true }
@@ -257,6 +261,7 @@ struct AutoEQSearchPanel: View {
                                 : DesignTokens.Colors.textSecondary
                         )
                         .lineLimit(1)
+                        .help(Text(verbatim: name))
 
                     if let source {
                         source
@@ -281,11 +286,11 @@ struct AutoEQSearchPanel: View {
                             )
                             .frame(width: 20, height: 20)
                             .contentShape(Rectangle())
-                            .scaleEffect(isStarHovered ? 1.1 : 1.0)
+                            .scaleEffect(reduceMotion ? 1.0 : (isStarHovered ? 1.1 : 1.0))
                     }
                     .buttonStyle(.plain)
                     .onHover { starHoveredID = $0 ? id : nil }
-                    .animation(DesignTokens.Animation.hover, value: isStarHovered)
+                    .animation(reduceMotion ? nil : DesignTokens.Animation.hover, value: isStarHovered)
                     .accessibilityLabel(
                         isFavorited ? Text("Remove from favorites") : Text("Add to favorites")
                     )
@@ -328,7 +333,7 @@ struct AutoEQSearchPanel: View {
         }
         .padding(.horizontal, DesignTokens.Spacing.sm)
         .padding(.vertical, DesignTokens.Spacing.sm)
-        .animation(.easeInOut(duration: 0.15), value: isCorrectionEnabled)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.15), value: isCorrectionEnabled)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(Text("Correction profile") + Text(verbatim: ": \(name)"))
     }
@@ -520,14 +525,28 @@ struct AutoEQSearchPanel: View {
 
     @ViewBuilder
     private var errorMessages: some View {
-        if let profileName = fetchErrorProfileName {
-            (Text("Failed to load") + Text(verbatim: " \(profileName)"))
-                .font(.system(size: 10))
-                .foregroundStyle(.red.opacity(0.9))
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, DesignTokens.Spacing.sm)
-                .padding(.bottom, DesignTokens.Spacing.xs)
-                .transition(.opacity)
+        if let failedEntry = fetchFailureEntry {
+            HStack(spacing: DesignTokens.Spacing.sm) {
+                (Text("Failed to load") + Text(verbatim: " \(failedEntry.name)"))
+                    .font(.system(size: 10))
+                    .foregroundStyle(.red.opacity(0.9))
+                    .lineLimit(1)
+                    .help(Text(verbatim: failedEntry.name))
+
+                Spacer(minLength: 0)
+
+                Button("Retry") {
+                    selectCatalogEntry(failedEntry)
+                }
+                .buttonStyle(.plain)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(DesignTokens.Colors.interactiveDefault)
+                .disabled(loadingProfileID != nil)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, DesignTokens.Spacing.sm)
+            .padding(.bottom, DesignTokens.Spacing.xs)
+            .transition(.opacity)
         } else if let importErrorMessage {
             Text(importErrorMessage)
                 .font(.system(size: 10))
@@ -575,90 +594,98 @@ struct AutoEQSearchPanel: View {
         let isStarHovered = starHoveredID == entry.id
         let isRowHighlighted = isHighlighted(itemID)
         let isLoading = loadingProfileID == entry.id
+        let isFavoriteFocused = focusedFavoriteID == entry.id
 
-        HStack {
-            VStack(alignment: .leading, spacing: 1) {
-                Text(verbatim: entry.name)
-                    .font(.system(size: 11, weight: isSelected ? .semibold : .regular))
-                    .foregroundStyle(DesignTokens.Colors.textPrimary)
-                    .lineLimit(1)
+        HStack(spacing: 0) {
+            Button {
+                selectCatalogEntry(entry)
+            } label: {
+                HStack {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(verbatim: entry.name)
+                            .font(.system(size: 11, weight: isSelected ? .semibold : .regular))
+                            .foregroundStyle(DesignTokens.Colors.textPrimary)
+                            .lineLimit(1)
 
-                sourceText(for: entry)
-                    .font(.system(size: 9))
-                    .foregroundStyle(DesignTokens.Colors.textTertiary)
+                        sourceText(for: entry)
+                            .font(.system(size: 9))
+                            .foregroundStyle(DesignTokens.Colors.textTertiary)
+                    }
+
+                    Spacer()
+
+                    if isLoading {
+                        ProgressView()
+                            .controlSize(.mini)
+                    } else if isSelected {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(Color.accentColor)
+                    }
+                }
+                .padding(.leading, DesignTokens.Spacing.sm)
+                .padding(.trailing, DesignTokens.Spacing.xs)
+                .frame(height: itemHeight)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .disabled(loadingProfileID != nil)
+            .help(Text(verbatim: entry.name))
+            .accessibilityLabel(Text(verbatim: entry.name))
+            .accessibilityAddTraits(isSelected ? .isSelected : [])
+            .accessibilityHint("Apply this correction profile")
 
-            Spacer()
-
-            if isLoading {
-                ProgressView()
-                    .controlSize(.mini)
-            } else {
+            if !isLoading {
                 starButton(
                     id: entry.id,
                     isFavorited: isFavorited,
-                    isVisible: isRowHovered || isRowHighlighted,
+                    isVisible: isRowHovered || isRowHighlighted || isFavoriteFocused,
                     isStarHovered: isStarHovered
                 )
-
-                if isSelected {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(Color.accentColor)
-                }
+                .padding(.trailing, DesignTokens.Spacing.xs)
             }
         }
-        .padding(.horizontal, DesignTokens.Spacing.sm)
-        .frame(height: itemHeight)
         .background(
             RoundedRectangle(cornerRadius: 5)
                 .fill(rowHighlight(for: itemID, isHovered: isRowHovered))
         )
         .contentShape(Rectangle())
-        .onTapGesture {
-            selectCatalogEntry(entry)
-        }
-        .accessibilityAddTraits(.isButton)
         .whenHovered { isHovered in
             hoveredID = isHovered ? entry.id : nil
             if isHovered { highlightedIndex = nil }
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(Text(verbatim: entry.name))
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
-        .accessibilityHint("Apply this correction profile")
     }
 
     // MARK: - Star Button (browse zone rows)
 
-    @ViewBuilder
     private func starButton(
         id: String,
         isFavorited: Bool,
         isVisible: Bool,
         isStarHovered: Bool
     ) -> some View {
-        if isFavorited || isVisible {
-            Button {
-                onToggleFavorite(id)
-            } label: {
-                Image(systemName: isFavorited ? "star.fill" : "star")
-                    .font(.system(size: 10))
-                    .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(
-                        starColor(isFavorited: isFavorited, isStarHovered: isStarHovered)
-                    )
-                    .frame(width: 20, height: 20)
-                    .contentShape(Rectangle())
-                    .scaleEffect(isStarHovered ? 1.1 : 1.0)
-            }
-            .buttonStyle(.plain)
-            .onHover { starHoveredID = $0 ? id : nil }
-            .animation(DesignTokens.Animation.hover, value: isStarHovered)
-            .accessibilityLabel(
-                isFavorited ? Text("Remove from favorites") : Text("Add to favorites")
-            )
+        Button {
+            onToggleFavorite(id)
+        } label: {
+            Image(systemName: isFavorited ? "star.fill" : "star")
+                .font(.system(size: 10))
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(
+                    starColor(isFavorited: isFavorited, isStarHovered: isStarHovered)
+                )
+                .frame(width: 20, height: 20)
+                .contentShape(Rectangle())
+                .scaleEffect(reduceMotion ? 1.0 : (isStarHovered ? 1.1 : 1.0))
         }
+        .buttonStyle(.plain)
+        .focused($focusedFavoriteID, equals: id)
+        .onHover { starHoveredID = $0 ? id : nil }
+        .animation(reduceMotion ? nil : DesignTokens.Animation.hover, value: isStarHovered)
+        .opacity(isFavorited || isVisible ? 1.0 : 0.0)
+        .accessibilityLabel(
+            isFavorited ? Text("Remove from favorites") : Text("Add to favorites")
+        )
     }
 
     // MARK: - Async Selection
@@ -666,18 +693,14 @@ struct AutoEQSearchPanel: View {
     private func selectCatalogEntry(_ entry: AutoEQCatalogEntry) {
         guard loadingProfileID == nil else { return }
         loadingProfileID = entry.id
-        fetchErrorProfileName = nil
+        fetchFailureEntry = nil
 
         Task { @MainActor in
             if let profile = await profileManager.resolveProfile(for: entry) {
                 onSelect(profile)
                 onDismiss()
             } else {
-                fetchErrorProfileName = entry.name
-                Task {
-                    try? await Task.sleep(for: .seconds(3))
-                    if fetchErrorProfileName != nil { fetchErrorProfileName = nil }
-                }
+                fetchFailureEntry = entry
             }
             loadingProfileID = nil
         }
@@ -717,8 +740,12 @@ struct AutoEQSearchPanel: View {
         let items = navigableItems
         guard let index = highlightedIndex, index < items.count else { return }
         let profileID = items[index].profileID
-        withAnimation(.easeOut(duration: 0.1)) {
+        if reduceMotion {
             proxy.scrollTo(profileID, anchor: .center)
+        } else {
+            withAnimation(.easeOut(duration: 0.1)) {
+                proxy.scrollTo(profileID, anchor: .center)
+            }
         }
     }
 
