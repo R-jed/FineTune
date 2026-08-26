@@ -210,6 +210,43 @@ struct AppDiscoveryAudioStateTests {
         #expect(fix.engine.getDeviceUID(for: dormant) == deviceB.uid)
     }
 
+    @Test("Transient process-object disappearance keeps the explicit-route tap alive")
+    func transientProcessObjectDisappearanceKeepsExplicitTap() throws {
+        let quiet = quietApp()
+        let active = readyApp(from: quiet, objectID: AudioObjectID(9001))
+        let deviceA = outputDevice(id: 7101, uid: "uid-a", name: "Output A")
+        let deviceB = outputDevice(id: 7102, uid: "uid-b", name: "Output B")
+        let fix = makeAppDiscoveryFixture(
+            permissionStatus: .authorized,
+            apps: [active],
+            devices: [deviceA, deviceB]
+        )
+        fix.settings.setDeviceRouting(for: active.persistenceIdentifier, deviceUID: deviceB.uid)
+
+        fix.engine.applyPersistedSettings()
+        let originalTap = try #require(fix.tapProbe.lastTap)
+        #expect(originalTap.currentDeviceUIDs == [deviceB.uid])
+
+        fix.processMonitor.setActiveApps([quiet])
+
+        #expect(fix.tapProbe.creationCount == 1)
+        #expect(fix.tapProbe.lastTap === originalTap)
+        #expect(!originalTap.events.contains(.invalidate))
+        #expect(originalTap.currentDeviceUIDs == [deviceB.uid])
+        #expect(fix.engine.getDeviceUID(for: quiet) == deviceB.uid)
+
+        let replacement = readyApp(from: quiet, objectID: AudioObjectID(9002))
+        fix.processMonitor.setActiveApps([replacement])
+
+        #expect(originalTap.events.contains(.invalidate))
+        #expect(fix.tapProbe.creationCount == 2)
+        let replacementTap = try #require(fix.tapProbe.lastTap)
+        #expect(replacementTap !== originalTap)
+        #expect(replacementTap.app.processObjectIDs == replacement.processObjectIDs)
+        #expect(replacementTap.currentDeviceUIDs == [deviceB.uid])
+        #expect(fix.engine.getDeviceUID(for: replacement) == deviceB.uid)
+    }
+
     @Test("Choosing the current default as an explicit route provisions at the earliest supported point")
     func sameTargetExplicitSelectionProvisionsQuietApp() throws {
         let quiet = quietApp()

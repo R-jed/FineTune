@@ -50,18 +50,28 @@ struct TapTargetPolicyTests {
         #expect(!TapTargetPolicy.canBundlePrearm(app(bundleID: nil)))
     }
 
-    @Test("Bundle prearm lifetime policy follows platform availability and helper ownership")
+    @Test("Concrete tap survives transient process disappearance but rebuilds for a replacement object")
+    func concreteTapLifetimePolicy() {
+        let active = app(processObjectIDs: [AudioObjectID(9001)])
+        let dormant = app()
+        let replacement = app(processObjectIDs: [AudioObjectID(9002)])
+        let helper = app(processObjectIDs: [AudioObjectID(9002)], isHelperBacked: true)
+        let differentBundle = app(processObjectIDs: [AudioObjectID(9002)], bundleID: "com.test.other")
+
+        #expect(TapTargetPolicy.shouldKeepBundlePrearm(existingApp: active, updatedApp: dormant))
+        #expect(!TapTargetPolicy.shouldKeepBundlePrearm(existingApp: active, updatedApp: replacement))
+        #expect(!TapTargetPolicy.shouldKeepBundlePrearm(existingApp: active, updatedApp: helper))
+        #expect(!TapTargetPolicy.shouldKeepBundlePrearm(existingApp: active, updatedApp: differentBundle))
+    }
+
+    @Test("Bundle prearm survives direct process-object arrival only where supported")
     func bundlePrearmLifetimePolicy() {
         let quiet = app()
         let directReady = app(processObjectIDs: [AudioObjectID(9001)])
         let helperReady = app(processObjectIDs: [AudioObjectID(9002)], isHelperBacked: true)
-        let differentBundle = AudioApp(
-            id: quiet.id,
+        let differentBundle = app(
             processObjectIDs: [AudioObjectID(9003)],
-            name: quiet.name,
-            icon: quiet.icon,
-            bundleID: "com.test.other",
-            isAudioActive: true
+            bundleID: "com.test.other"
         )
 
         if #available(macOS 26.0, *) {
