@@ -145,7 +145,7 @@ struct DeviceDetailSheet: View {
 
             Spacer(minLength: DesignTokens.Spacing.sm)
 
-            Toggle("", isOn: useSoftwareBinding)
+            Toggle("Use FineTune's software volume", isOn: useSoftwareBinding)
                 .toggleStyle(.switch)
                 .scaleEffect(0.8)
                 .labelsHidden()
