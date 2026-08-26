@@ -5,13 +5,15 @@ import Testing
 
 @Suite("ScrollWheelStep continuous mapping")
 struct ScrollWheelStepTests {
-    @Test("Wheel adjustment requires Option")
-    func explicitIntentModifier() {
-        #expect(!ScrollWheelStep.shouldAdjust(modifierFlags: []))
-        #expect(!ScrollWheelStep.shouldAdjust(modifierFlags: [.shift]))
-        #expect(!ScrollWheelStep.shouldAdjust(modifierFlags: [.command]))
-        #expect(ScrollWheelStep.shouldAdjust(modifierFlags: [.option]))
-        #expect(ScrollWheelStep.shouldAdjust(modifierFlags: [.option, .shift]))
+    @Test("Option requirement is scoped to callers that opt in")
+    func explicitIntentModifierScope() {
+        #expect(ScrollWheelStep.shouldAdjust(requiresOptionModifier: false, modifierFlags: []))
+        #expect(ScrollWheelStep.shouldAdjust(requiresOptionModifier: false, modifierFlags: [.shift]))
+        #expect(!ScrollWheelStep.shouldAdjust(requiresOptionModifier: true, modifierFlags: []))
+        #expect(!ScrollWheelStep.shouldAdjust(requiresOptionModifier: true, modifierFlags: [.shift]))
+        #expect(!ScrollWheelStep.shouldAdjust(requiresOptionModifier: true, modifierFlags: [.command]))
+        #expect(ScrollWheelStep.shouldAdjust(requiresOptionModifier: true, modifierFlags: [.option]))
+        #expect(ScrollWheelStep.shouldAdjust(requiresOptionModifier: true, modifierFlags: [.option, .shift]))
     }
 
     @Test("Precise delta scales linearly by sensitivity")

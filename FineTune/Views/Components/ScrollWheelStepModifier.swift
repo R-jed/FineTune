@@ -5,6 +5,7 @@ struct ScrollWheelStepModifier<V: BinaryFloatingPoint>: ViewModifier {
     @Binding var value: V
     let range: ClosedRange<V>
     let sensitivity: V
+    let requiresOptionModifier: Bool
 
     @State private var monitor: Any?
 
@@ -23,9 +24,10 @@ struct ScrollWheelStepModifier<V: BinaryFloatingPoint>: ViewModifier {
     private func install() {
         guard monitor == nil else { return }
         monitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { event in
-            // Normal wheel/trackpad scrolling belongs to the surrounding list.
-            // Require Option as an explicit intent signal before consuming the event.
-            guard ScrollWheelStep.shouldAdjust(modifierFlags: event.modifierFlags) else {
+            guard ScrollWheelStep.shouldAdjust(
+                requiresOptionModifier: requiresOptionModifier,
+                modifierFlags: event.modifierFlags
+            ) else {
                 return event
             }
 
@@ -48,13 +50,21 @@ struct ScrollWheelStepModifier<V: BinaryFloatingPoint>: ViewModifier {
 }
 
 extension View {
-    /// Option + scroll adjusts the hovered value. Ordinary scrolling is passed
-    /// through to the surrounding ScrollView.
+    /// Smooth wheel adjustment. Callers inside a scrolling list can require
+    /// Option so ordinary scrolling continues through to the surrounding view.
     func scrollWheelStep<V: BinaryFloatingPoint>(
         _ value: Binding<V>,
-        in range: ClosedRange<V>
+        in range: ClosedRange<V>,
+        requiresOptionModifier: Bool = false
     ) -> some View {
         let span = range.upperBound - range.lowerBound
-        return modifier(ScrollWheelStepModifier(value: value, range: range, sensitivity: span / 200))
+        return modifier(
+            ScrollWheelStepModifier(
+                value: value,
+                range: range,
+                sensitivity: span / 200,
+                requiresOptionModifier: requiresOptionModifier
+            )
+        )
     }
 }

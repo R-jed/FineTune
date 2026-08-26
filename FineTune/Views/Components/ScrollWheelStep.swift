@@ -1,11 +1,13 @@
 import AppKit
 
 enum ScrollWheelStep {
-    /// Wheel-based value changes require an explicit Option-key gesture. This keeps
-    /// ordinary scrolling available to surrounding ScrollViews while preserving
-    /// deliberate wheel adjustment for sliders.
-    static func shouldAdjust(modifierFlags: NSEvent.ModifierFlags) -> Bool {
-        modifierFlags.contains(.option)
+    /// Call sites inside scrollable containers can require Option as an explicit
+    /// intent signal. Other controls keep direct wheel adjustment.
+    static func shouldAdjust(
+        requiresOptionModifier: Bool,
+        modifierFlags: NSEvent.ModifierFlags
+    ) -> Bool {
+        !requiresOptionModifier || modifierFlags.contains(.option)
     }
 
     static func apply<V: BinaryFloatingPoint>(
