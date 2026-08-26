@@ -50,41 +50,34 @@ nonisolated struct SettingsManagerWriteOrderingTests {
             .appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
 
+        let url = root.appendingPathComponent("settings.json")
+        let olderData = Data("older snapshot".utf8)
+        let newestData = Data("newest snapshot".utf8)
         let writer = ControlledSettingsWriter()
-        let manager = await MainActor.run {
-            SettingsManager(directory: root, writer: writer.write)
-        }
+        let coordinator = SettingsWriteCoordinator(writer: writer.write)
 
-        await MainActor.run {
-            manager.setVolume(for: "com.test.app", to: 0.25)
-        }
+        // Queue the stale write directly. The serialization invariant under test does
+        // not depend on SettingsManager's 500 ms UI debounce or MainActor scheduling.
+        coordinator.enqueue(olderData, to: url)
         #expect(await waitForSignal(writer.firstStarted, timeout: .seconds(5)))
 
-        await MainActor.run {
-            manager.setVolume(for: "com.test.app", to: 0.75)
-        }
-
         let flushStarted = DispatchSemaphore(value: 0)
-        let flushTask = Task { @MainActor in
+        let flushTask = Task.detached {
             flushStarted.signal()
-            manager.flushSync()
+            try coordinator.flush(newestData, to: url)
         }
         #expect(await waitForSignal(flushStarted, timeout: .seconds(2)))
 
         // The first writer is still blocked. A second writer invocation here would
-        // prove flushSync bypassed the serialization point and can overtake it.
+        // prove flush bypassed the serialization point and can overtake it.
         let secondStartedBeforeRelease = await waitForSignal(
             writer.secondStarted,
             timeout: .seconds(1)
         )
         writer.releaseFirst.signal()
-        await flushTask.value
+        try await flushTask.value
 
         #expect(!secondStartedBeforeRelease)
-
-        let persistedVolume = await MainActor.run {
-            SettingsManager(directory: root).getVolume(for: "com.test.app")
-        }
-        #expect(persistedVolume == 0.75)
+        #expect(try Data(contentsOf: url) == newestData)
     }
 }
