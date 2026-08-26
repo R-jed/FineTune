@@ -35,7 +35,7 @@ struct ShortcutsTab: View {
                 "Volume Step",
                 description: "How much each keypress changes the volume. Applies to media keys, configured hotkeys, and arrow-key nav in the popup."
             ) {
-                Picker("", selection: $settings.appSettings.volumeHotkeyStep) {
+                Picker("Volume Step", selection: $settings.appSettings.volumeHotkeyStep) {
                     ForEach(VolumeHotkeyStep.allCases) { step in
                         Text(step.displayName).tag(step)
                     }
@@ -55,7 +55,7 @@ struct ShortcutsTab: View {
                 "Media Keys Control",
                 description: "Use F11/F12 (or volume keys) to control FineTune"
             ) {
-                Toggle("", isOn: $settings.appSettings.mediaKeyControlEnabled)
+                Toggle("Media Keys Control", isOn: $settings.appSettings.mediaKeyControlEnabled)
                     .toggleStyle(.switch)
                     .controlSize(.small)
                     .labelsHidden()
