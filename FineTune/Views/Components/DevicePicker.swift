@@ -240,8 +240,9 @@ struct DevicePicker: View {
         .onHover { isButtonHovered = $0 }
         .animation(reduceMotion ? nil : DesignTokens.Animation.hover, value: isButtonHovered)
         .help(triggerText)
-        .accessibilityLabel("Device")
+        .accessibilityLabel("Output device")
         .accessibilityValue(triggerText)
+        .accessibilityHint(isExpanded ? "Close device menu" : "Open device menu")
     }
 
     private var iconOnlyTriggerButton: some View {
@@ -260,8 +261,9 @@ struct DevicePicker: View {
         }
         .buttonStyle(.plain)
         .help(triggerText)
-        .accessibilityLabel("Device")
+        .accessibilityLabel("Output device")
         .accessibilityValue(triggerText)
+        .accessibilityHint(isExpanded ? "Close device menu" : "Open device menu")
         .onHover { isButtonHovered = $0 }
         .animation(reduceMotion ? nil : DesignTokens.Animation.hover, value: isButtonHovered)
     }
@@ -564,7 +566,7 @@ extension DevicePicker {
         isFollowingDefault: Bool,
         defaultDeviceUID: String?,
         triggerWidth: CGFloat = 105,
-        onDeviceSelected: @escaping () -> Void = {},
+        onDeviceSelected: @escaping (String) -> Void,
         onSelectFollowDefault: @escaping () -> Void
     ) {
         self.devices = devices
@@ -576,7 +578,7 @@ extension DevicePicker {
         self.triggerWidth = triggerWidth
         self.mode = .single
         self.onModeChange = { _ in }
-        self.onDeviceSelected = { _ in onDeviceSelected() }
+        self.onDeviceSelected = onDeviceSelected
         self.onDevicesSelected = { _ in }
         self.onSelectFollowDefault = onSelectFollowDefault
         self.showModeToggle = false
@@ -593,7 +595,7 @@ extension DevicePicker {
                 selectedDeviceUID: MockData.sampleDevices[0].uid,
                 isFollowingDefault: true,
                 defaultDeviceUID: MockData.sampleDevices[0].uid,
-                onDeviceSelected: {},
+                onDeviceSelected: { _ in },
                 onSelectFollowDefault: {}
             )
         }
