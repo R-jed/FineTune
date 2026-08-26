@@ -118,12 +118,38 @@ nonisolated struct AppSettings: Codable, Equatable {
 
 // MARK: - Settings Manager
 
+nonisolated final class SettingsWriteCoordinator: @unchecked Sendable {
+    typealias Writer = @Sendable (Data, URL) throws -> Void
+
+    private let queue = DispatchQueue(label: "com.finetune.settings-write", qos: .utility)
+    private let writer: Writer
+
+    init(writer: @escaping Writer) {
+        self.writer = writer
+    }
+
+    func enqueue(_ data: Data, to url: URL) {
+        let writer = self.writer
+        queue.async {
+            try? writer(data, url)
+        }
+    }
+
+    func flush(_ data: Data, to url: URL) throws {
+        let writer = self.writer
+        try queue.sync {
+            try writer(data, url)
+        }
+    }
+}
+
 @Observable
 @MainActor
 final class SettingsManager {
     private var settings: Settings
     private var saveTask: Task<Void, Never>?
     private let settingsURL: URL
+    private let writeCoordinator: SettingsWriteCoordinator
     private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "FineTune", category: "SettingsManager")
 
     struct Settings: Codable {
@@ -228,9 +254,13 @@ final class SettingsManager {
         }
     }
 
-    init(directory: URL? = nil) {
+    init(
+        directory: URL? = nil,
+        writer: @escaping SettingsWriteCoordinator.Writer = SettingsManager.writeData
+    ) {
         let baseDir = directory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!.appendingPathComponent("FineTune")
         self.settingsURL = baseDir.appendingPathComponent("settings.json")
+        self.writeCoordinator = SettingsWriteCoordinator(writer: writer)
         self.settings = Settings()
         loadFromDisk()
     }
@@ -951,19 +981,12 @@ final class SettingsManager {
             let url = settingsURL
             let data = try? JSONEncoder().encode(snapshot)
             guard let data else { return }
-            Task.detached(priority: .utility) {
-                do {
-                    try Self.writeData(data, to: url)
-                } catch {
-                    // Avoid actor hops/logging on audio-critical paths; failures are
-                    // non-fatal and will retry on the next settings mutation.
-                }
-            }
+            writeCoordinator.enqueue(data, to: url)
         }
     }
 
-    /// Immediately writes pending changes to disk.
-    /// Call this on app termination to prevent data loss.
+    /// Immediately writes pending changes to disk after every older queued write.
+    /// Call this on app termination to prevent stale asynchronous saves from winning.
     func flushSync() {
         saveTask?.cancel()
         saveTask = nil
@@ -973,7 +996,7 @@ final class SettingsManager {
     private func writeToDisk() {
         do {
             let data = try JSONEncoder().encode(settings)
-            try Self.writeData(data, to: settingsURL)
+            try writeCoordinator.flush(data, to: settingsURL)
 
             logger.debug("Saved settings")
         } catch {
