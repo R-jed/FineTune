@@ -94,8 +94,7 @@ struct InputDeviceRow: View {
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .help(Text(verbatim: device.name))
-                .accessibilityValue(isDefault ? Text("Default device") : Text("Not default"))
-                .accessibilityHint(isDefault ? Text("Current default input device") : Text("Activate to set as default input device"))
+                .accessibilityValue(isDefault ? Text("Default device") : Text("Set as default"))
                 .accessibilityAction {
                     if !isDefault {
                         onSetDefault()
@@ -124,7 +123,7 @@ struct InputDeviceRow: View {
                 onEditingChanged: { editing in
                     isEditing = editing
                 },
-                accessibilityLabel: Text("Input volume for \(device.name)")
+                accessibilityLabel: Text("Volume") + Text(verbatim: ": \(device.name)")
             )
             .opacity(showMutedIcon ? 0.5 : 1.0)
             .onChange(of: sliderValue) { _, newValue in
