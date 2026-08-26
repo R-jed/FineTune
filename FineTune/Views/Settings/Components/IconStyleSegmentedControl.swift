@@ -55,6 +55,7 @@ private struct IconOption: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(Text(style.displayName))
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 
