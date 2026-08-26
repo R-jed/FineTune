@@ -1,11 +1,10 @@
 name: Branch Cleanup
 
 on:
-  push:
+  pull_request:
+    types: [opened]
     branches:
       - chore/branch-cleanup
-    paths:
-      - .github/workflows/branch-cleanup.yml
 
 permissions:
   contents: write
@@ -48,11 +47,12 @@ jobs:
             gh api --method DELETE "repos/${GITHUB_REPOSITORY}/git/refs/heads/${branch}"
           done
 
-      - name: Delete cleanup branch
+      - name: Delete temporary cleanup branches
         if: ${{ success() }}
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
+          gh api --method DELETE "repos/${GITHUB_REPOSITORY}/git/refs/heads/chore/branch-cleanup-trigger"
           gh api --method DELETE "repos/${GITHUB_REPOSITORY}/git/refs/heads/chore/branch-cleanup"
