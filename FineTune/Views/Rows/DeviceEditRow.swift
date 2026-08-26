@@ -15,6 +15,10 @@ struct DeviceEditRow<ExpandedContent: View>: View {
     let deviceCount: Int
     let isExpanded: Bool
     let isHidden: Bool
+    var isDragging: Bool = false
+    var dragOffset: CGFloat = 0
+    var onDragChanged: (CGFloat) -> Void = { _ in }
+    var onDragEnded: () -> Void = {}
     let onReorder: (Int) -> Void
     let onToggleExpand: () -> Void
     let onToggleHidden: () -> Void
@@ -24,6 +28,7 @@ struct DeviceEditRow<ExpandedContent: View>: View {
     @State private var isInfoButtonHovered = false
     @State private var showingIconPicker = false
     @State private var isIconHovered = false
+    @State private var isHideButtonHovered = false
 
     private var displayIcon: NSImage? {
         DeviceIconResolver.displayIcon(
@@ -62,7 +67,21 @@ struct DeviceEditRow<ExpandedContent: View>: View {
         } expandedContent: {
             expandedContent()
         }
+        .offset(y: dragOffset)
+        .shadow(
+            color: Color.black.opacity(isDragging ? 0.18 : 0),
+            radius: isDragging ? 8 : 0,
+            x: 0,
+            y: isDragging ? 4 : 0
+        )
+        .zIndex(isDragging ? 10 : 0)
+        .transaction { transaction in
+            if isDragging {
+                transaction.animation = nil
+            }
+        }
     }
+
 
     private var infoButtonColor: Color {
         if isExpanded {
@@ -79,7 +98,22 @@ struct DeviceEditRow<ExpandedContent: View>: View {
             Image(systemName: "line.3.horizontal")
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(DesignTokens.Colors.textTertiary)
-                .frame(width: 16)
+                .frame(
+                    width: 20,
+                    height: DesignTokens.Dimensions.rowContentHeight
+                )
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { value in
+                            onDragChanged(value.translation.height)
+                        }
+                        .onEnded { _ in
+                            onDragEnded()
+                        }
+                )
+                .help("Drag to reorder")
+                .accessibilityHidden(true)
 
             EditablePriority(
                 index: priorityIndex,
@@ -168,25 +202,39 @@ struct DeviceEditRow<ExpandedContent: View>: View {
         Button {
             onToggleHidden()
         } label: {
-            Image(systemName: isHidden ? "eye.slash" : "eye")
-                .font(.system(size: 11))
-                .foregroundStyle(
-                    isDefault
-                        ? DesignTokens.Colors.textTertiary.opacity(0.4)
-                        : (isHidden ? DesignTokens.Colors.mutedIndicator : DesignTokens.Colors.textTertiary)
-                )
-                .contentTransition(.symbolEffect(.replace))
-                .frame(
-                    minWidth: DesignTokens.Dimensions.minTouchTarget,
-                    minHeight: DesignTokens.Dimensions.minTouchTarget
-                )
-                .contentShape(Rectangle())
+            HoverMorphSymbol(
+                primarySymbol: isHidden ? "eye.slash" : "eye",
+                secondarySymbol: isHidden ? "eye" : "eye.slash",
+                isHovered: isHideButtonHovered && !isDefault,
+                primaryColor: hideSymbolColor(isHidden: isHidden, hovered: false),
+                secondaryColor: hideSymbolColor(isHidden: !isHidden, hovered: true),
+                font: .system(size: 11)
+            )
+            .frame(
+                minWidth: DesignTokens.Dimensions.minTouchTarget,
+                minHeight: DesignTokens.Dimensions.minTouchTarget
+            )
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .disabled(isDefault)
+        .onHover { isHideButtonHovered = !isDefault && $0 }
         .help(hideHelpText)
         .accessibilityLabel(Text(hideAccessibilityLabel))
     }
+
+    private func hideSymbolColor(isHidden: Bool, hovered: Bool) -> Color {
+        if isDefault {
+            return DesignTokens.Colors.textTertiary.opacity(0.4)
+        }
+        if isHidden {
+            return DesignTokens.Colors.mutedIndicator
+        }
+        return hovered
+            ? DesignTokens.Colors.interactiveHover
+            : DesignTokens.Colors.textTertiary
+    }
+
 
     private var infoButton: some View {
         Button {

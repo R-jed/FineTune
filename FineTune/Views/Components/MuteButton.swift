@@ -1,7 +1,7 @@
 // FineTune/Views/Components/MuteButton.swift
 import SwiftUI
 
-/// A mute button with pulse animation on toggle. Unmuted wave bucket mirrors
+/// A mute button with an Amicro-style hover morph. Unmuted wave bucket mirrors
 /// TahoeStyleHUD.waveIconName so the popup, menu-bar icon, and on-screen HUD agree.
 struct MuteButton: View {
     let isMuted: Bool
@@ -58,8 +58,6 @@ private struct BaseMuteButton: View {
     let unmutedHelp: LocalizedStringResource
     let action: () -> Void
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var isPulsing = false
     @State private var isHovered = false
 
     var body: some View {
@@ -70,12 +68,16 @@ private struct BaseMuteButton: View {
                     Image(systemName: layoutReferenceIcon)
                         .opacity(0)
                 }
-                Image(systemName: isMuted ? mutedIcon : unmutedIcon)
+
+                HoverMorphSymbol(
+                    primarySymbol: isMuted ? mutedIcon : unmutedIcon,
+                    secondarySymbol: isMuted ? unmutedIcon : mutedIcon,
+                    isHovered: isHovered,
+                    primaryColor: symbolColor(isMuted: isMuted, hovered: false),
+                    secondaryColor: symbolColor(isMuted: !isMuted, hovered: true),
+                    font: .system(size: 14)
+                )
             }
-            .font(.system(size: 14))
-            .symbolRenderingMode(.hierarchical)
-            .foregroundStyle(buttonColor)
-            .scaleEffect(!reduceMotion && isPulsing ? 1.1 : 1.0)
             .frame(
                 minWidth: DesignTokens.Dimensions.minTouchTarget,
                 minHeight: DesignTokens.Dimensions.minTouchTarget
@@ -83,35 +85,20 @@ private struct BaseMuteButton: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(MuteButtonPressStyle())
-        .onHover { hovering in
-            isHovered = hovering
-        }
+        .onHover { isHovered = $0 }
         .help(isMuted ? mutedHelp : unmutedHelp)
-        .animation(reduceMotion ? nil : .spring(response: 0.25, dampingFraction: 0.5), value: isPulsing)
-        .animation(DesignTokens.Animation.hover, value: isHovered)
-        .onChange(of: isMuted) { _, _ in
-            guard !reduceMotion else {
-                isPulsing = false
-                return
-            }
-            isPulsing = true
-            Task {
-                try? await Task.sleep(for: .seconds(0.25))
-                isPulsing = false
-            }
-        }
     }
 
-    private var buttonColor: Color {
+    private func symbolColor(isMuted: Bool, hovered: Bool) -> Color {
         if isMuted {
             return DesignTokens.Colors.mutedIndicator
-        } else if isHovered {
-            return DesignTokens.Colors.interactiveHover
-        } else {
-            return DesignTokens.Colors.interactiveDefault
         }
+        return hovered
+            ? DesignTokens.Colors.interactiveHover
+            : DesignTokens.Colors.interactiveDefault
     }
 }
+
 
 /// Internal button style for press feedback
 private struct MuteButtonPressStyle: ButtonStyle {

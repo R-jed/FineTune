@@ -72,6 +72,7 @@ struct MenuBarPopupView: View {
 
     /// Editable copy of device order for drag-and-drop reordering
     @State private var editableDeviceOrder: [AudioDevice] = []
+    @State private var deviceDragState = DeviceReorderDragState()
 
     /// Device whose inline detail panel is expanded in edit mode (nil when
     /// collapsed). Mirrors the `expandedRowID` pattern used for per-app EQ.
@@ -79,6 +80,7 @@ struct MenuBarPopupView: View {
 
     /// Hover state for support link heart animation
     @State private var isSupportHovered = false
+    @State private var isSettingsHovered = false
 
     /// Namespace for device toggle animation
     @Namespace private var deviceToggleNamespace
@@ -314,10 +316,18 @@ struct MenuBarPopupView: View {
     // MARK: - Settings Button
 
     private var settingsButton: some View {
-        Button("Settings", systemImage: "gearshape.fill") {
-            openSettingsWindow()
+        Button(action: openSettingsWindow) {
+            Image(systemName: "gearshape.fill")
+                .rotationEffect(
+                    .degrees(!accessibilityReduceMotion && isSettingsHovered ? 180 : 0)
+                )
+                .animation(
+                    accessibilityReduceMotion
+                        ? nil
+                        : .interpolatingSpring(stiffness: 400, damping: 25),
+                    value: isSettingsHovered
+                )
         }
-        .labelStyle(.iconOnly)
         .buttonStyle(.plain)
         .font(.system(size: 12))
         .symbolRenderingMode(.hierarchical)
@@ -327,7 +337,11 @@ struct MenuBarPopupView: View {
             minHeight: DesignTokens.Dimensions.minTouchTarget
         )
         .contentShape(Rectangle())
+        .onHover { isSettingsHovered = $0 }
+        .accessibilityLabel("Settings")
+        .help("Settings")
     }
+
 
     /// Handles Escape key: closes EQ first, then dismisses the popup.
     /// Escape order: expanded device detail → edit mode → expanded app EQ →
@@ -695,10 +709,18 @@ struct MenuBarPopupView: View {
             deviceCount: editableDeviceOrder.count,
             isExpanded: expandedDeviceUID == device.uid,
             isHidden: isDeviceHidden,
+            isDragging: deviceDragState.draggedUID == device.uid,
+            dragOffset: deviceDragState.draggedUID == device.uid
+                ? deviceDragState.effectiveTranslation
+                : 0,
+            onDragChanged: { rawTranslation in
+                updateDeviceDrag(deviceUID: device.uid, rawTranslation: rawTranslation)
+            },
+            onDragEnded: { endDeviceDrag(deviceUID: device.uid) },
             onReorder: { newIndex in
                 guard let fromIndex = editableDeviceOrder.firstIndex(where: { $0.uid == device.uid }) else { return }
                 guard newIndex != fromIndex, newIndex >= 0, newIndex < editableDeviceOrder.count else { return }
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                withAnimation(Self.deviceReorderGlide) {
                     editableDeviceOrder.move(
                         fromOffsets: IndexSet(integer: fromIndex),
                         toOffset: newIndex > fromIndex ? newIndex + 1 : newIndex
@@ -741,22 +763,6 @@ struct MenuBarPopupView: View {
                 }
             }
         )
-        .draggable(device.uid) {
-            Text(device.name)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 6))
-        }
-        .dropDestination(for: String.self) { droppedUIDs, _ in
-            guard let droppedUID = droppedUIDs.first,
-                  let fromIndex = editableDeviceOrder.firstIndex(where: { $0.uid == droppedUID }),
-                  let toIndex = editableDeviceOrder.firstIndex(where: { $0.uid == device.uid }),
-                  fromIndex != toIndex else { return false }
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                editableDeviceOrder.move(fromOffsets: IndexSet(integer: fromIndex), toOffset: toIndex > fromIndex ? toIndex + 1 : toIndex)
-            }
-            return true
-        }
     }
 
     @ViewBuilder
@@ -1120,9 +1126,51 @@ struct MenuBarPopupView: View {
         }
     }
 
+    private static let deviceReorderGlide =
+        Animation.timingCurve(0.16, 1, 0.3, 1, duration: 0.32)
+
+    private static let deviceReorderSwap =
+        Animation.timingCurve(0.16, 1, 0.3, 1, duration: 0.18)
+
+    private func updateDeviceDrag(deviceUID: String, rawTranslation: CGFloat) {
+        if deviceDragState.draggedUID != deviceUID {
+            expandedDeviceUID = nil
+        }
+
+        deviceDragState.update(uid: deviceUID, rawTranslation: rawTranslation)
+
+        guard var index = editableDeviceOrder.firstIndex(where: { $0.uid == deviceUID }) else {
+            deviceDragState.reset()
+            return
+        }
+
+        // ExpandableGlassRow adds 6pt vertical padding on both sides.
+        // Include it so swapping occurs at the adjacent row's true midpoint.
+        let rowExtent = DesignTokens.Dimensions.rowContentHeight + 12
+        while let direction = deviceDragState.consumeSwapIfNeeded(
+            rowExtent: rowExtent,
+            index: index,
+            count: editableDeviceOrder.count
+        ) {
+            let adjacentIndex = index + direction
+            withAnimation(Self.deviceReorderSwap) {
+                editableDeviceOrder.swapAt(index, adjacentIndex)
+            }
+            index = adjacentIndex
+        }
+    }
+
+    private func endDeviceDrag(deviceUID: String) {
+        guard deviceDragState.draggedUID == deviceUID else { return }
+        withAnimation(Self.deviceReorderGlide) {
+            deviceDragState.reset()
+        }
+    }
+
     // MARK: - Device Priority Edit
 
     private func toggleDevicePriorityEdit() {
+        deviceDragState.reset()
         if isEditingDevicePriority {
             // Exiting edit mode: persist to the correct priority list and
             // collapse any expanded device detail (the inline body only lives
@@ -1586,44 +1634,51 @@ private struct AppVisibilityRow: View {
             Image(nsImage: icon)
                 .resizable()
                 .aspectRatio(contentMode: .fit)
-                .frame(width: DesignTokens.Dimensions.iconSize, height: DesignTokens.Dimensions.iconSize)
-                .opacity(isIgnored ? 0.4 : 1.0)
+                .frame(
+                    width: DesignTokens.Dimensions.iconSize,
+                    height: DesignTokens.Dimensions.iconSize
+                )
+                .opacity(isIgnored ? 0.55 : 1)
 
-            Text(name)
+            Text(verbatim: name)
                 .font(DesignTokens.Typography.rowName)
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .foregroundStyle(isIgnored ? DesignTokens.Colors.textSecondary : DesignTokens.Colors.textPrimary)
+                .foregroundStyle(
+                    isIgnored
+                        ? DesignTokens.Colors.textSecondary
+                        : DesignTokens.Colors.textPrimary
+                )
 
             Button(action: onToggleVisibility) {
-                Image(systemName: isIgnored ? "eye.slash" : "eye")
-                    .font(.system(size: 13))
-                    .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(eyeColor)
-                    .frame(
-                        minWidth: DesignTokens.Dimensions.minTouchTarget,
-                        minHeight: DesignTokens.Dimensions.minTouchTarget
-                    )
-                    .contentShape(Rectangle())
-                    .scaleEffect(isEyeHovered ? 1.1 : 1.0)
+                HoverMorphSymbol(
+                    primarySymbol: isIgnored ? "eye.slash" : "eye",
+                    secondarySymbol: isIgnored ? "eye" : "eye.slash",
+                    isHovered: isEyeHovered,
+                    primaryColor: isIgnored
+                        ? DesignTokens.Colors.textSecondary
+                        : DesignTokens.Colors.interactiveDefault,
+                    secondaryColor: isIgnored
+                        ? DesignTokens.Colors.textPrimary
+                        : DesignTokens.Colors.interactiveHover,
+                    font: .system(size: 13)
+                )
+                .frame(
+                    minWidth: DesignTokens.Dimensions.minTouchTarget,
+                    minHeight: DesignTokens.Dimensions.minTouchTarget
+                )
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .onHover { isEyeHovered = $0 }
             .help(isIgnored ? "Show app" : "Hide app")
-            .animation(DesignTokens.Animation.quick, value: isEyeHovered)
+            .accessibilityLabel(isIgnored ? "Show app" : "Hide app")
         }
         .frame(height: DesignTokens.Dimensions.rowContentHeight)
         .hoverableRow()
     }
-
-    private var eyeColor: Color {
-        if isIgnored {
-            isEyeHovered ? DesignTokens.Colors.textPrimary : DesignTokens.Colors.textSecondary
-        } else {
-            isEyeHovered ? DesignTokens.Colors.interactiveHover : DesignTokens.Colors.interactiveDefault
-        }
-    }
 }
+
 
 private struct AddApplicationsButton: View {
     let action: () -> Void
