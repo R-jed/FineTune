@@ -1,4 +1,3 @@
-// FineTune/Views/Components/EQPresetPicker.swift
 import SwiftUI
 
 // MARK: - Unified Picker Types
@@ -15,10 +14,10 @@ enum EQPickerSection: Identifiable, Hashable {
         }
     }
 
-    var title: String {
+    var title: Text {
         switch self {
-        case .myPresets: return "My Presets"
-        case .builtIn(let cat): return cat.rawValue
+        case .myPresets: return Text("My Presets")
+        case .builtIn(let cat): return Text(cat.displayName)
         }
     }
 }
@@ -46,19 +45,26 @@ struct EQPickerItem: Identifiable, Hashable {
 
     var isUserPreset: Bool { userPresetID != nil }
 
+    var displayName: Text {
+        if let builtInPreset {
+            return Text(builtInPreset.displayName)
+        }
+        return Text(verbatim: name)
+    }
+
     static func == (lhs: EQPickerItem, rhs: EQPickerItem) -> Bool { lhs.id == rhs.id }
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
 }
 
 // MARK: - EQ Preset Picker
 
+/// Selection-only preset browser. Rename/delete actions live beside the active
+/// user preset in `EQPanelView`, keeping destructive controls out of row buttons.
 struct EQPresetPicker: View {
     let selectedItem: EQPickerItem?
     let userPresets: [UserEQPreset]
     let onBuiltInSelected: (EQPreset) -> Void
     let onUserPresetSelected: (UserEQPreset) -> Void
-    let onDeleteUserPreset: (UUID) -> Void
-    let onRenameUserPreset: (UUID, String) -> Void
 
     private var sections: [EQPickerSection] {
         var result: [EQPickerSection] = []
@@ -98,14 +104,14 @@ struct EQPresetPicker: View {
             popoverWidth: 170,
             onSelect: handleSelect
         ) { selected in
-            Text(selected?.name ?? "Custom")
+            if let selected {
+                selected.displayName
+            } else {
+                Text("Custom")
+            }
         } itemContent: { item, isSelected in
             if item.isUserPreset {
-                UserPresetItemView(
-                    item: item,
-                    isSelected: isSelected,
-                    onDelete: onDeleteUserPreset
-                )
+                UserPresetItemView(item: item, isSelected: isSelected)
             } else {
                 BuiltInPresetItemView(item: item, isSelected: isSelected)
             }
@@ -121,8 +127,9 @@ private struct BuiltInPresetItemView: View {
 
     var body: some View {
         HStack(spacing: DesignTokens.Spacing.xs) {
-            Text(item.name)
+            item.displayName
                 .lineLimit(1)
+                .help(item.displayName)
             Spacer(minLength: DesignTokens.Spacing.xs)
             if isSelected {
                 Image(systemName: "checkmark")
@@ -133,41 +140,24 @@ private struct BuiltInPresetItemView: View {
     }
 }
 
-// MARK: - User Preset Item (with hover-revealed delete)
+// MARK: - User Preset Item
 
 private struct UserPresetItemView: View {
     let item: EQPickerItem
     let isSelected: Bool
-    let onDelete: (UUID) -> Void
-
-    @State private var isHovered = false
 
     var body: some View {
         HStack(spacing: DesignTokens.Spacing.xs) {
-            Text(item.name)
+            Text(verbatim: item.name)
                 .lineLimit(1)
+                .help(Text(verbatim: item.name))
             Spacer(minLength: DesignTokens.Spacing.xs)
             if isSelected {
                 Image(systemName: "checkmark")
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(Color.accentColor)
             }
-            if let userID = item.userPresetID {
-                Button {
-                    onDelete(userID)
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 10))
-                        .symbolRenderingMode(.hierarchical)
-                        .foregroundStyle(isHovered ? DesignTokens.Colors.interactiveHover : .clear)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Delete preset \(item.name)")
-                .help("Delete preset")
-            }
         }
-        .whenHovered { isHovered = $0 }
-        .animation(DesignTokens.Animation.hover, value: isHovered)
     }
 }
 
@@ -183,17 +173,13 @@ private struct UserPresetItemView: View {
             selectedItem: EQPickerItem(builtIn: .rock),
             userPresets: sampleUser,
             onBuiltInSelected: { _ in },
-            onUserPresetSelected: { _ in },
-            onDeleteUserPreset: { _ in },
-            onRenameUserPreset: { _, _ in }
+            onUserPresetSelected: { _ in }
         )
         EQPresetPicker(
             selectedItem: nil,
             userPresets: [],
             onBuiltInSelected: { _ in },
-            onUserPresetSelected: { _ in },
-            onDeleteUserPreset: { _ in },
-            onRenameUserPreset: { _, _ in }
+            onUserPresetSelected: { _ in }
         )
     }
     .padding()

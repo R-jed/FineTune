@@ -5,6 +5,9 @@ import SwiftUI
 struct ClassicStyleHUD: View {
     let sliderFraction: Float
     let mute: Bool
+    var language: AppLanguage = .system
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     // MARK: - Constants
 
@@ -51,8 +54,11 @@ struct ClassicStyleHUD: View {
     #endif
 
     private var accessibilityDescription: String {
-        if mute { return "Muted" }
-        return "Volume \(Int((displayValue * 100).rounded())) percent"
+        HUDPresentation.classicAccessibilityLabel(
+            sliderFraction: Double(displayValue),
+            mute: mute,
+            language: language
+        )
     }
 
     // MARK: - Body
@@ -78,7 +84,6 @@ struct ClassicStyleHUD: View {
     private var iconSection: some View {
         VStack(spacing: 0) {
             Spacer().frame(height: 56)
-            // Hard-swap — symbolEffect(.replace.*) cross-fades the whole wave glyph on every bin change.
             Image(systemName: mute ? "speaker.slash.fill" : waveIconName)
                 .font(.system(size: Self.iconSize, weight: .medium))
                 .foregroundStyle(DesignTokens.Colors.hudTileActive)
@@ -102,7 +107,7 @@ struct ClassicStyleHUD: View {
                 }
                 Spacer().frame(width: Self.tileSideInset)
             }
-            .animation(DesignTokens.Animation.quick, value: filledTileCount)
+            .animation(reduceMotion ? nil : DesignTokens.Animation.quick, value: filledTileCount)
         }
         .frame(height: 80)
     }

@@ -3,17 +3,41 @@ import SwiftUI
 
 @MainActor
 struct SettingsRow<Trailing: View>: View {
-    private let title: String
-    private let description: String?
+    private enum RowDescription {
+        case localized(LocalizedStringResource)
+        case verbatim(String)
+
+        var text: Text {
+            switch self {
+            case .localized(let resource):
+                Text(resource)
+            case .verbatim(let value):
+                Text(verbatim: value)
+            }
+        }
+    }
+
+    private let title: LocalizedStringResource
+    private let description: RowDescription?
     @ViewBuilder private let trailing: () -> Trailing
 
     init(
-        _ title: String,
-        description: String? = nil,
+        _ title: LocalizedStringResource,
+        description: LocalizedStringResource? = nil,
         @ViewBuilder trailing: @escaping () -> Trailing
     ) {
         self.title = title
-        self.description = description
+        self.description = description.map(RowDescription.localized)
+        self.trailing = trailing
+    }
+
+    init(
+        _ title: LocalizedStringResource,
+        verbatimDescription: String,
+        @ViewBuilder trailing: @escaping () -> Trailing
+    ) {
+        self.title = title
+        self.description = .verbatim(verbatimDescription)
         self.trailing = trailing
     }
 
@@ -24,7 +48,7 @@ struct SettingsRow<Trailing: View>: View {
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(DesignTokens.Colors.textPrimary)
                 if let description {
-                    Text(description)
+                    description.text
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)

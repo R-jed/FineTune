@@ -10,6 +10,39 @@ struct PinnedAppInfo: Codable, Equatable {
     let persistenceIdentifier: String
     let displayName: String
     let bundleID: String?
+
+    init(persistenceIdentifier: String, displayName: String, bundleID: String?) {
+        self.persistenceIdentifier = persistenceIdentifier
+        self.displayName = displayName
+        self.bundleID = bundleID
+    }
+
+    init?(appURL: URL, excludingBundleIdentifier: String? = Bundle.main.bundleIdentifier) {
+        var isDirectory: ObjCBool = false
+        guard appURL.isFileURL,
+              appURL.pathExtension.caseInsensitiveCompare("app") == .orderedSame,
+              FileManager.default.fileExists(atPath: appURL.path, isDirectory: &isDirectory),
+              isDirectory.boolValue,
+              let bundle = Bundle(url: appURL),
+              let executableURL = bundle.executableURL,
+              FileManager.default.isExecutableFile(atPath: executableURL.path),
+              let bundleIdentifier = bundle.bundleIdentifier?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !bundleIdentifier.isEmpty,
+              bundleIdentifier != excludingBundleIdentifier
+        else { return nil }
+
+        let displayName = ["CFBundleDisplayName", "CFBundleName"]
+            .compactMap { bundle.object(forInfoDictionaryKey: $0) as? String }
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first { !$0.isEmpty }
+            ?? appURL.deletingPathExtension().lastPathComponent
+
+        self.init(
+            persistenceIdentifier: bundleIdentifier,
+            displayName: displayName,
+            bundleID: bundleIdentifier
+        )
+    }
 }
 
 // MARK: - Ignored App Info
@@ -26,6 +59,7 @@ nonisolated struct AppSettings: Codable, Equatable {
     // General
     var launchAtLogin: Bool = false
     var menuBarIconStyle: MenuBarIconStyle = .default
+    var language: AppLanguage = .system
 
     // Audio
     var defaultNewAppVolume: Float = 1.0      // 100% (unity gain)
@@ -67,6 +101,7 @@ nonisolated struct AppSettings: Codable, Equatable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         launchAtLogin = try c.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? false
         menuBarIconStyle = try c.decodeIfPresent(MenuBarIconStyle.self, forKey: .menuBarIconStyle) ?? .default
+        language = try c.decodeIfPresent(AppLanguage.self, forKey: .language) ?? .system
         defaultNewAppVolume = try c.decodeIfPresent(Float.self, forKey: .defaultNewAppVolume) ?? 1.0
         lockInputDevice = try c.decodeIfPresent(Bool.self, forKey: .lockInputDevice) ?? true
         showDeviceDisconnectAlerts = try c.decodeIfPresent(Bool.self, forKey: .showDeviceDisconnectAlerts) ?? true
@@ -83,12 +118,38 @@ nonisolated struct AppSettings: Codable, Equatable {
 
 // MARK: - Settings Manager
 
+nonisolated final class SettingsWriteCoordinator: @unchecked Sendable {
+    typealias Writer = @Sendable (Data, URL) throws -> Void
+
+    private let queue = DispatchQueue(label: "com.finetune.settings-write", qos: .utility)
+    private let writer: Writer
+
+    init(writer: @escaping Writer) {
+        self.writer = writer
+    }
+
+    func enqueue(_ data: Data, to url: URL) {
+        let writer = self.writer
+        queue.async {
+            try? writer(data, url)
+        }
+    }
+
+    func flush(_ data: Data, to url: URL) throws {
+        let writer = self.writer
+        try queue.sync {
+            try writer(data, url)
+        }
+    }
+}
+
 @Observable
 @MainActor
 final class SettingsManager {
     private var settings: Settings
     private var saveTask: Task<Void, Never>?
     private let settingsURL: URL
+    private let writeCoordinator: SettingsWriteCoordinator
     private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "FineTune", category: "SettingsManager")
 
     struct Settings: Codable {
@@ -106,6 +167,7 @@ final class SettingsManager {
         var preferredInputDeviceUID: String? = nil  // User's intended input device (survives disconnect)
         var pinnedApps: Set<String> = []  // Persistence identifiers of pinned apps
         var pinnedAppInfo: [String: PinnedAppInfo] = [:]  // Persistence identifier → app metadata
+        var appOrder: [String] = []  // Persistence identifiers in user-defined display order
         var ignoredApps: Set<String> = []  // Persistence identifiers of hidden apps
         var ignoredAppInfo: [String: IgnoredAppInfo] = [:]  // Persistence identifier → app metadata
 
@@ -166,6 +228,7 @@ final class SettingsManager {
             preferredInputDeviceUID = try c.decodeIfPresent(String.self, forKey: .preferredInputDeviceUID)
             pinnedApps = try c.decodeIfPresent(Set<String>.self, forKey: .pinnedApps) ?? []
             pinnedAppInfo = try c.decodeIfPresent([String: PinnedAppInfo].self, forKey: .pinnedAppInfo) ?? [:]
+            appOrder = try c.decodeIfPresent([String].self, forKey: .appOrder) ?? pinnedApps.sorted()
             ignoredApps = try c.decodeIfPresent(Set<String>.self, forKey: .ignoredApps) ?? []
             ignoredAppInfo = try c.decodeIfPresent([String: IgnoredAppInfo].self, forKey: .ignoredAppInfo) ?? [:]
             ddcVolumes = try c.decodeIfPresent([String: Int].self, forKey: .ddcVolumes) ?? [:]
@@ -191,9 +254,13 @@ final class SettingsManager {
         }
     }
 
-    init(directory: URL? = nil) {
+    init(
+        directory: URL? = nil,
+        writer: @escaping SettingsWriteCoordinator.Writer = SettingsManager.writeData
+    ) {
         let baseDir = directory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!.appendingPathComponent("FineTune")
         self.settingsURL = baseDir.appendingPathComponent("settings.json")
+        self.writeCoordinator = SettingsWriteCoordinator(writer: writer)
         self.settings = Settings()
         loadFromDisk()
     }
@@ -318,6 +385,11 @@ final class SettingsManager {
     func pinApp(_ identifier: String, info: PinnedAppInfo) {
         settings.pinnedApps.insert(identifier)
         settings.pinnedAppInfo[identifier] = info
+        if !settings.appOrder.contains(identifier) {
+            settings.appOrder.append(identifier)
+        }
+        settings.ignoredApps.remove(identifier)
+        settings.ignoredAppInfo.removeValue(forKey: identifier)
         scheduleSave()
     }
 
@@ -333,7 +405,29 @@ final class SettingsManager {
 
     /// Returns metadata for all pinned apps
     func getPinnedAppInfo() -> [PinnedAppInfo] {
-        settings.pinnedApps.compactMap { settings.pinnedAppInfo[$0] }
+        let rank = Dictionary(uniqueKeysWithValues: settings.appOrder.enumerated().map { ($1, $0) })
+        return settings.pinnedApps
+            .compactMap { settings.pinnedAppInfo[$0] }
+            .sorted {
+                (rank[$0.persistenceIdentifier] ?? Int.max) <
+                    (rank[$1.persistenceIdentifier] ?? Int.max)
+            }
+    }
+
+    var appOrder: [String] { settings.appOrder }
+
+    func moveApp(_ identifier: String, to targetIdentifier: String, currentOrder: [String]) {
+        for currentIdentifier in currentOrder where !settings.appOrder.contains(currentIdentifier) {
+            settings.appOrder.append(currentIdentifier)
+        }
+        guard identifier != targetIdentifier,
+              let sourceIndex = settings.appOrder.firstIndex(of: identifier),
+              let targetIndex = settings.appOrder.firstIndex(of: targetIdentifier)
+        else { return }
+
+        let movedIdentifier = settings.appOrder.remove(at: sourceIndex)
+        settings.appOrder.insert(movedIdentifier, at: min(targetIndex, settings.appOrder.count))
+        scheduleSave()
     }
 
     // MARK: - Ignored Apps
@@ -341,17 +435,6 @@ final class SettingsManager {
     func ignoreApp(_ identifier: String, info: IgnoredAppInfo) {
         settings.ignoredApps.insert(identifier)
         settings.ignoredAppInfo[identifier] = info
-        // Hiding is mutually exclusive with pinning
-        settings.pinnedApps.remove(identifier)
-        settings.pinnedAppInfo.removeValue(forKey: identifier)
-        // Clear per-app settings — FineTune won't interact with this app
-        settings.appVolumes.removeValue(forKey: identifier)
-        settings.appBoosts.removeValue(forKey: identifier)
-        settings.appMutes.removeValue(forKey: identifier)
-        settings.appDeviceRouting.removeValue(forKey: identifier)
-        settings.appEQSettings.removeValue(forKey: identifier)
-        settings.appDeviceSelectionMode.removeValue(forKey: identifier)
-        settings.appSelectedDeviceUIDs.removeValue(forKey: identifier)
         scheduleSave()
     }
 
@@ -838,6 +921,7 @@ final class SettingsManager {
         settings.appEQSettings.removeAll()
         settings.pinnedApps.removeAll()
         settings.pinnedAppInfo.removeAll()
+        settings.appOrder.removeAll()
         settings.ignoredApps.removeAll()
         settings.ignoredAppInfo.removeAll()
         settings.appSettings = AppSettings()
@@ -897,19 +981,12 @@ final class SettingsManager {
             let url = settingsURL
             let data = try? JSONEncoder().encode(snapshot)
             guard let data else { return }
-            Task.detached(priority: .utility) {
-                do {
-                    try Self.writeData(data, to: url)
-                } catch {
-                    // Avoid actor hops/logging on audio-critical paths; failures are
-                    // non-fatal and will retry on the next settings mutation.
-                }
-            }
+            writeCoordinator.enqueue(data, to: url)
         }
     }
 
-    /// Immediately writes pending changes to disk.
-    /// Call this on app termination to prevent data loss.
+    /// Immediately writes pending changes to disk after every older queued write.
+    /// Call this on app termination to prevent stale asynchronous saves from winning.
     func flushSync() {
         saveTask?.cancel()
         saveTask = nil
@@ -919,7 +996,7 @@ final class SettingsManager {
     private func writeToDisk() {
         do {
             let data = try JSONEncoder().encode(settings)
-            try Self.writeData(data, to: settingsURL)
+            try writeCoordinator.flush(data, to: settingsURL)
 
             logger.debug("Saved settings")
         } catch {

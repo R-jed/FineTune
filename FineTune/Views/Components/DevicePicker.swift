@@ -13,14 +13,14 @@ struct DevicePicker: View {
 
     let devices: [AudioDevice]
     var deviceIconOverrides: [String: String] = [:]
-    let selectedDeviceUID: String  // For single mode
-    let selectedDeviceUIDs: Set<String>  // For multi mode
+    let selectedDeviceUID: String
+    let selectedDeviceUIDs: Set<String>
     let isFollowingDefault: Bool
     let defaultDeviceUID: String?
     let mode: DeviceSelectionMode
     let onModeChange: (DeviceSelectionMode) -> Void
-    let onDeviceSelected: (String) -> Void  // Single mode callback
-    let onDevicesSelected: (Set<String>) -> Void  // Multi mode callback
+    let onDeviceSelected: (String) -> Void
+    let onDevicesSelected: (Set<String>) -> Void
     let onSelectFollowDefault: () -> Void
     let showModeToggle: Bool
 
@@ -28,6 +28,7 @@ struct DevicePicker: View {
     @State private var isButtonHovered = false
 
     @Environment(\.appearancePreference) private var appearancePreference
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     // Local state mirrors props for popover reactivity
     @State private var currentMode: DeviceSelectionMode = .single
@@ -41,7 +42,6 @@ struct DevicePicker: View {
     private let itemSpacing: CGFloat = 2
     private let cornerRadius: CGFloat = 8
 
-    /// Menu item representation for unified dropdown
     enum MenuItem: Identifiable, Equatable {
         case systemAudio
         case device(AudioDevice)
@@ -52,13 +52,6 @@ struct DevicePicker: View {
             case .device(let device): return device.uid
             }
         }
-
-        var name: String {
-            switch self {
-            case .systemAudio: return "System Audio"
-            case .device(let device): return device.name
-            }
-        }
     }
 
     private var menuItems: [MenuItem] {
@@ -66,14 +59,13 @@ struct DevicePicker: View {
     }
 
     /// Selected devices intersected with the currently-rendered list.
-    /// Filters out stale UIDs (disconnected device, sentinel) so the trigger
-    /// badge stays in sync with what the popover actually shows.
     private var validMultiSelections: [AudioDevice] {
         devices.filter { selectedDeviceUIDs.contains($0.uid) }
     }
 
-    /// Display text for trigger button
-    private var triggerText: String {
+    /// Display text for the trigger button. Static copy stays localizable while
+    /// device names remain verbatim external data.
+    private var triggerText: Text {
         switch mode {
         case .single:
             return singleModeText
@@ -83,20 +75,19 @@ struct DevicePicker: View {
                 return singleModeText
             }
             if count == 1 {
-                return validMultiSelections[0].name
+                return Text(verbatim: validMultiSelections[0].name)
             }
-            return "\(count) devices"
+            return Text(verbatim: "\(count) ") + Text("devices")
         }
     }
 
-    /// Text for single-mode display (also used as fallback for empty multi-mode)
-    private var singleModeText: String {
+    private var singleModeText: Text {
         if isFollowingDefault {
-            return "System Audio"
+            return Text("System Audio")
         } else if let device = devices.first(where: { $0.uid == selectedDeviceUID }) {
-            return device.name
+            return Text(verbatim: device.name)
         }
-        return "Select"
+        return Text("Select")
     }
 
     @ViewBuilder
@@ -109,8 +100,6 @@ struct DevicePicker: View {
             if let first = valid.first {
                 multiModeIcon(firstDevice: first, count: valid.count)
             } else {
-                // Multi mode set but nothing valid selected — show the multi glyph
-                // so the user can always tell the app is on multi-routing.
                 Image(systemName: "hifispeaker.2.fill")
                     .font(.system(size: 16))
                     .symbolRenderingMode(.hierarchical)
@@ -168,9 +157,7 @@ struct DevicePicker: View {
                     .foregroundStyle(.white)
                     .padding(.horizontal, 4)
                     .padding(.vertical, 0.5)
-                    .background(
-                        Capsule().fill(DesignTokens.Colors.accentPrimary)
-                    )
+                    .background(Capsule().fill(DesignTokens.Colors.accentPrimary))
                     .offset(x: 4, y: 3)
             }
     }
@@ -195,7 +182,6 @@ struct DevicePicker: View {
                 currentSelectedUIDs = newUIDs
             }
             .onAppear {
-                // Initialize local state from props
                 currentMode = mode
                 currentSelectedUIDs = selectedDeviceUIDs
             }
@@ -213,17 +199,16 @@ struct DevicePicker: View {
         }
     }
 
-    /// Bordered material pill with icon + text + chevron. Used in Settings rows.
     private var fullTriggerButton: some View {
         Button {
-            withAnimation(.snappy(duration: 0.2)) {
+            withAnimation(reduceMotion ? nil : .snappy(duration: 0.2)) {
                 isExpanded.toggle()
             }
         } label: {
             HStack(spacing: DesignTokens.Spacing.xs) {
                 HStack(spacing: DesignTokens.Spacing.xs) {
                     triggerIcon
-                    Text(triggerText)
+                    triggerText
                         .font(.system(size: 11, weight: .medium))
                         .lineLimit(1)
                 }
@@ -233,7 +218,7 @@ struct DevicePicker: View {
                     .font(.system(size: 8, weight: .semibold))
                     .foregroundStyle(.secondary)
                     .rotationEffect(.degrees(isExpanded ? -180 : 0))
-                    .animation(.easeInOut(duration: 0.25), value: isExpanded)
+                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: isExpanded)
             }
             .padding(.horizontal, DesignTokens.Spacing.sm)
             .padding(.vertical, 4)
@@ -253,15 +238,15 @@ struct DevicePicker: View {
                 )
         }
         .onHover { isButtonHovered = $0 }
-        .animation(DesignTokens.Animation.hover, value: isButtonHovered)
+        .animation(reduceMotion ? nil : DesignTokens.Animation.hover, value: isButtonHovered)
+        .help(triggerText)
+        .accessibilityLabel("Device")
+        .accessibilityValue(triggerText)
     }
 
-    /// Square borderless icon button with hover tint. Used in app rows where the
-    /// routed device name lives in the row's subtitle slot, so the trigger needs
-    /// to carry only the icon — minimum chrome, matching the EQ button rhythm.
     private var iconOnlyTriggerButton: some View {
         Button {
-            withAnimation(.snappy(duration: 0.2)) {
+            withAnimation(reduceMotion ? nil : .snappy(duration: 0.2)) {
                 isExpanded.toggle()
             }
         } label: {
@@ -275,8 +260,10 @@ struct DevicePicker: View {
         }
         .buttonStyle(.plain)
         .help(triggerText)
+        .accessibilityLabel("Device")
+        .accessibilityValue(triggerText)
         .onHover { isButtonHovered = $0 }
-        .animation(DesignTokens.Animation.hover, value: isButtonHovered)
+        .animation(reduceMotion ? nil : DesignTokens.Animation.hover, value: isButtonHovered)
     }
 
     private var iconOnlyBackgroundFill: Color {
@@ -293,14 +280,12 @@ struct DevicePicker: View {
 
     private var dropdownContent: some View {
         VStack(spacing: 0) {
-            // Mode toggle header (hidden for single-mode-only contexts like Settings)
             if showModeToggle {
                 ModeToggle(mode: Binding(
                     get: { currentMode },
                     set: { newMode in
-                        currentMode = newMode  // Update local state immediately
-                        onModeChange(newMode)  // Notify parent
-                        // States are independent - no copying between modes
+                        currentMode = newMode
+                        onModeChange(newMode)
                     }
                 ))
                 .padding(.horizontal, DesignTokens.Spacing.xs + 2)
@@ -311,7 +296,6 @@ struct DevicePicker: View {
                     .padding(.horizontal, 6)
             }
 
-            // Device list
             ScrollView(.vertical) {
                 LazyVStack(spacing: itemSpacing) {
                     ForEach(menuItems) { item in
@@ -379,7 +363,7 @@ struct DevicePicker: View {
             if case .device(let device) = item {
                 return currentSelectedUIDs.contains(device.uid)
             }
-            return false  // System Audio not selectable in multi mode
+            return false
         }
     }
 
@@ -392,7 +376,7 @@ struct DevicePicker: View {
             case .device(let device):
                 onDeviceSelected(device.uid)
             }
-            withAnimation(.easeOut(duration: 0.15)) {
+            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.15)) {
                 isExpanded = false
             }
 
@@ -404,9 +388,8 @@ struct DevicePicker: View {
             } else {
                 newSelection.insert(device.uid)
             }
-            currentSelectedUIDs = newSelection  // Update local state immediately
-            onDevicesSelected(newSelection)  // Notify parent
-            // Stay open in multi mode
+            currentSelectedUIDs = newSelection
+            onDevicesSelected(newSelection)
         }
     }
 }
@@ -423,26 +406,30 @@ private struct DevicePickerRow: View {
     let onTap: () -> Void
 
     @State private var isHovered = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var rowLabel: Text {
+        switch item {
+        case .systemAudio:
+            return Text("System Audio")
+        case .device(let device):
+            return Text(verbatim: device.name)
+        }
+    }
 
     var body: some View {
         Button(action: onTap) {
             HStack(spacing: DesignTokens.Spacing.xs) {
-                // Selection indicator
                 selectionIndicator
-
-                // Icon
                 itemIcon
-
-                // Text content
                 itemText
-
                 Spacer()
 
-                // Default device star
                 if isDefaultDevice {
                     Image(systemName: "star.fill")
                         .font(.system(size: 9))
                         .foregroundStyle(DesignTokens.Colors.textTertiary)
+                        .accessibilityHidden(true)
                 }
             }
             .font(.system(size: 11))
@@ -459,23 +446,28 @@ private struct DevicePickerRow: View {
         .buttonStyle(.plain)
         .disabled(isDisabled)
         .whenHovered { isHovered = $0 }
+        .animation(reduceMotion ? nil : DesignTokens.Animation.hover, value: isHovered)
+        .help(rowLabel)
+        .accessibilityLabel(rowLabel)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityValue(isDefaultDevice ? Text("Default device") : Text(""))
     }
 
     @ViewBuilder
     private var selectionIndicator: some View {
         if isMultiMode {
-            // Checkbox for multi mode
             Image(systemName: isSelected ? "checkmark.square.fill" : "square")
                 .font(.system(size: 12))
                 .foregroundStyle(isSelected ? DesignTokens.Colors.accentPrimary : DesignTokens.Colors.textTertiary)
                 .frame(width: 16)
+                .accessibilityHidden(true)
         } else {
-            // Checkmark for single mode (only show when selected)
             if isSelected {
                 Image(systemName: "checkmark")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(DesignTokens.Colors.accentPrimary)
                     .frame(width: 16)
+                    .accessibilityHidden(true)
             } else {
                 Spacer()
                     .frame(width: 16)
@@ -491,6 +483,7 @@ private struct DevicePickerRow: View {
                 .font(.system(size: 13))
                 .frame(width: 16)
                 .foregroundStyle(isDisabled ? DesignTokens.Colors.textQuaternary : DesignTokens.Colors.textSecondary)
+                .accessibilityHidden(true)
         case .device:
             if let icon = resolvedIcon {
                 Image(nsImage: icon)
@@ -498,10 +491,12 @@ private struct DevicePickerRow: View {
                     .aspectRatio(contentMode: .fit)
                     .frame(width: 16, height: 16)
                     .opacity(isDisabled ? 0.4 : 1.0)
+                    .accessibilityHidden(true)
             } else {
                 Image(systemName: "speaker.wave.2")
                     .font(.system(size: 13))
                     .frame(width: 16)
+                    .accessibilityHidden(true)
             }
         }
     }
@@ -523,8 +518,9 @@ private struct DevicePickerRow: View {
                 }
             }
         case .device(let device):
-            Text(device.name)
+            Text(verbatim: device.name)
                 .lineLimit(1)
+                .help(Text(verbatim: device.name))
         }
     }
 }
@@ -538,17 +534,21 @@ extension DevicePicker {
         selectedDeviceUIDs: Set<String>,
         isFollowingDefault: Bool,
         mode: DeviceSelectionMode
-    ) -> String? {
+    ) -> Text? {
         switch mode {
         case .single:
             if isFollowingDefault { return nil }
-            return devices.first(where: { $0.uid == selectedDeviceUID })?.name
+            guard let device = devices.first(where: { $0.uid == selectedDeviceUID }) else { return nil }
+            return Text(verbatim: device.name)
         case .multi:
             let valid = devices.filter { selectedDeviceUIDs.contains($0.uid) }
             switch valid.count {
-            case 0:  return "Multi"
-            case 1:  return "Multi · \(valid[0].name)"
-            default: return "Multi · \(valid.count) devices"
+            case 0:
+                return Text("Multi")
+            case 1:
+                return Text("Multi") + Text(verbatim: " · \(valid[0].name)")
+            default:
+                return Text("Multi") + Text(verbatim: " · \(valid.count) ") + Text("devices")
             }
         }
     }
@@ -557,7 +557,6 @@ extension DevicePicker {
 // MARK: - Convenience Initializer for Backward Compatibility
 
 extension DevicePicker {
-    /// Convenience initializer for single-mode only usage (backward compatible)
     init(
         devices: [AudioDevice],
         deviceIconOverrides: [String: String] = [:],
@@ -635,9 +634,9 @@ extension DevicePicker {
 }
 
 #Preview("Device Picker - Interactive") {
-    struct InteractivePreview: View {
+    struct MultiModePreview: View {
         @State private var mode: DeviceSelectionMode = .single
-        @State private var selectedUID: String = ""
+        @State private var selectedUID = ""
         @State private var selectedUIDs: Set<String> = []
         @State private var isFollowingDefault = true
 
@@ -688,5 +687,5 @@ extension DevicePicker {
             }
         }
     }
-    return InteractivePreview()
+    return MultiModePreview()
 }

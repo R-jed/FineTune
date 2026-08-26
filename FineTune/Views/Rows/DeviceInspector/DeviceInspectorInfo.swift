@@ -7,7 +7,7 @@ import Foundation
 
 /// Snapshot of device facts displayed in the inspector pane.
 nonisolated struct DeviceInspectorInfo: Equatable {
-    let transportLabel: String
+    let transportType: TransportType
     let sampleRate: Double
     let availableSampleRates: [Double]
     let sampleRateSettable: Bool
@@ -16,7 +16,7 @@ nonisolated struct DeviceInspectorInfo: Equatable {
     let uid: String
 
     static let empty = DeviceInspectorInfo(
-        transportLabel: "—",
+        transportType: .unknown,
         sampleRate: 0,
         availableSampleRates: [],
         sampleRateSettable: false,
@@ -26,9 +26,14 @@ nonisolated struct DeviceInspectorInfo: Equatable {
     )
 }
 
-// MARK: - Formatters
+// MARK: - Formatters and presentation facts
 
 nonisolated extension DeviceInspectorInfo {
+    struct HogModeOwnerDetails: Equatable {
+        let pid: pid_t
+        let processName: String?
+    }
+
     /// "48 kHz" for integer kilohertz, "44.1 kHz" otherwise.
     static func formatSampleRate(_ rate: Double) -> String {
         guard rate > 0 else { return "—" }
@@ -48,14 +53,12 @@ nonisolated extension DeviceInspectorInfo {
         return "\(asbd.mBitsPerChannel)-bit PCM"
     }
 
-    /// Human-readable hog-mode owner string for the inline row.
-    /// Returns nil when the device is not held exclusively by another process.
-    static func formatHogModeOwner(_ owner: pid_t, processName: String?) -> String? {
+    /// Returns structured hog-mode ownership facts for localized presentation.
+    /// Nil means the device is not held exclusively by another process.
+    static func hogModeOwnerDetails(_ owner: pid_t, processName: String?) -> HogModeOwnerDetails? {
         guard owner > 0, owner != getpid() else { return nil }
-        if let processName, !processName.isEmpty {
-            return "In exclusive use by \(processName) (PID \(owner))"
-        }
-        return "In exclusive use by PID \(owner)"
+        let resolvedName = processName.flatMap { $0.isEmpty ? nil : $0 }
+        return HogModeOwnerDetails(pid: owner, processName: resolvedName)
     }
 }
 
@@ -65,7 +68,7 @@ nonisolated extension DeviceInspectorInfo {
 /// list of rows to render. Enables structural tests without view introspection.
 nonisolated struct InfoGridLayout: Equatable {
     enum Row: Equatable {
-        case transport(String)
+        case transport(TransportType)
         case sampleRate(display: String, isPicker: Bool, options: [Double])
         case format(String)
         case deviceID(String)
@@ -76,7 +79,7 @@ nonisolated struct InfoGridLayout: Equatable {
     init(info: DeviceInspectorInfo) {
         var rows: [Row] = []
 
-        rows.append(.transport(info.transportLabel))
+        rows.append(.transport(info.transportType))
 
         let isPicker = info.sampleRateSettable && info.availableSampleRates.count > 1
         rows.append(

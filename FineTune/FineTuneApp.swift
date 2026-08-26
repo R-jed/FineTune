@@ -57,6 +57,10 @@ struct FineTuneApp: App {
     /// default-device volume/mute. The coordinator keeps it in sync afterwards.
     private let launchIconImage: NSImage
 
+    private var localizationContext: LocalizationContext {
+        LocalizationContext(language: audioEngine.settingsManager.appSettings.language)
+    }
+
     var body: some Scene {
         // Declared before FluidMenuBarExtra so this Settings scene wins over
         // FluidMenuBarExtra's `Settings {}` placeholder. Both ⌘, and the
@@ -72,9 +76,11 @@ struct FineTuneApp: App {
                 shortcutsRegistry: shortcutsRegistry,
                 updateManager: updateManager
             )
+            .fineTuneLocale(localizationContext.overrideLocale)
         }
         FluidMenuBarExtra("FineTune", image: launchIconImage, isInserted: $showMenuBarExtra) {
             menuBarContent
+                .fineTuneLocale(localizationContext.overrideLocale)
         }
     }
 

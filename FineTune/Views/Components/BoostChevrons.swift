@@ -7,6 +7,7 @@ struct BoostChevrons: View {
     let level: BoostLevel
     let onTap: () -> Void
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isHovered = false
 
     /// Number of lit chevrons for each boost level
@@ -30,6 +31,14 @@ struct BoostChevrons: View {
         }
     }
 
+    private var helpText: Text {
+        Text("Volume boost:") + Text(verbatim: " \(level.label)")
+    }
+
+    private var accessibilityText: Text {
+        Text("Volume boost") + Text(verbatim: " \(level.label)")
+    }
+
     var body: some View {
         Button(action: onTap) {
             VStack(spacing: -2) {
@@ -47,9 +56,11 @@ struct BoostChevrons: View {
         }
         .buttonStyle(.plain)
         .onHover { isHovered = $0 }
-        .help("Volume boost: \(level.label)")
-        .accessibilityLabel("Volume boost \(level.label)")
-        .animation(.snappy(duration: 0.2), value: level)
+        .help(helpText)
+        .accessibilityLabel { _ in
+            accessibilityText
+        }
+        .animation(reduceMotion ? nil : .snappy(duration: 0.2), value: level)
         .animation(DesignTokens.Animation.hover, value: isHovered)
     }
 }

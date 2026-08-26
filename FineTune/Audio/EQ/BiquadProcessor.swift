@@ -1,29 +1,80 @@
 // FineTune/Audio/EQ/BiquadProcessor.swift
 import Foundation
 import Accelerate
-import Darwin.C  // OSMemoryBarrier
+import Synchronization
+import Darwin
 import os
 
-// vDSP_biquad_Setup is a C typedef of OpaquePointer; the Sendable conformance
-// doesn't survive the typealias, so this wrapper carries the safety claim that
-// the rt-safety.md "deferred destruction" pattern already documents: the 500ms
-// delay before vDSP_biquad_DestroySetup exceeds worst-case audio buffer
-// duration (4096 frames @ 44.1kHz ≈ 93ms), so the audio thread has moved past
-// the old setup by the time the closure fires.
 private struct BiquadSetupBox: @unchecked Sendable {
     let setup: vDSP_biquad_Setup
 }
 
+/// Internal seam between the HAL reader and non-RT writers.
+///
+/// Readers register before touching realtime-visible biquad state. When the last
+/// reader leaves, the quiescence epoch advances. A writer that publishes a new
+/// generation can wait for an epoch after that publication instead of guessing
+/// with a wall-clock grace period.
+///
+/// `enterRead()` / `leaveRead()` are called from the realtime callback and use
+/// only atomic integer operations. `waitForReaders(after:)` is non-RT and may yield.
+final class RealtimeQuiescenceGate: @unchecked Sendable {
+    struct Checkpoint: Sendable {
+        fileprivate let epoch: UInt
+    }
+
+    private let activeReaders = Atomic<UInt>(0)
+    private let quiescenceEpoch = Atomic<UInt>(0)
+
+    @inline(__always)
+    func enterRead() {
+        activeReaders.wrappingAdd(1, ordering: .sequentiallyConsistent)
+    }
+
+    @inline(__always)
+    func leaveRead() {
+        let result = activeReaders.wrappingSubtract(1, ordering: .sequentiallyConsistent)
+        if result.newValue == 0 {
+            quiescenceEpoch.wrappingAdd(1, ordering: .sequentiallyConsistent)
+        }
+    }
+
+    func checkpoint() -> Checkpoint {
+        Checkpoint(epoch: quiescenceEpoch.load(ordering: .sequentiallyConsistent))
+    }
+
+    /// Waits until every reader that could have been active at `checkpoint`
+    /// has passed through a zero-reader state.
+    ///
+    /// A later reader may already be active when this returns. That is safe for
+    /// resource retirement because a later reader can only observe state
+    /// published after the caller captured the checkpoint.
+    func waitForReaders(after checkpoint: Checkpoint) {
+        while true {
+            if activeReaders.load(ordering: .sequentiallyConsistent) == 0 {
+                return
+            }
+            if quiescenceEpoch.load(ordering: .sequentiallyConsistent) != checkpoint.epoch {
+                return
+            }
+            sched_yield()
+        }
+    }
+}
+
 /// Base class for RT-safe biquad filter processors.
 ///
-/// Manages delay buffers, atomic setup swaps, and the core stereo biquad processing loop.
-/// Subclasses provide coefficient computation via `recomputeCoefficients()` and optional
-/// pre-processing via `preProcess()`.
+/// Manages delay buffers, atomic setup publication, quiescent setup retirement,
+/// and the core stereo biquad processing loop. Subclasses provide coefficient
+/// computation via `recomputeCoefficients()` and optional pre-processing via
+/// `preProcess()`.
 ///
 /// ## RT-Safety
-/// `process()` runs on CoreAudio's HAL I/O thread. All state it accesses uses
-/// `nonisolated(unsafe)` for lock-free atomic reads. Setup updates use atomic pointer
-/// swaps with deferred destruction (500ms grace period).
+/// `process()` runs on CoreAudio's HAL I/O thread. It registers as a realtime
+/// reader before loading the enabled flag or setup pointer. Writers publish
+/// setup changes atomically and reclaim old setups only after a real quiescent
+/// point. Delay-buffer resets disable new processing and wait for prior readers
+/// before mutating shared filter state.
 ///
 /// ## Subclasses
 /// - `EQProcessor`: Per-app 10-band graphic EQ
@@ -37,12 +88,15 @@ class BiquadProcessor: @unchecked Sendable, BiquadProcessable {
 
     // MARK: - RT-Safe State
 
-    /// Biquad filter setup pointer. Swapped atomically; old setup deferred-destroyed.
-    private nonisolated(unsafe) var _eqSetup: vDSP_biquad_Setup?
+    /// Current vDSP setup published atomically to the HAL reader.
+    private let eqSetup = Atomic<OpaquePointer?>(nil)
 
-    /// Processing enable flag. Audio callback reads this atomically at entry.
-    /// Subclasses set via `setEnabled(_:)` from their update methods (main thread only).
-    private nonisolated(unsafe) var _isEnabled: Bool
+    /// Processing enable flag shared with the HAL reader.
+    private let isEnabledStorage = Atomic<Bool>(false)
+
+    /// Tracks realtime readers so old setups and delay buffers are not mutated
+    /// while a callback can still be using them.
+    private let quiescence = RealtimeQuiescenceGate()
 
     // MARK: - Pre-allocated Delay Buffers
 
@@ -51,11 +105,13 @@ class BiquadProcessor: @unchecked Sendable, BiquadProcessable {
     private let delayBufferSize: Int
 
     /// Whether biquad processing is active (RT-safe read).
-    var isEnabled: Bool { _isEnabled }
+    var isEnabled: Bool {
+        isEnabledStorage.load(ordering: .sequentiallyConsistent)
+    }
 
     /// Set the processing enable flag. Main thread only.
     func setEnabled(_ enabled: Bool) {
-        _isEnabled = enabled
+        isEnabledStorage.store(enabled, ordering: .sequentiallyConsistent)
     }
 
     // MARK: - Init / Deinit
@@ -68,8 +124,9 @@ class BiquadProcessor: @unchecked Sendable, BiquadProcessable {
     init(sampleRate: Double, maxSections: Int, category: String, initiallyEnabled: Bool = false) {
         self.sampleRate = sampleRate
         self.logger = Logger(subsystem: "com.finetuneapp.FineTune", category: category)
-        self._isEnabled = initiallyEnabled
         self.delayBufferSize = (2 * maxSections) + 2
+
+        isEnabledStorage.store(initiallyEnabled, ordering: .sequentiallyConsistent)
 
         delayBufferL = .allocate(capacity: delayBufferSize)
         delayBufferL.initialize(repeating: 0, count: delayBufferSize)
@@ -78,8 +135,12 @@ class BiquadProcessor: @unchecked Sendable, BiquadProcessable {
     }
 
     deinit {
-        if let setup = _eqSetup {
-            vDSP_biquad_DestroySetup(setup)
+        let oldSetup = eqSetup.exchange(nil, ordering: .sequentiallyConsistent)
+        let checkpoint = quiescence.checkpoint()
+        quiescence.waitForReaders(after: checkpoint)
+
+        if let oldSetup {
+            vDSP_biquad_DestroySetup(oldSetup)
         }
         delayBufferL.deallocate()
         delayBufferR.deallocate()
@@ -87,41 +148,44 @@ class BiquadProcessor: @unchecked Sendable, BiquadProcessable {
 
     // MARK: - Setup Management (main thread)
 
-    /// Atomically swap the biquad setup, deferring destruction of the old one.
+    /// Publishes a new biquad setup.
     ///
-    /// The 500ms delay ensures the audio thread has moved on from the old setup.
-    /// Worst-case audio buffer is 4096 frames @ 44.1kHz = 93ms, plus scheduling jitter.
+    /// Ordinary coefficient changes intentionally keep the existing delay
+    /// buffers so the filter state evolves continuously. The replaced setup is
+    /// retired off the realtime thread after a proven quiescent point.
     func swapSetup(_ newSetup: vDSP_biquad_Setup?) {
-        let oldSetup = _eqSetup
-        _eqSetup = newSetup
-        if let old = oldSetup {
-            let box = BiquadSetupBox(setup: old)
-            DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 0.5) {
-                vDSP_biquad_DestroySetup(box.setup)
-            }
+        let oldSetup = eqSetup.exchange(newSetup, ordering: .sequentiallyConsistent)
+        guard let oldSetup, oldSetup != newSetup else { return }
+
+        let checkpoint = quiescence.checkpoint()
+        let gate = quiescence
+        let retired = BiquadSetupBox(setup: oldSetup)
+        DispatchQueue.global(qos: .utility).async {
+            gate.waitForReaders(after: checkpoint)
+            vDSP_biquad_DestroySetup(retired.setup)
         }
     }
 
-    /// Reset delay buffers with barrier protection.
+    /// Reset delay buffers after preventing new processing and waiting for all
+    /// callbacks that could have entered before the disable to leave.
     ///
-    /// Temporarily disables processing to prevent the audio thread from reading
-    /// partially-zeroed state. Call from main thread after a sample rate change.
+    /// Call from the main thread.
     func resetDelayBuffers() {
-        let wasEnabled = _isEnabled
-        _isEnabled = false
-        OSMemoryBarrier()
+        let wasEnabled = isEnabledStorage.exchange(false, ordering: .sequentiallyConsistent)
+        let checkpoint = quiescence.checkpoint()
+        quiescence.waitForReaders(after: checkpoint)
 
         memset(delayBufferL, 0, delayBufferSize * MemoryLayout<Float>.size)
         memset(delayBufferR, 0, delayBufferSize * MemoryLayout<Float>.size)
 
-        _isEnabled = wasEnabled
-        OSMemoryBarrier()
+        isEnabledStorage.store(wasEnabled, ordering: .sequentiallyConsistent)
     }
 
     /// Update sample rate and recompute coefficients.
     ///
-    /// Calls `recomputeCoefficients()` to get new coefficients from the subclass,
-    /// then atomically swaps the setup and resets delay buffers.
+    /// The new setup is published while processing is disabled. After every
+    /// callback that could have observed the previous setup has passed a
+    /// quiescent point, the old setup is destroyed and delay state is reset.
     func updateSampleRate(_ newRate: Double) {
         dispatchPrecondition(condition: .onQueue(.main))
         let oldRate = sampleRate
@@ -138,32 +202,24 @@ class BiquadProcessor: @unchecked Sendable, BiquadProcessable {
         }
 
         guard let newSetup else {
+            sampleRate = oldRate
             logger.warning("vDSP_biquad_CreateSetup returned nil at \(newRate, format: .fixed(precision: 0))Hz")
             return
         }
 
-        // We inline the swap + reset here instead of calling swapSetup() + resetDelayBuffers()
-        // because the ordering is critical: disable → swap → reset → re-enable must be atomic.
-        // Calling them separately would leave a window where the audio thread could process
-        // new coefficients with stale delay buffer state.
-        let oldSetup = _eqSetup
-        let wasEnabled = _isEnabled
-        _isEnabled = false
-        OSMemoryBarrier()
+        let wasEnabled = isEnabledStorage.exchange(false, ordering: .sequentiallyConsistent)
+        let oldSetup = eqSetup.exchange(newSetup, ordering: .sequentiallyConsistent)
+        let checkpoint = quiescence.checkpoint()
+        quiescence.waitForReaders(after: checkpoint)
 
-        _eqSetup = newSetup
         memset(delayBufferL, 0, delayBufferSize * MemoryLayout<Float>.size)
         memset(delayBufferR, 0, delayBufferSize * MemoryLayout<Float>.size)
 
-        _isEnabled = wasEnabled
-        OSMemoryBarrier()
-
-        if let old = oldSetup {
-            let box = BiquadSetupBox(setup: old)
-            DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 0.5) {
-                vDSP_biquad_DestroySetup(box.setup)
-            }
+        if let oldSetup, oldSetup != newSetup {
+            vDSP_biquad_DestroySetup(oldSetup)
         }
+
+        isEnabledStorage.store(wasEnabled, ordering: .sequentiallyConsistent)
 
         logger.info("Sample rate: \(oldRate, format: .fixed(precision: 0))Hz → \(newRate, format: .fixed(precision: 0))Hz")
     }
@@ -197,11 +253,14 @@ class BiquadProcessor: @unchecked Sendable, BiquadProcessable {
     ///   - output: Output buffer (stereo interleaved Float32).
     ///   - frameCount: Number of stereo frames (total samples / 2).
     func process(input: UnsafePointer<Float>, output: UnsafeMutablePointer<Float>, frameCount: Int) {
-        let enabled = _isEnabled
-        let setup = _eqSetup
+        quiescence.enterRead()
+        defer { quiescence.leaveRead() }
+
+        let enabled = isEnabledStorage.load(ordering: .sequentiallyConsistent)
+        let setup = eqSetup.load(ordering: .sequentiallyConsistent)
 
         // Bypass: copy input to output
-        guard enabled, let setup = setup else {
+        guard enabled, let setup else {
             if input != UnsafePointer(output) {
                 memcpy(output, input, frameCount * 2 * MemoryLayout<Float>.size)
             }

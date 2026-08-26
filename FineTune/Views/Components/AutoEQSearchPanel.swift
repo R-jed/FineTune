@@ -12,11 +12,13 @@ struct AutoEQSearchPanel: View {
     let onDismiss: () -> Void
     let onImport: () -> Void
     let onToggleFavorite: (String) -> Void
-    let importErrorMessage: String?
+    let importErrorMessage: LocalizedStringResource?
     var isCorrectionEnabled: Bool = false
     var onCorrectionToggle: ((Bool) -> Void)?
     var preampEnabled: Bool = true
     var onPreampToggle: (() -> Void)?
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var searchText = ""
     @State private var debouncedQuery = ""
@@ -26,8 +28,9 @@ struct AutoEQSearchPanel: View {
     @State private var highlightedIndex: Int?
     @State private var cachedSearchResult = AutoEQSearchResult(entries: [], totalCount: 0)
     @State private var loadingProfileID: String?
-    @State private var fetchError: String?
+    @State private var fetchFailureEntry: AutoEQCatalogEntry?
     @FocusState private var isSearchFocused: Bool
+    @FocusState private var focusedFavoriteID: String?
 
     private let maxVisibleItems = 6
     private let itemHeight: CGFloat = 28
@@ -91,14 +94,20 @@ struct AutoEQSearchPanel: View {
         return count
     }
 
-    /// Resolved display info for the status card.
-    private var cardProfileInfo: (name: String, source: String?)? {
+    /// Resolved display info for the status card. External names and measurement
+    /// sources remain verbatim; the FineTune-owned imported marker stays localizable.
+    private var cardProfileInfo: (name: String, source: Text?)? {
         guard let selectedID = selectedProfileID else { return nil }
         if let profile = profileManager.profile(for: selectedID) {
-            let source = profile.source == .imported ? "Imported" : profile.measuredBy
+            let source: Text?
+            if profile.source == .imported {
+                source = Text("Imported")
+            } else {
+                source = profile.measuredBy.map { Text(verbatim: $0) }
+            }
             return (profile.name, source)
         } else if let entry = profileManager.catalogEntry(for: selectedID) {
-            return (entry.name, entry.measuredBy)
+            return (entry.name, sourceText(for: entry))
         }
         return nil
     }
@@ -128,8 +137,8 @@ struct AutoEQSearchPanel: View {
 
             errorMessages
         }
-        .animation(.easeInOut(duration: 0.2), value: fetchError)
-        .animation(.easeInOut(duration: 0.2), value: importErrorMessage)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: fetchFailureEntry != nil)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: importErrorMessage != nil)
         .background {
             RoundedRectangle(cornerRadius: 10)
                 .fill(DesignTokens.Colors.recessedBackground)
@@ -160,6 +169,7 @@ struct AutoEQSearchPanel: View {
         }
         .onChange(of: debouncedQuery) { _, newQuery in
             highlightedIndex = nil
+            fetchFailureEntry = nil
             cachedSearchResult = profileManager.search(query: newQuery)
         }
         .onAppear { isSearchFocused = true }
@@ -235,7 +245,7 @@ struct AutoEQSearchPanel: View {
     // MARK: - Status Section (flat, no card container)
 
     @ViewBuilder
-    private func statusCard(id: String, name: String, source: String?) -> some View {
+    private func statusCard(id: String, name: String, source: Text?) -> some View {
         let isFavorited = favoriteIDs.contains(id)
         let isStarHovered = starHoveredID == id
 
@@ -243,7 +253,7 @@ struct AutoEQSearchPanel: View {
             // Profile info + action buttons
             HStack(alignment: .top, spacing: DesignTokens.Spacing.xs) {
                 VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
-                    Text(name)
+                    Text(verbatim: name)
                         .font(DesignTokens.Typography.cardProfileName)
                         .foregroundStyle(
                             isCorrectionEnabled
@@ -251,9 +261,10 @@ struct AutoEQSearchPanel: View {
                                 : DesignTokens.Colors.textSecondary
                         )
                         .lineLimit(1)
+                        .help(Text(verbatim: name))
 
                     if let source {
-                        Text(source)
+                        source
                             .font(DesignTokens.Typography.cardSource)
                             .foregroundStyle(DesignTokens.Colors.textTertiary)
                             .lineLimit(1)
@@ -275,12 +286,14 @@ struct AutoEQSearchPanel: View {
                             )
                             .frame(width: 20, height: 20)
                             .contentShape(Rectangle())
-                            .scaleEffect(isStarHovered ? 1.1 : 1.0)
+                            .scaleEffect(reduceMotion ? 1.0 : (isStarHovered ? 1.1 : 1.0))
                     }
                     .buttonStyle(.plain)
                     .onHover { starHoveredID = $0 ? id : nil }
-                    .animation(DesignTokens.Animation.hover, value: isStarHovered)
-                    .accessibilityLabel(isFavorited ? "Remove from favorites" : "Add to favorites")
+                    .animation(reduceMotion ? nil : DesignTokens.Animation.hover, value: isStarHovered)
+                    .accessibilityLabel(
+                        isFavorited ? Text("Remove from favorites") : Text("Add to favorites")
+                    )
 
                     // Remove button
                     Button {
@@ -320,15 +333,15 @@ struct AutoEQSearchPanel: View {
         }
         .padding(.horizontal, DesignTokens.Spacing.sm)
         .padding(.vertical, DesignTokens.Spacing.sm)
-        .animation(.easeInOut(duration: 0.15), value: isCorrectionEnabled)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.15), value: isCorrectionEnabled)
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("\(name) correction profile")
+        .accessibilityLabel(Text("Correction profile") + Text(verbatim: ": \(name)"))
     }
 
     // MARK: - Mini Toggle
 
     private func miniToggle(
-        label: String,
+        label: LocalizedStringResource,
         isOn: Bool,
         action: @escaping () -> Void
     ) -> some View {
@@ -338,17 +351,18 @@ struct AutoEQSearchPanel: View {
                 .foregroundStyle(DesignTokens.Colors.autoEQToggleLabel)
 
             Toggle(
-                label,
                 isOn: Binding(get: { isOn }, set: { _ in action() })
-            )
+            ) {
+                Text(label)
+            }
             .toggleStyle(.switch)
             .controlSize(.mini)
             .scaleEffect(0.65)
             .labelsHidden()
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(label)
-        .accessibilityValue(isOn ? "On" : "Off")
+        .accessibilityLabel(Text(label))
+        .accessibilityValue(isOn ? Text("On") : Text("Off"))
     }
 
     // MARK: - Search Field
@@ -463,12 +477,12 @@ struct AutoEQSearchPanel: View {
 
     @ViewBuilder
     private var catalogError: some View {
-        if case .error(let message) = profileManager.catalogState,
+        if case .error = profileManager.catalogState,
            profileManager.catalogEntries.isEmpty {
             HStack(spacing: DesignTokens.Spacing.xs) {
                 Image(systemName: "exclamationmark.triangle")
                     .font(.system(size: 10))
-                Text(message)
+                Text("Failed to load")
                     .font(.system(size: 10))
             }
             .foregroundStyle(.red.opacity(0.9))
@@ -511,8 +525,30 @@ struct AutoEQSearchPanel: View {
 
     @ViewBuilder
     private var errorMessages: some View {
-        if let errorMessage = fetchError ?? importErrorMessage {
-            Text(errorMessage)
+        if let failedEntry = fetchFailureEntry {
+            HStack(spacing: DesignTokens.Spacing.sm) {
+                (Text("Failed to load") + Text(verbatim: " \(failedEntry.name)"))
+                    .font(.system(size: 10))
+                    .foregroundStyle(.red.opacity(0.9))
+                    .lineLimit(1)
+                    .help(Text(verbatim: failedEntry.name))
+
+                Spacer(minLength: 0)
+
+                Button("Retry") {
+                    selectCatalogEntry(failedEntry)
+                }
+                .buttonStyle(.plain)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(DesignTokens.Colors.interactiveDefault)
+                .disabled(loadingProfileID != nil)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, DesignTokens.Spacing.sm)
+            .padding(.bottom, DesignTokens.Spacing.xs)
+            .transition(.opacity)
+        } else if let importErrorMessage {
+            Text(importErrorMessage)
                 .font(.system(size: 10))
                 .foregroundStyle(.red.opacity(0.9))
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -529,13 +565,17 @@ struct AutoEQSearchPanel: View {
         let total = cachedSearchResult.totalCount
         let shown = cachedSearchResult.entries.count
         if total > shown {
-            Text("Showing \(shown) of \(total) results")
+            (Text("Showing")
+                + Text(verbatim: " \(shown) ")
+                + Text("of")
+                + Text(verbatim: " \(total) ")
+                + Text("results"))
                 .font(.system(size: 9))
                 .foregroundStyle(DesignTokens.Colors.textTertiary)
                 .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.vertical, DesignTokens.Spacing.xxs)
         } else if total > 0 {
-            Text("\(total) results")
+            (Text(verbatim: "\(total) ") + Text("results"))
                 .font(.system(size: 9))
                 .foregroundStyle(DesignTokens.Colors.textTertiary)
                 .frame(maxWidth: .infinity, alignment: .center)
@@ -554,88 +594,98 @@ struct AutoEQSearchPanel: View {
         let isStarHovered = starHoveredID == entry.id
         let isRowHighlighted = isHighlighted(itemID)
         let isLoading = loadingProfileID == entry.id
+        let isFavoriteFocused = focusedFavoriteID == entry.id
 
-        HStack {
-            VStack(alignment: .leading, spacing: 1) {
-                Text(entry.name)
-                    .font(.system(size: 11, weight: isSelected ? .semibold : .regular))
-                    .foregroundStyle(DesignTokens.Colors.textPrimary)
-                    .lineLimit(1)
+        HStack(spacing: 0) {
+            Button {
+                selectCatalogEntry(entry)
+            } label: {
+                HStack {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(verbatim: entry.name)
+                            .font(.system(size: 11, weight: isSelected ? .semibold : .regular))
+                            .foregroundStyle(DesignTokens.Colors.textPrimary)
+                            .lineLimit(1)
 
-                Text(entry.measuredBy)
-                    .font(.system(size: 9))
-                    .foregroundStyle(DesignTokens.Colors.textTertiary)
+                        sourceText(for: entry)
+                            .font(.system(size: 9))
+                            .foregroundStyle(DesignTokens.Colors.textTertiary)
+                    }
+
+                    Spacer()
+
+                    if isLoading {
+                        ProgressView()
+                            .controlSize(.mini)
+                    } else if isSelected {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(Color.accentColor)
+                    }
+                }
+                .padding(.leading, DesignTokens.Spacing.sm)
+                .padding(.trailing, DesignTokens.Spacing.xs)
+                .frame(height: itemHeight)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .disabled(loadingProfileID != nil)
+            .help(Text(verbatim: entry.name))
+            .accessibilityLabel(Text(verbatim: entry.name))
+            .accessibilityAddTraits(isSelected ? .isSelected : [])
+            .accessibilityHint("Apply this correction profile")
 
-            Spacer()
-
-            if isLoading {
-                ProgressView()
-                    .controlSize(.mini)
-            } else {
+            if !isLoading {
                 starButton(
                     id: entry.id,
                     isFavorited: isFavorited,
-                    isVisible: isRowHovered || isRowHighlighted,
+                    isVisible: isRowHovered || isRowHighlighted || isFavoriteFocused,
                     isStarHovered: isStarHovered
                 )
-
-                if isSelected {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(Color.accentColor)
-                }
+                .padding(.trailing, DesignTokens.Spacing.xs)
             }
         }
-        .padding(.horizontal, DesignTokens.Spacing.sm)
-        .frame(height: itemHeight)
         .background(
             RoundedRectangle(cornerRadius: 5)
                 .fill(rowHighlight(for: itemID, isHovered: isRowHovered))
         )
         .contentShape(Rectangle())
-        .onTapGesture {
-            selectCatalogEntry(entry)
-        }
-        .accessibilityAddTraits(.isButton)
         .whenHovered { isHovered in
             hoveredID = isHovered ? entry.id : nil
             if isHovered { highlightedIndex = nil }
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(entry.name)
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
-        .accessibilityHint("Apply this correction profile")
     }
 
     // MARK: - Star Button (browse zone rows)
 
-    @ViewBuilder
     private func starButton(
         id: String,
         isFavorited: Bool,
         isVisible: Bool,
         isStarHovered: Bool
     ) -> some View {
-        if isFavorited || isVisible {
-            Button {
-                onToggleFavorite(id)
-            } label: {
-                Image(systemName: isFavorited ? "star.fill" : "star")
-                    .font(.system(size: 10))
-                    .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(
-                        starColor(isFavorited: isFavorited, isStarHovered: isStarHovered)
-                    )
-                    .frame(width: 20, height: 20)
-                    .contentShape(Rectangle())
-                    .scaleEffect(isStarHovered ? 1.1 : 1.0)
-            }
-            .buttonStyle(.plain)
-            .onHover { starHoveredID = $0 ? id : nil }
-            .animation(DesignTokens.Animation.hover, value: isStarHovered)
-            .accessibilityLabel(isFavorited ? "Remove from favorites" : "Add to favorites")
+        Button {
+            onToggleFavorite(id)
+        } label: {
+            Image(systemName: isFavorited ? "star.fill" : "star")
+                .font(.system(size: 10))
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(
+                    starColor(isFavorited: isFavorited, isStarHovered: isStarHovered)
+                )
+                .frame(width: 20, height: 20)
+                .contentShape(Rectangle())
+                .scaleEffect(reduceMotion ? 1.0 : (isStarHovered ? 1.1 : 1.0))
         }
+        .buttonStyle(.plain)
+        .focused($focusedFavoriteID, equals: id)
+        .onHover { starHoveredID = $0 ? id : nil }
+        .animation(reduceMotion ? nil : DesignTokens.Animation.hover, value: isStarHovered)
+        .opacity(isFavorited || isVisible ? 1.0 : 0.0)
+        .accessibilityLabel(
+            isFavorited ? Text("Remove from favorites") : Text("Add to favorites")
+        )
     }
 
     // MARK: - Async Selection
@@ -643,18 +693,14 @@ struct AutoEQSearchPanel: View {
     private func selectCatalogEntry(_ entry: AutoEQCatalogEntry) {
         guard loadingProfileID == nil else { return }
         loadingProfileID = entry.id
-        fetchError = nil
+        fetchFailureEntry = nil
 
         Task { @MainActor in
             if let profile = await profileManager.resolveProfile(for: entry) {
                 onSelect(profile)
                 onDismiss()
             } else {
-                fetchError = "Failed to load \(entry.name)"
-                Task {
-                    try? await Task.sleep(for: .seconds(3))
-                    if fetchError != nil { fetchError = nil }
-                }
+                fetchFailureEntry = entry
             }
             loadingProfileID = nil
         }
@@ -694,12 +740,23 @@ struct AutoEQSearchPanel: View {
         let items = navigableItems
         guard let index = highlightedIndex, index < items.count else { return }
         let profileID = items[index].profileID
-        withAnimation(.easeOut(duration: 0.1)) {
+        if reduceMotion {
             proxy.scrollTo(profileID, anchor: .center)
+        } else {
+            withAnimation(.easeOut(duration: 0.1)) {
+                proxy.scrollTo(profileID, anchor: .center)
+            }
         }
     }
 
     // MARK: - Helpers
+
+    private func sourceText(for entry: AutoEQCatalogEntry) -> Text {
+        if profileManager.profile(for: entry.id)?.source == .imported {
+            return Text("Imported")
+        }
+        return Text(verbatim: entry.measuredBy)
+    }
 
     private func isHighlighted(_ itemID: String) -> Bool {
         guard let index = highlightedIndex else { return false }

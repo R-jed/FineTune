@@ -202,11 +202,10 @@ final class VolumeState {
     // MARK: - Private
 
     private func ensureState(for pid: pid_t, identifier: String) {
-        if states[pid] == nil {
+        guard states[pid]?.persistenceIdentifier == identifier else {
             let defaultVolume = settingsManager?.appSettings.defaultNewAppVolume ?? 1.0
             states[pid] = AppAudioState(volume: defaultVolume, muted: false, persistenceIdentifier: identifier)
-        } else if states[pid]?.persistenceIdentifier != identifier {
-            states[pid]?.persistenceIdentifier = identifier
+            return
         }
     }
 }

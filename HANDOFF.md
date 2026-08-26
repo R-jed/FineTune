@@ -1,157 +1,291 @@
 # FineTune Project Handoff
 
-Last updated: 2026-08-23
+Last updated: 2026-08-26
 
-This file is the starting context for future development sessions on this repository. Read it before changing code, then verify any time-sensitive details against the repository itself.
+Read this file before changing code. Re-fetch the branch head and every sensitive file before each write.
 
 ## Project identity
 
-FineTune is a macOS menu bar audio-control application. It can control per-app volume, boost app gain, route apps to different output devices, manage output/input device levels, provide per-app EQ and AutoEQ headphone correction, handle global shortcuts and media keys, and display its own volume HUD.
+FineTune is a macOS menu bar audio-control application. It controls per-app volume and gain, application routing, output and input device levels, EQ, AutoEQ, global shortcuts, media keys, and FineTune-owned volume HUDs.
 
 Repository: `R-jed/FineTune`
 
-Upstream origin used to bootstrap this repository: `ronitsingh10/FineTune`
+Upstream bootstrap source: `ronitsingh10/FineTune`
 
-Bootstrap baseline:
+Bootstrap commit: `2285279d36d3f8115c1c2d4aecd904f1bdf96a51`
 
-- Upstream branch: `main`
-- Upstream commit: `2285279d36d3f8115c1c2d4aecd904f1bdf96a51`
-- Upstream tree: `cfc960ed5e09651c8876aa42c2443adffe0705a5`
-- Upstream release represented by that snapshot: v1.9.0
-- License: GNU GPL v3
-- Original copyright notice must be preserved.
+License: GNU GPL v3. Preserve the original copyright notice.
 
-The initial `R-jed/FineTune` snapshot was verified at the Git tree level against the upstream tree before project-specific development began. Later commits in this repository intentionally diverge from that upstream snapshot.
+## Active development state
 
-## Current platform and dependencies
+Stable base: `main`
 
-FineTune targets macOS 15.0 or later. The release workflow currently builds on macOS 26 runners.
+Active acceptance branch: `integration/full-product-acceptance`
 
-Important Swift Package dependencies pinned in `Package.resolved`:
+Pull request: #10, `integration: full product acceptance`
 
-- FluidMenuBarExtra 1.5.1
-- KeyboardShortcuts 2.4.0
-- Sparkle 2.8.1
-- swift-snapshot-testing 1.18.7
-- swift-custom-dump 1.3.3
-- SwiftSyntax 602.0.0
-- XCTest Dynamic Overlay 1.8.1
+PR #10 integrates the current product/UI/localization work with running-app discovery, source-activity metering, Biquad realtime quiescence, tap processor-generation ownership, identity/lifecycle repairs, ordered settings persistence, and the latest app-list interaction refinements.
 
-Do not upgrade dependencies casually. Read the relevant changelog or migration guidance, change one dependency or tightly related group at a time, and verify the lockfile diff.
+Verified integration-code head before this handoff refresh:
 
-## Build and test commands
+`f7c8caa32079c770aac935fef13fd406b2536908`
 
-The repository CI defines the canonical build and test path.
+CI #155 on that exact code head passed Build, the complete non-UI Test suite, test-result upload, and the complete job.
 
-Build:
+PR #10 is Draft and unmerged. Do not merge it without explicit authorization. The next gate is local macOS acceptance on the final exact head.
 
-```bash
-xcodebuild build \
-  -project FineTune.xcodeproj \
-  -scheme FineTune \
-  -configuration Debug \
-  CODE_SIGN_IDENTITY=- \
-  CODE_SIGNING_REQUIRED=NO
-```
+A documentation-only commit may follow the verified code head above. Do not treat that as product-code drift. Re-fetch the current branch head before starting work and confirm any later CI result.
 
-Test:
+The localization source work originated on PR #5. Historical localization details below remain useful, but PR #10 is the current acceptance baseline.
 
-```bash
-xcodebuild test \
-  -project FineTune.xcodeproj \
-  -scheme FineTune \
-  -configuration Debug \
-  -skip-testing:FineTuneUITests \
-  CODE_SIGN_IDENTITY=- \
-  CODE_SIGNING_REQUIRED=NO \
-  -resultBundlePath build/TestResults.xcresult
-```
+## Product language specification
 
-A change is not complete until the relevant tests and build pass. For UI work, also verify the affected window or menu bar surface manually when possible.
-
-## Repository structure
-
-Main application code lives in `FineTune/`.
-
-Key areas:
-
-- `FineTune/FineTuneApp.swift`: application composition and lifetime wiring. Creates the audio engine and long-lived services, declares the Settings scene and FluidMenuBarExtra.
-- `FineTune/Audio/`: audio capture, routing, gain, EQ, device volume backends and related audio logic.
-- `FineTune/Coordination/`: coordination and service-level orchestration.
-- `FineTune/Models/`: domain models and state representations.
-- `FineTune/Settings/`: persisted settings, migrations, settings-facing types and state.
-- `FineTune/Shortcuts/`: global shortcuts and related command handling.
-- `FineTune/Utilities/`: shared utilities and platform helpers.
-- `FineTune/Views/`: SwiftUI and AppKit-backed presentation code.
-- `FineTune/Views/MenuBarPopupView.swift`: large central menu bar popup surface. Treat changes here carefully because it is already a large file.
-- `FineTune/Views/Settings/`: Settings window root, reusable Settings components, and tab content.
-- `FineTuneTests/`: unit and integration-style tests.
-- `.github/workflows/ci.yml`: build and test CI.
-- `.github/workflows/release.yml`: signed/notarized release process and Sparkle appcast generation.
-
-## Architecture notes
-
-`FineTuneApp` creates a single `SettingsManager` and injects it through the production graph via `AudioEngine`. Settings UI receives the same manager with Swift Observation (`@Bindable`). This makes `SettingsManager` the natural owner for new persisted app-wide preferences.
-
-The Settings window is a SwiftUI `TabView` with General, Audio, Shortcuts, Updates, and About sections. Window appearance is already user-selectable and is applied through both SwiftUI and AppKit bridges.
-
-The app mixes SwiftUI-localizable view initializers such as `Text`, `Label`, `Button`, and custom component APIs that currently accept plain `String`. A localization implementation must account for both paths. Do not assume that converting only visible `Text("...")` calls is sufficient.
-
-Several enums use English display strings through `CustomStringConvertible` or raw values, including appearance, popup size, menu bar icon style and volume hotkey step. Persisted values must stay stable when presentation labels are localized. Do not change Codable/raw persistence identifiers merely to translate UI text.
-
-## Current UI language state
-
-The repository already contains `README.zh-CN.md`, but the application UI is effectively English-only. Visible text is hardcoded across Settings, menu bar popup, pickers, dialogs, permission/error surfaces, device UI and supporting presentation types.
-
-The next planned feature is full application UI localization with an in-app language selector. Initial scope:
+FineTune-owned UI supports exactly two languages:
 
 - English
-- Simplified Chinese (`zh-Hans`)
-- A user-facing language selector in Settings
-- Complete translation of user-visible application UI, including dialogs, menu bar popup, Settings, pickers, labels, permission/help text, empty states and user-facing errors
-- Stable English/internal identifiers for persistence, URLs, commands and programmatic keys
-- Tests or automated checks that make missing localization coverage visible
+- Simplified Chinese
 
-Do not implement this as a table of ad-hoc ternaries. Use the native Apple localization system and keep localization resources as the source of truth.
+The in-app selector exposes exactly:
 
-## Known upstream-specific references
+- `Auto`
+- `English`
+- `简体中文`
 
-Because the repository began as a faithful upstream snapshot, several user-facing and release paths still refer to `ronitsingh10/FineTune`, including README download/release links and parts of the release/appcast workflow.
+Persisted enum identities remain stable:
 
-Do not silently rewrite these while working on unrelated features. Treat repository ownership/release migration as its own reviewed change.
+- `.system` -> `system`
+- `.english` -> `en`
+- `.simplifiedChinese` -> `zh-Hans`
 
-The release workflow also depends on signing, notarization, Sparkle and repository secrets. A normal feature change must not alter release secrets or signing assumptions unless that work is explicitly in scope.
+`Auto` is the product behavior of the persisted `.system` case. It reads only the first preferred system UI language and maps it to one supported UI language:
 
-## Development rules for future sessions
+- any Chinese identifier -> `zh-Hans`
+- every non-Chinese identifier -> `en`
+- missing or unusable preferred-language data -> `en`
+- only the first preferred language controls the result
 
-Before implementation:
+Verified examples include `zh-Hans-CN`, `zh-Hant-TW`, `zh_CN`, and `zh` mapping to `zh-Hans`; `en-AU`, `ja-JP`, and `fr-FR` mapping to `en`; an empty list mapping to `en`; and `["ja-JP", "zh-Hans"]` mapping to `en` because only the first item controls Auto.
 
-1. Read this file, the relevant source files and tests.
-2. Establish the exact behavioral goal and success criteria.
-3. For framework-specific decisions, verify the current pattern against official Apple or dependency documentation that matches the project version.
-4. Prefer the smallest architectural change that solves the whole requirement cleanly.
+Do not reintroduce the earlier Follow System runtime semantics. Do not add Traditional Chinese UI, Japanese UI, region-specific UI variants, or a large language fallback table.
 
-During implementation:
+## Localization architecture
 
-- Branch from `main` using a short-lived feature/fix/refactor branch.
-- Keep `main` usable.
-- Make focused commits with one logical concern each.
-- Preserve persisted data compatibility unless a migration is explicitly designed and tested.
-- Keep feature-specific logic in the owning module.
-- Avoid adding new dependencies when Foundation, SwiftUI, AppKit or existing packages already solve the problem.
-- Do not mix drive-by refactors with feature behavior.
-- For large files such as `MenuBarPopupView.swift`, prefer extraction when a change would add another independent responsibility.
+`AppLanguage` owns stable persistence identity and deterministic resolution to `en` or `zh-Hans`.
 
-Before merge:
+`LocalizationContext` is the first-party runtime localization boundary. It forces FineTune-owned presentation to one supported language while retaining the user's region for regional formatting.
 
-- Review correctness, readability, architecture, security and performance.
-- Run the relevant tests and full build.
-- Check for user-facing regressions and missing states.
-- Compare behavior against `main` for the changed feature.
-- Review the final diff for accidental unrelated changes.
+Preserve `LocalizedStringResource` while text crosses SwiftUI or presentation layers. Resolve to plain `String` only at final String-only boundaries such as AppKit APIs and `UNMutableNotificationContent`.
 
-## Localization initiative handoff
+Do not add a generic `localized(_ key: String)` production overload. CI #79 demonstrated why the typed resource boundary matters.
 
-When continuing the language feature, begin by reading the localization plan/spec committed with or after this handoff, then re-scan the current tree for new user-facing literals before implementation. The codebase may change between sessions, so a string inventory captured once is evidence for a baseline, not a permanent whitelist.
+Keep dynamic external identity values verbatim, including application names, audio-device names, user EQ preset names, AutoEQ profile/model/source names, UIDs, PIDs, bundle identifiers, versions, build numbers, URLs, SF Symbol identifiers, and technical identifiers.
 
-For Simplified Chinese, translations should read like native macOS product UI. Keep technical product names and established terms consistent across the popup, Settings and dialogs. Test layout with Chinese because translated lengths and line breaks differ from English even when Chinese often appears visually shorter.
+Keep one first-party UI catalog: `FineTune/Localizable.xcstrings`. `FineTune/InfoPlist.xcstrings` is dedicated to localized Info.plist values.
+
+Detached `NSHostingView` roots are explicit locale boundaries. Current fixes cover shared popovers, Tahoe HUD, Classic HUD, and per-app HUD roots.
+
+## Verified implementation state
+
+Completed and source-reviewed work includes:
+
+- runtime `Auto`, English, and Simplified Chinese language selection with stable persistence
+- locale propagation into Settings, menu-bar content, detached popovers, and all FineTune HUD hosting roots
+- localized Settings, popup, shared controls, EQ, AutoEQ, device presentation, permission presentation, help, accessibility copy, Bluetooth failures, notifications, and privacy-purpose strings
+- typed Bluetooth connection failure state
+- centralized HUD presentation with Chinese regression coverage
+- device notification presentation connected to all three production `AudioEngine` notification paths
+- semantic localized fallbacks for missing disconnect/default device names
+- dynamic application, device, AutoEQ profile/source, and user preset names kept verbatim
+- generated String Catalog collision handling without disabling generated symbols globally
+- localized device-icon category headers, Chinese category search, and localized accessibility descriptors
+- localized AutoEQ catalog failure presentation while detailed network diagnostics remain in logs
+- hidden applications managed through the existing secondary menu while pin remains a first-level row control
+- whole-row drag initiation for visible and inactive application rows
+- native slashed pin state using `pin.slash` for clearer pin-state contrast
+- per-app volume wheel adjustment gated behind Option+scroll so ordinary list scrolling passes through unchanged
+
+The notification integration is commit:
+
+`b556b5019b8dc21931416094b0a5c5dc0d30647d`
+
+The final localization source-review fixes are:
+
+- `5ebf8735936b4cc2d52668c2282f4015bb5d161a`: device-icon discovery localization was introduced, but CI #85 found an invalid `String(localized:locale:)` overload use
+- `603a2731f2829d4d2a0e08de8afcf8934e203acc`: corrected the device-icon resource resolution boundary
+- `5a5272ce26004e64c62e8eb6140185d1ee6ad832`: corrected the corresponding tests to use the typed localization boundary
+- `ad4e09077e708de0989b4e5ceb9bab5d8e22c03e`: localized the AutoEQ catalog failure state using existing FineTune-owned catalog copy
+
+The AutoEQ fix intentionally leaves `AutoEQFetcher`'s detailed English diagnostic strings in its internal state/logging path. The user-facing panel no longer renders those strings verbatim.
+
+## Integrated acceptance invariants
+
+The current acceptance contract is maintained in `tasks/full-product-acceptance-review.md`. In particular:
+
+- running regular applications stay visible without requiring live audio
+- pinning preserves inactive representation, while hiding is reversible presentation state
+- hidden-app restoration remains in the existing secondary menu; do not reintroduce a parallel visibility-edit mode without a new product requirement
+- pin remains a first-level app-row control and uses clearly differentiated native pin states
+- visible and inactive application rows expose the row surface as the drag target instead of requiring a small dedicated handle
+- ordinary wheel/trackpad scrolling must continue scrolling the app list; per-app volume changes through the wheel require an explicit Option modifier while the slider is hovered
+- `persistenceIdentifier` is durable app identity and PID is only the current process representative
+- tap ownership and transient `VolumeState` are reset when representative identity changes
+- source-activity metering, Biquad realtime quiescence, and tap processor-generation ownership retain their reviewed behavior
+- settings persistence is ordered so an older debounced write cannot overwrite a newer flush
+
+Do not weaken these invariants to preserve older implementation shortcuts.
+
+## CI truth
+
+Important history:
+
+- CI #73 passed after centralized HUD presentation.
+- CI #77 found generated String Catalog symbol collisions.
+- CI #78 and #79 exposed a test-only type error at the typed localization boundary.
+- CI #81 passed after that test-boundary repair.
+- CI #82 passed on the pre-notification handoff state.
+- CI #83 passed after production `AudioEngine` notification integration.
+- CI #84 passed on the documentation-synchronized branch state.
+- CI #85 failed during Build because `DeviceIconPicker` and its test used the wrong `String(localized:locale:)` overload with `LocalizedStringResource`.
+- CI #87 at `ad4e09077e708de0989b4e5ceb9bab5d8e22c03e` passed Build, Test, test-result upload, and the complete job after the localization source-review fixes.
+- CI #148 exposed one localization test-environment failure while validating a staged settings-write repair; the failure was unrelated to settings write ordering.
+- The settings-write repair was then committed to source, the temporary CI source-rewrite/writeback path was removed, and later fixes restored the full suite.
+- CI #152 at `83bf4f880246cf959e7cc1f668e181c37ea88ac9` passed Build, the complete non-UI Test suite, test-result upload, and the complete job.
+- CI #154 on the first app-list interaction implementation built successfully but exposed nondeterministic setup in `SettingsManagerWriteOrderingTests`: the test waited on `SettingsManager`'s 500 ms debounce/MainActor scheduling before reaching the coordinator invariant.
+- The ordering regression test now drives `SettingsWriteCoordinator` directly, preserving the stale-write-versus-flush proof without depending on debounce scheduling. Product settings-persistence code was unchanged by this correction.
+- CI #155 at `f7c8caa32079c770aac935fef13fd406b2536908` passed Build, the complete non-UI Test suite, test-result upload, and the complete job after the app-list interaction correction and deterministic test repair.
+
+CI #155 details:
+
+- run id: `32919970062`
+- job id: `98031466839`
+
+Treat `f7c8caa32079c770aac935fef13fd406b2536908` as the verified integration-code baseline before this handoff refresh. If the current branch head is a later documentation-only commit, inspect its diff and exact-head CI before assuming product code changed.
+
+## Full-repository review findings
+
+The source review covered both PR-changed files and high-risk presentation, app-discovery, settings-persistence, audio-lifetime, and identity boundaries.
+
+Confirmed examples include:
+
+- `ThemeTilePicker`, popup-size controls, and Shortcuts use localized display resources rather than English `description` values
+- `UpdatesTab` formats relative dates with `LocalizationContext.presentationLocale`
+- `MenuBarPopupView` localizes its custom AutoEQ `NSOpenPanel.message` and keeps imported external names verbatim
+- `DeviceDetailSheet` uses localizable tier resources
+- `AppRowControls`, `RadioButton`, `EditablePercentage`, `PermissionBannerView`, and app/device edit controls use catalog-backed SwiftUI copy
+- `URLHandler` user-like English strings are logs, not presentation
+- `UpdateManager` delegates standard updater UI to Sparkle, which is a dependency-owned localization boundary
+- menu-bar icon coordinator strings are identity/logging values rather than localized interface prose
+- running-app discovery fingerprints include durable identity, process objects, helper state, and source-audio state
+- same-PID identity replacement rebuilds transient volume state before persisted settings are applied
+- HAL callbacks retain their processor generation instead of dynamically borrowing a replacement generation
+- Biquad setup retirement waits for a real realtime-reader quiescent point
+- `SettingsManager` serializes persistence writes and its termination flush drains older queued writes
+- the hidden-app interaction reuses the existing secondary `Menu` instead of maintaining a second editing surface
+- row dragging uses the existing row surface as its hit target while preserving row controls
+- unpinned state uses the native `pin.slash` symbol and keeps accessibility label/help text
+- normal scroll events are returned to the app list unchanged unless Option is held over the volume slider
+
+The review also rechecked the full current String Catalog blob after a truncated API response initially produced false-negative searches. Current catalog entries include device-picker, mode-toggle, EQ, AutoEQ, device-inspector, Bluetooth, notification, and HUD resources. Do not repeat the earlier false conclusion that `System Audio`, `Single`, or `hud.muted` are missing.
+
+## Defensive `Untitled` fallback
+
+`SettingsManager.createUserPreset` retains a defensive fallback to `"Untitled"` when called with an empty name.
+
+The shipping `EQPanelView` save flow trims the name, disables save for empty input, and guards empty submission before calling `createUserPreset`. The reviewed product UI therefore does not expose the defensive fallback. User-entered preset names remain verbatim by design.
+
+If a future caller can reach `createUserPreset` with an empty name from user-facing UI, revisit this decision at that call site rather than making stored preset identity locale-dependent without a product requirement.
+
+## Dependency and system boundaries
+
+The approved scope is complete Simplified Chinese coverage for FineTune-owned UI. The in-app runtime selector does not change the process-wide macOS application language.
+
+### Sparkle 2.8.1
+
+FineTune uses `SPUStandardUpdaterController`.
+
+Sparkle standard UI resolves strings from the Sparkle framework bundle. FineTune's `LocalizationContext` does not control that bundle lookup. Sparkle's standard update window therefore follows native bundle/application language selection and is not guaranteed to follow FineTune's in-app selector under a language mismatch.
+
+Do not replace `SPUStandardUserDriver`, mutate `AppleLanguages`, swizzle bundles, or add another process-language forcing mechanism in this PR. A custom updater UI requires a separate product/security decision.
+
+### KeyboardShortcuts 2.4.0
+
+The package includes `zh-Hans` resources. Package-owned Recorder text resolves from the package resource bundle.
+
+FineTune-owned Shortcuts labels and descriptions follow the FineTune selector. Recorder placeholders and dependency-owned conflict alerts are not guaranteed to follow FineTune's runtime override when native application language differs.
+
+Do not fork or replace the dependency solely to force this behavior without separate approval.
+
+### macOS-owned UI
+
+FineTune ships localized privacy purpose strings and can localize its own custom panel messages. macOS owns privacy-prompt chrome and standard file-panel controls. Their language remains a native platform/application-language boundary.
+
+## What remains unproven
+
+Automated CI cannot substitute for local macOS runtime acceptance. Do not claim the following have been visually or physically verified until they are observed on the acceptance machine:
+
+- every Settings tab in English, Simplified Chinese, and Auto
+- Compact, Comfortable, and Spacious popup layout
+- all Output/Input/edit/EQ/AutoEQ/device-detail states
+- clipping, wrapping, truncation, visual balance, and translation quality
+- live notification appearance and VoiceOver/help behavior
+- Sparkle, KeyboardShortcuts, privacy prompts, and standard file-panel chrome under native/FineTune language mismatch
+- permission denial and later grant/recovery behavior
+- quiet-running app visibility across launch/termination and representative-PID changes
+- hidden-app secondary-menu restoration and repeated Hide/Restore behavior on real app state
+- whole-row drag feel, reorder behavior, and whether slider/button interaction stays free of accidental drag initiation
+- visual clarity of the slashed pin state across hover, selection, and appearance modes
+- ordinary list scrolling near/over volume sliders plus intentional Option+scroll adjustment and discoverability
+- routing and tap behavior across real output devices and app lifecycle transitions
+- sleep/wake and application termination persistence behavior
+
+The local macOS acceptance pass must cover the relevant runtime matrix before merge authorization.
+
+## Final gates before merge authorization
+
+1. Re-fetch the current PR #10 head and confirm exact-head CI is green.
+2. Perform the macOS GUI smoke matrix in explicit English, explicit Simplified Chinese, and both Auto resolution directions.
+3. Check Compact, Comfortable, and Spacious popup layouts for clipping, overlap, wrapping, and truncation.
+4. Exercise representative Output/Input, edit, EQ, AutoEQ, permission, Bluetooth, device-detail, notification, help, and accessibility states.
+5. Exercise app discovery, quiet-running visibility, hidden-app secondary-menu Hide/Restore, whole-row reordering, pin-state clarity, ordinary scrolling versus Option+scroll volume adjustment, representative-PID changes, routing, sleep/wake, and termination persistence on real macOS hardware.
+6. Observe dependency/system-owned language behavior accurately and record it as a boundary without silently extending scope.
+7. Recompare the final PR #10 branch with `main` for unrelated release, signing, appcast, dependency, or business-logic drift.
+8. Keep PR #10 Draft and unmerged until explicit authorization.
+
+## Sensitive files
+
+Treat these as high risk:
+
+- `FineTune/Audio/Engine/AudioEngine.swift`
+- `FineTune/Audio/Engine/ProcessTapController.swift`
+- `FineTune/Audio/EQ/BiquadProcessor.swift`
+- `FineTune/Audio/Monitors/AudioProcessMonitor.swift`
+- `FineTune/Settings/SettingsManager.swift`
+- `FineTune/Localizable.xcstrings`
+- `FineTune/Views/MenuBarPopupView.swift`
+- `FineTune/Views/Rows/AppRow.swift`
+- `FineTune/Views/Rows/InactiveAppRow.swift`
+- `FineTune/Views/Rows/AppRowControls.swift`
+- `FineTune/Views/Components/ScrollWheelStepModifier.swift`
+- `FineTune/Utilities/LocalizationContext.swift`
+- `FineTune/Settings/Types/AppLanguage.swift`
+- `.github/workflows/ci.yml`
+
+For large or sensitive files, reconstruct from the exact current blob, build a detached candidate, compare the resulting Git diff, and only then advance the acceptance branch.
+
+## Development rules
+
+Before writing:
+
+1. Re-fetch the branch/PR head.
+2. Re-fetch every exact file being changed.
+3. Verify the requested behavior and success criteria.
+4. Check official framework or dependency source documentation when an assumption matters.
+
+Before claiming completion:
+
+1. Verify Build and Test from the final branch head.
+2. Diagnose failures from exact logs or `.xcresult` evidence.
+3. Review the final diff against `main`.
+4. Separate automated facts from manual/runtime observations.
+5. Update handoff evidence only when it adds substantive information. Do not create an endless documentation-head recursion merely to record the SHA of the previous documentation commit.
+6. Do not merge PR #10 without explicit authorization.

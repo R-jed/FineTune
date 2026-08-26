@@ -1,4 +1,3 @@
-// FineTune/Views/Components/PopoverHost.swift
 import SwiftUI
 import AppKit
 
@@ -20,6 +19,8 @@ struct PopoverHost<Content: View>: NSViewRepresentable {
     let nsAppearance: NSAppearance?
     @ViewBuilder let content: () -> Content
 
+    @Environment(\.locale) private var locale
+
     func makeNSView(context: Context) -> NSView {
         NSView()
     }
@@ -35,6 +36,7 @@ struct PopoverHost<Content: View>: NSViewRepresentable {
                 context.coordinator.showPanel(
                     from: nsView,
                     content: content,
+                    locale: locale,
                     preferredColorScheme: preferredColorScheme,
                     nsAppearance: nsAppearance
                 )
@@ -42,6 +44,7 @@ struct PopoverHost<Content: View>: NSViewRepresentable {
                 // Update content when state changes while panel is open
                 context.coordinator.updateContent(
                     content,
+                    locale: locale,
                     preferredColorScheme: preferredColorScheme,
                     nsAppearance: nsAppearance
                 )
@@ -72,6 +75,7 @@ struct PopoverHost<Content: View>: NSViewRepresentable {
         func showPanel<V: View>(
             from parentView: NSView,
             content: () -> V,
+            locale: Locale,
             preferredColorScheme: ColorScheme?,
             nsAppearance: NSAppearance?
         ) {
@@ -96,9 +100,16 @@ struct PopoverHost<Content: View>: NSViewRepresentable {
 
             panel.becomesKeyOnlyIfNeeded = false
 
-            // Create hosting view with content, applying the resolved color scheme.
+            // Create hosting view with content, carrying the parent SwiftUI locale
+            // into this detached root and applying the resolved color scheme.
             // Use AnyView to allow rootView updates without replacing the hosting view.
-            let hosting: NSHostingView<AnyView> = NSHostingView(rootView: AnyView(content().preferredColorScheme(preferredColorScheme)))
+            let hosting: NSHostingView<AnyView> = NSHostingView(
+                rootView: AnyView(
+                    content()
+                        .environment(\.locale, locale)
+                        .preferredColorScheme(preferredColorScheme)
+                )
+            )
             hosting.frame.size = hosting.fittingSize
             panel.contentView = hosting
             panel.setContentSize(hosting.fittingSize)
@@ -129,9 +140,23 @@ struct PopoverHost<Content: View>: NSViewRepresentable {
             // Get trigger button frame in screen coordinates
             let triggerFrame = parentWindow.convertToScreen(parentView.convert(parentView.bounds, to: nil))
 
-            // Local monitor: clicks within our app (outside panel AND outside trigger)
-            localEventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
+            // Local monitor: clicks within our app and Escape while the custom
+            // panel is key. Escape is a shared dismissal contract for every
+            // PopoverHost consumer, including pickers without their own key handler.
+            localEventMonitor = NSEvent.addLocalMonitorForEvents(
+                matching: [.leftMouseDown, .rightMouseDown, .keyDown]
+            ) { [weak self] event in
                 guard let self = self, let panel = self.panel else { return event }
+
+                if event.type == .keyDown, event.keyCode == 53 {
+                    self.dismissPanel()
+                    return nil
+                }
+
+                guard event.type == .leftMouseDown || event.type == .rightMouseDown else {
+                    return event
+                }
+
                 let mouseLocation = NSEvent.mouseLocation
                 let isInPanel = panel.frame.contains(mouseLocation)
                 let isInTrigger = triggerFrame.contains(mouseLocation)
@@ -140,7 +165,7 @@ struct PopoverHost<Content: View>: NSViewRepresentable {
                 if !isInPanel && !isInTrigger {
                     self.dismissPanel()
                 }
-                return event  // Don't consume
+                return event  // Don't consume pointer events
             }
 
             // Global monitor: clicks in OTHER apps (dismisses panel + parent)
@@ -162,6 +187,7 @@ struct PopoverHost<Content: View>: NSViewRepresentable {
 
         func updateContent<V: View>(
             _ content: () -> V,
+            locale: Locale,
             preferredColorScheme: ColorScheme?,
             nsAppearance: NSAppearance?
         ) {
@@ -169,9 +195,13 @@ struct PopoverHost<Content: View>: NSViewRepresentable {
             // Re-apply appearance in case the preference changed while the
             // panel is open. Setting to the same value is a no-op.
             panel?.appearance = nsAppearance
-            // Update existing hosting view's rootView instead of replacing it
-            // This allows SwiftUI to perform efficient diffing without flickering
-            hostingView.rootView = AnyView(content().preferredColorScheme(preferredColorScheme))
+            // Update existing hosting view's rootView instead of replacing it.
+            // Re-apply locale so a live language change reaches an open panel.
+            hostingView.rootView = AnyView(
+                content()
+                    .environment(\.locale, locale)
+                    .preferredColorScheme(preferredColorScheme)
+            )
             // Resize panel if content size changed
             let newSize = hostingView.fittingSize
             if let panel = panel, panel.frame.size != newSize {
@@ -210,7 +240,7 @@ struct PopoverHost<Content: View>: NSViewRepresentable {
                     parentWindow.makeKey()
                 } else {
                     // External dismiss — re-key then resign so FluidMenuBarExtra
-                    // runs its standard dismiss animation
+                    // runs its standard dismiss animation.
                     parentWindow.makeKey()
                     parentWindow.resignKey()
                 }

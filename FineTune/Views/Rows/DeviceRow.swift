@@ -38,7 +38,7 @@ struct DeviceRow: View {
     let onAutoEQSelect: ((AutoEQProfile?) -> Void)?
     let onAutoEQImport: (() -> Void)?
     let onAutoEQToggleFavorite: ((String) -> Void)?
-    let autoEQImportError: String?
+    let autoEQImportError: LocalizedStringResource?
     let autoEQPreampEnabled: Bool
     let onAutoEQPreampToggle: (() -> Void)?
     let isFocused: Bool
@@ -90,7 +90,7 @@ struct DeviceRow: View {
         onAutoEQSelect: ((AutoEQProfile?) -> Void)? = nil,
         onAutoEQImport: (() -> Void)? = nil,
         onAutoEQToggleFavorite: ((String) -> Void)? = nil,
-        autoEQImportError: String? = nil,
+        autoEQImportError: LocalizedStringResource? = nil,
         autoEQPreampEnabled: Bool = true,
         onAutoEQPreampToggle: (() -> Void)? = nil,
         isFocused: Bool = false,
@@ -142,24 +142,30 @@ struct DeviceRow: View {
     private var deviceHeader: some View {
         HStack(spacing: DesignTokens.Spacing.sm) {
             // Tinted badge replaces the prior leading RadioButton.
-            // Selection is now signalled by accent-colored gradient on the
-            // badge plus bold device name; the row-level gesture in `body`
-            // handles tap-to-set-default.
+            // Selection uses both the accent badge and name weight so state is
+            // still readable without relying on color alone.
             DeviceBadge(icon: displayIcon, isSelected: isDefault)
 
             // Device name + optional AutoEQ profile subtitle + AutoEQ picker
             HStack(spacing: DesignTokens.Spacing.xs) {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(device.name)
-                        .font(DesignTokens.Typography.rowName)
+                        .font(isDefault ? DesignTokens.Typography.rowNameBold : DesignTokens.Typography.rowName)
                         .lineLimit(1)
-                        .help(device.name)
+                        .help(Text(verbatim: device.name))
+                        .accessibilityValue(isDefault ? Text("Default device") : Text("Set as default"))
+                        .accessibilityAction {
+                            if !isDefault {
+                                onSetDefault()
+                            }
+                        }
 
-                    if let subtitle = Self.autoEQSubtitle(profileName: autoEQProfileName, isEnabled: autoEQEnabled) {
-                        Text(subtitle)
+                    if let profileName = autoEQProfileName {
+                        autoEQSubtitle(profileName: profileName)
                             .font(.system(size: 9))
                             .foregroundStyle(DesignTokens.Colors.textTertiary)
                             .lineLimit(1)
+                            .help(Text(verbatim: profileName))
                     }
                 }
 
@@ -210,7 +216,8 @@ struct DeviceRow: View {
                 value: $sliderValue,
                 onEditingChanged: { editing in
                     isEditing = editing
-                }
+                },
+                accessibilityLabel: Text("Volume") + Text(verbatim: ": \(device.name)")
             )
             .opacity(showMutedIcon ? 0.5 : 1.0)
             .onChange(of: sliderValue) { _, newValue in
@@ -229,7 +236,6 @@ struct DeviceRow: View {
                     onMuteToggle()
                 }
             }
-            .scrollWheelStep($sliderValue, in: 0.0...1.0)
 
             // Editable volume percentage
             EditablePercentage(
@@ -251,6 +257,11 @@ struct DeviceRow: View {
             sliderValue = newSlider
         }
     }
+
+    private func autoEQSubtitle(profileName: String) -> Text {
+        let profile = Text(verbatim: profileName)
+        return autoEQEnabled ? profile : profile + Text(" (off)")
+    }
 }
 
 extension DeviceRow {
@@ -262,13 +273,6 @@ extension DeviceRow {
 
     static func sliderToVolume(_ slider: Double, backend: VolumeControlTier) -> Float {
         VolumeMapping.systemGain(forSliderFraction: slider, tier: backend)
-    }
-
-    // MARK: - Subtitle
-
-    static func autoEQSubtitle(profileName: String?, isEnabled: Bool) -> String? {
-        guard let profileName else { return nil }
-        return isEnabled ? profileName : "\(profileName) (off)"
     }
 }
 

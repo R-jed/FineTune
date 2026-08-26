@@ -6,6 +6,7 @@ struct TahoeStyleHUD: View {
     let sliderFraction: Float
     let mute: Bool
     let deviceName: String
+    var language: AppLanguage = .system
     var onSliderChange: ((Float) -> Void)? = nil
     var onHoverChange: ((Bool) -> Void)? = nil
 
@@ -56,10 +57,12 @@ struct TahoeStyleHUD: View {
     #endif
 
     private var accessibilityDescription: String {
-        let device = deviceName.isEmpty ? "Unknown device" : deviceName
-        let percent = Int((displayFloat * 100).rounded())
-        if displayMute { return "\(device), muted, volume at \(percent) percent" }
-        return "\(device), volume \(percent) percent"
+        HUDPresentation.tahoeAccessibilityLabel(
+            deviceName: deviceName,
+            sliderFraction: Double(displayFloat),
+            mute: displayMute,
+            language: language
+        )
     }
 
     private var sliderBinding: Binding<Double> {
@@ -82,9 +85,9 @@ struct TahoeStyleHUD: View {
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .help(Text(verbatim: deviceName))
 
             HStack(spacing: 8) {
-                // Hard-swap — symbolEffect(.replace.*) cross-fades the whole wave glyph on every bin change.
                 Image(systemName: displayMute ? "speaker.slash.fill" : waveIconName)
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(displayMute
@@ -95,10 +98,10 @@ struct TahoeStyleHUD: View {
                 LiquidGlassSlider(
                     value: sliderBinding,
                     in: 0...1,
-                    showUnityMarker: false
+                    showUnityMarker: false,
+                    accessibilityLabel: Text("System volume")
                 )
                 .opacity(displayMute ? 0.5 : 1.0)
-                .scrollWheelStep(sliderBinding, in: 0.0...1.0)
 
                 Text(percentageText)
                     .font(.system(size: 11, weight: .semibold).monospacedDigit())
@@ -123,7 +126,6 @@ struct TahoeStyleHUD: View {
             onHoverChange?(hovering)
         }
         .onChange(of: sliderFraction) { _, _ in
-            // External source pushed a value; drop the sticky drag snapshot.
             dragValue = nil
         }
         .onChange(of: mute) { _, _ in

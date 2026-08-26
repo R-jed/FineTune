@@ -13,7 +13,7 @@ import os
 final class DeviceInspectorViewModel {
     private(set) var info: DeviceInspectorInfo
     private(set) var hogModeOwnerName: String?
-    var sampleRateError: String?
+    var sampleRateError: LocalizedStringResource?
 
     private let deviceID: AudioDeviceID
     private let uid: String
@@ -88,7 +88,7 @@ final class DeviceInspectorViewModel {
         let hogOwner = deviceID.readHogModeOwner()
 
         return DeviceInspectorInfo(
-            transportLabel: transportType.displayLabel,
+            transportType: transportType,
             sampleRate: sampleRate,
             availableSampleRates: available,
             sampleRateSettable: settable,
@@ -187,21 +187,21 @@ final class DeviceInspectorViewModel {
     }
 }
 
-// MARK: - TransportType human label
+// MARK: - TransportType display label
 
 extension TransportType {
-    /// Capitalized label used in the inspector info grid. Distinct from the
-    /// lowercased `description` which is used in the existing header row.
-    var displayLabel: String {
+    /// User-facing label used in the inspector info grid. Technical transport
+    /// names stay unchanged where they are established standards.
+    var displayName: LocalizedStringResource {
         switch self {
-        case .builtIn:     return "Built-in"
-        case .usb:         return "USB"
-        case .bluetooth:   return "Bluetooth"
-        case .bluetoothLE: return "Bluetooth LE"
-        case .airPlay:     return "AirPlay"
-        case .hdmi:        return "HDMI"
-        case .virtual:     return "Virtual"
-        default:           return "Other"
+        case .builtIn:     "Built-in"
+        case .usb:         "USB"
+        case .bluetooth:   "Bluetooth"
+        case .bluetoothLE: "Bluetooth LE"
+        case .airPlay:     "AirPlay"
+        case .hdmi:        "HDMI"
+        case .virtual:     "Virtual"
+        default:           "Other"
         }
     }
 }

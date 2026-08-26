@@ -16,6 +16,7 @@ struct DropdownMenu<Item: Identifiable, Label: View, ItemContent: View>: View wh
     @State private var isButtonHovered = false
 
     @Environment(\.appearancePreference) private var appearancePreference
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     // Configuration
     private let itemHeight: CGFloat = 26
@@ -42,7 +43,7 @@ struct DropdownMenu<Item: Identifiable, Label: View, ItemContent: View>: View wh
     // MARK: - Trigger Button
     private var triggerButton: some View {
         Button {
-            withAnimation(.snappy(duration: 0.2)) {
+            withAnimation(reduceMotion ? nil : .snappy(duration: 0.2)) {
                 isExpanded.toggle()
             }
         } label: {
@@ -57,7 +58,7 @@ struct DropdownMenu<Item: Identifiable, Label: View, ItemContent: View>: View wh
                     .font(.system(size: 8, weight: .semibold))
                     .foregroundStyle(.secondary)
                     .rotationEffect(.degrees(isExpanded ? -180 : 0))
-                    .animation(.easeInOut(duration: 0.25), value: isExpanded)
+                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: isExpanded)
             }
             .padding(.horizontal, DesignTokens.Spacing.sm)
             .padding(.vertical, 4)
@@ -77,7 +78,8 @@ struct DropdownMenu<Item: Identifiable, Label: View, ItemContent: View>: View wh
                 )
         }
         .onHover { isButtonHovered = $0 }
-        .animation(DesignTokens.Animation.hover, value: isButtonHovered)
+        .animation(reduceMotion ? nil : DesignTokens.Animation.hover, value: isButtonHovered)
+        .accessibilityValue(isExpanded ? Text("Expanded") : Text("Collapsed"))
     }
 
     // MARK: - Body
@@ -99,7 +101,7 @@ struct DropdownMenu<Item: Identifiable, Label: View, ItemContent: View>: View wh
                         cornerRadius: cornerRadius,
                         onSelect: { item in
                             onSelect(item)
-                            withAnimation(.easeOut(duration: animationDuration)) {
+                            withAnimation(reduceMotion ? nil : .easeOut(duration: animationDuration)) {
                                 isExpanded = false
                             }
                         },
@@ -165,6 +167,7 @@ private struct DropdownMenuItem<Item: Identifiable, ItemContent: View>: View whe
     @ViewBuilder let itemContent: (Item, Bool) -> ItemContent
 
     @State private var isHovered = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Button {
@@ -184,6 +187,8 @@ private struct DropdownMenuItem<Item: Identifiable, ItemContent: View>: View whe
         }
         .buttonStyle(.plain)
         .whenHovered { isHovered = $0 }
+        .animation(reduceMotion ? nil : DesignTokens.Animation.hover, value: isHovered)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 
@@ -195,7 +200,7 @@ struct GroupedDropdownMenu<Section: Identifiable & Hashable, Item: Identifiable,
 
     let sections: [Section]
     let itemsForSection: (Section) -> [Item]
-    let sectionTitle: (Section) -> String
+    let sectionTitle: (Section) -> Text
     let selectedItem: Item?
     let maxHeight: CGFloat
     let width: CGFloat
@@ -208,6 +213,7 @@ struct GroupedDropdownMenu<Section: Identifiable & Hashable, Item: Identifiable,
     @State private var isButtonHovered = false
 
     @Environment(\.appearancePreference) private var appearancePreference
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     // Configuration
     private let itemHeight: CGFloat = 22
@@ -222,7 +228,7 @@ struct GroupedDropdownMenu<Section: Identifiable & Hashable, Item: Identifiable,
     // MARK: - Trigger Button
     private var triggerButton: some View {
         Button {
-            withAnimation(.snappy(duration: 0.2)) {
+            withAnimation(reduceMotion ? nil : .snappy(duration: 0.2)) {
                 isExpanded.toggle()
             }
         } label: {
@@ -237,7 +243,7 @@ struct GroupedDropdownMenu<Section: Identifiable & Hashable, Item: Identifiable,
                     .font(.system(size: 8, weight: .semibold))
                     .foregroundStyle(.secondary)
                     .rotationEffect(.degrees(isExpanded ? -180 : 0))
-                    .animation(.easeInOut(duration: 0.25), value: isExpanded)
+                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: isExpanded)
             }
             .padding(.horizontal, DesignTokens.Spacing.sm)
             .padding(.vertical, 4)
@@ -257,7 +263,8 @@ struct GroupedDropdownMenu<Section: Identifiable & Hashable, Item: Identifiable,
                 )
         }
         .onHover { isButtonHovered = $0 }
-        .animation(DesignTokens.Animation.hover, value: isButtonHovered)
+        .animation(reduceMotion ? nil : DesignTokens.Animation.hover, value: isButtonHovered)
+        .accessibilityValue(isExpanded ? Text("Expanded") : Text("Collapsed"))
     }
 
     // MARK: - Body
@@ -281,7 +288,7 @@ struct GroupedDropdownMenu<Section: Identifiable & Hashable, Item: Identifiable,
                         cornerRadius: cornerRadius,
                         onSelect: { item in
                             onSelect(item)
-                            withAnimation(.easeOut(duration: animationDuration)) {
+                            withAnimation(reduceMotion ? nil : .easeOut(duration: animationDuration)) {
                                 isExpanded = false
                             }
                         },
@@ -299,7 +306,7 @@ private struct GroupedDropdownContentView<Section: Identifiable & Hashable, Item
 
     let sections: [Section]
     let itemsForSection: (Section) -> [Item]
-    let sectionTitle: (Section) -> String
+    let sectionTitle: (Section) -> Text
     let selectedItem: Item?
     let width: CGFloat
     let maxHeight: CGFloat
@@ -313,16 +320,15 @@ private struct GroupedDropdownContentView<Section: Identifiable & Hashable, Item
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 2) {
                 ForEach(sections) { section in
-                    // Section header
-                    Text(sectionTitle(section))
+                    sectionTitle(section)
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(.secondary)
                         .padding(.horizontal, 10)
                         .padding(.top, section.id == sections.first?.id ? 2 : 8)
                         .padding(.bottom, 2)
                         .frame(height: sectionHeaderHeight, alignment: .bottomLeading)
+                        .accessibilityAddTraits(.isHeader)
 
-                    // Items in section
                     ForEach(itemsForSection(section)) { item in
                         DropdownMenuItem(
                             item: item,

@@ -33,6 +33,14 @@ struct AppRowWithLevelPolling: View {
     let onRenameUserPreset: (UUID, String) -> Void
     let isEQExpanded: Bool
     let onEQToggle: () -> Void
+    let sliderWidth: CGFloat
+    let isPinned: Bool
+    let onTogglePin: () -> Void
+    let onHide: () -> Void
+    let isDragging: Bool
+    let dragOffset: CGFloat
+    let onDragChanged: (CGFloat) -> Void
+    let onDragEnded: () -> Void
     let isFocused: Bool
 
     @State private var displayLevel: Float = 0
@@ -69,6 +77,14 @@ struct AppRowWithLevelPolling: View {
         onRenameUserPreset: @escaping (UUID, String) -> Void = { _, _ in },
         isEQExpanded: Bool = false,
         onEQToggle: @escaping () -> Void = {},
+        sliderWidth: CGFloat = DesignTokens.Dimensions.sliderWidth,
+        isPinned: Bool = false,
+        onTogglePin: @escaping () -> Void = {},
+        onHide: @escaping () -> Void = {},
+        isDragging: Bool = false,
+        dragOffset: CGFloat = 0,
+        onDragChanged: @escaping (CGFloat) -> Void = { _ in },
+        onDragEnded: @escaping () -> Void = {},
         isFocused: Bool = false
     ) {
         self.app = app
@@ -101,6 +117,14 @@ struct AppRowWithLevelPolling: View {
         self.onRenameUserPreset = onRenameUserPreset
         self.isEQExpanded = isEQExpanded
         self.onEQToggle = onEQToggle
+        self.sliderWidth = sliderWidth
+        self.isPinned = isPinned
+        self.onTogglePin = onTogglePin
+        self.onHide = onHide
+        self.isDragging = isDragging
+        self.dragOffset = dragOffset
+        self.onDragChanged = onDragChanged
+        self.onDragEnded = onDragEnded
         self.isFocused = isFocused
     }
 
@@ -135,6 +159,14 @@ struct AppRowWithLevelPolling: View {
             onRenameUserPreset: onRenameUserPreset,
             isEQExpanded: isEQExpanded,
             onEQToggle: onEQToggle,
+            sliderWidth: sliderWidth,
+            isPinned: isPinned,
+            onTogglePin: onTogglePin,
+            onHide: onHide,
+            isDragging: isDragging,
+            dragOffset: dragOffset,
+            onDragChanged: onDragChanged,
+            onDragEnded: onDragEnded,
             isFocused: isFocused
         )
         .onAppear {

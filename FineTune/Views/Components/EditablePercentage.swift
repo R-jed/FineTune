@@ -15,15 +15,23 @@ struct EditablePercentage: View {
     @State private var inputText = ""
     @State private var isHovered = false
     @FocusState private var isFocused: Bool
+    @FocusState private var isActivationFocused: Bool
     @State private var coordinator = ClickOutsideCoordinator()
     @State private var componentFrame: CGRect = .zero
     @Environment(PopupTextEntryCoordinator.self) private var textEntry: PopupTextEntryCoordinator?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// Popup-owned keyboard entry, so first responder never leaves the nav anchor.
     private var keyboardBuffer: String? {
         isRowFocused ? textEntry?.buffer : nil
     }
     private var isVisuallyEditing: Bool { isEditing || keyboardBuffer != nil }
+
+    /// Settings and other standalone contexts need their own focusable activation path.
+    /// The menu-bar popup already owns percentage entry at the row-navigation layer.
+    private var canActivateDirectly: Bool {
+        textEntry == nil && !isEditing
+    }
 
     /// Text color adapts to state: accent when editing, secondary otherwise
     private var textColor: Color {
@@ -51,15 +59,16 @@ struct EditablePercentage: View {
                     .onSubmit { commit() }
                     .onExitCommand { cancel() }
                     .fixedSize()  // Size to content
+                    .accessibilityLabel("Volume percentage")
 
                 Text("%")
                     .font(DesignTokens.Typography.percentage)
                     .foregroundStyle(textColor)
             } else {
-                // Display mode: tappable percentage
+                // Display mode: pointer-clickable and, outside the popup, keyboard-focusable.
                 Text("\(percentage)%")
                     .font(DesignTokens.Typography.percentage)
-                    .foregroundStyle(isHovered ? DesignTokens.Colors.textPrimary : textColor)
+                    .foregroundStyle(isHovered || isActivationFocused ? DesignTokens.Colors.textPrimary : textColor)
             }
         }
         .padding(.horizontal, isVisuallyEditing ? 6 : 4)
@@ -82,6 +91,13 @@ struct EditablePercentage: View {
                         RoundedRectangle(cornerRadius: 4)
                             .strokeBorder(DesignTokens.Colors.accentPrimary.opacity(0.4), lineWidth: 1)
                     }
+            } else if isActivationFocused {
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color.primary.opacity(0.08))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 4)
+                            .strokeBorder(DesignTokens.Colors.accentPrimary.opacity(0.7), lineWidth: 1)
+                    }
             } else if isHovered {
                 // Subtle hover background to indicate clickability
                 RoundedRectangle(cornerRadius: 4)
@@ -91,8 +107,21 @@ struct EditablePercentage: View {
         .frame(width: DesignTokens.Dimensions.percentageWidth, alignment: .trailing)
         .contentShape(Rectangle())
         .onTapGesture { if !isEditing { startEditing() } }
-        .accessibilityAddTraits(.isButton)
-        .accessibilityLabel("Edit volume percentage")
+        .focusable(canActivateDirectly)
+        .focused($isActivationFocused)
+        .onKeyPress(.return) {
+            guard canActivateDirectly else { return .ignored }
+            startEditing()
+            return .handled
+        }
+        .onKeyPress(.space) {
+            guard canActivateDirectly else { return .ignored }
+            startEditing()
+            return .handled
+        }
+        .accessibilityAddTraits(isEditing ? [] : .isButton)
+        .accessibilityLabel(isEditing ? "Volume percentage" : "Edit volume percentage")
+        .accessibilityValue(Text("\(percentage)%"))
         .onHover { hovering in
             isHovered = hovering
             if hovering {
@@ -116,17 +145,18 @@ struct EditablePercentage: View {
             }
             te.buffer = nil
         }
-        .animation(.easeOut(duration: 0.15), value: isEditing)
-        .animation(.easeOut(duration: 0.1), value: isHovered)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: isEditing)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.1), value: isHovered)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.1), value: isActivationFocused)
     }
 
     private func startEditing() {
         // A mouse edit supersedes any in-progress keyboard entry on this row.
         textEntry?.buffer = nil
         inputText = "\(percentage)"
+        isActivationFocused = false
         isEditing = true
 
-        // Install monitors via coordinator (handles local, global, and app deactivation)
         coordinator.install(
             excludingFrame: componentFrame,
             onClickOutside: { [self] in
@@ -134,7 +164,6 @@ struct EditablePercentage: View {
             }
         )
 
-        // Delay focus to next runloop to ensure TextField is rendered
         Task { @MainActor in
             isFocused = true
         }

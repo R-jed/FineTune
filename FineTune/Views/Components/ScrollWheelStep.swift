@@ -1,6 +1,15 @@
 import AppKit
 
 enum ScrollWheelStep {
+    /// Call sites inside scrollable containers can require Option as an explicit
+    /// intent signal. Other controls keep direct wheel adjustment.
+    static func shouldAdjust(
+        requiresOptionModifier: Bool,
+        modifierFlags: NSEvent.ModifierFlags
+    ) -> Bool {
+        !requiresOptionModifier || modifierFlags.contains(.option)
+    }
+
     static func apply<V: BinaryFloatingPoint>(
         deltaY: CGFloat,
         hasPreciseDeltas: Bool,

@@ -13,6 +13,16 @@ enum MenuBarIconStyle: String, Codable, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
+    var displayName: LocalizedStringResource {
+        switch self {
+        case .default: "Default"
+        case .speaker: "Speaker"
+        case .device: "Device"
+        case .waveform: "Waveform"
+        case .equalizer: "Equalizer"
+        }
+    }
+
     /// The icon name - either asset catalog name or SF Symbol
     var iconName: String {
         switch self {
@@ -40,6 +50,13 @@ enum HUDStyle: String, Codable, CaseIterable, Identifiable {
     case classic
 
     var id: String { rawValue }
+
+    var displayName: LocalizedStringResource {
+        switch self {
+        case .tahoe: "Tahoe"
+        case .classic: "Classic"
+        }
+    }
 }
 
 // MARK: - Appearance Preference
@@ -52,6 +69,14 @@ enum AppearancePreference: String, Codable, CaseIterable, Identifiable, CustomSt
     case dark
 
     var id: String { rawValue }
+
+    var displayName: LocalizedStringResource {
+        switch self {
+        case .system: "System"
+        case .light: "Light"
+        case .dark: "Dark"
+        }
+    }
 
     var description: String {
         switch self {
@@ -84,6 +109,14 @@ enum MenuBarPopupSize: String, Codable, CaseIterable, Identifiable, CustomString
     case spacious
 
     var id: String { rawValue }
+
+    var displayName: LocalizedStringResource {
+        switch self {
+        case .compact: "Compact"
+        case .comfortable: "Comfortable"
+        case .spacious: "Spacious"
+        }
+    }
 
     var description: String {
         switch self {
@@ -144,6 +177,15 @@ enum VolumeHotkeyStep: String, Codable, CaseIterable, Identifiable, CustomString
         case .normal:    return 1.0 / 16.0
         case .fine:      return 1.0 / 32.0
         case .extraFine: return 1.0 / 64.0
+        }
+    }
+
+    var displayName: LocalizedStringResource {
+        switch self {
+        case .coarse: "Coarse (12.5%)"
+        case .normal: "Normal (6.25%)"
+        case .fine: "Fine (3.13%)"
+        case .extraFine: "Extra-Fine (1.56%)"
         }
     }
 
