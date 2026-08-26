@@ -217,8 +217,8 @@ private final class TapBox {
 @MainActor
 struct AudioEngineTapInitialStateTests {
 
-    @Test("A process object disappearing and returning rebuilds the tap")
-    func processObjectReturningRebuildsTap() {
+    @Test("A process object disappearance preserves the tap until a replacement object appears")
+    func processObjectReplacementRebuildsTap() {
         let fix = makeFixture()
         fix.engine.applyPersistedSettings()
         let originalTap = fix.lastTap()
@@ -233,7 +233,8 @@ struct AudioEngineTapInitialStateTests {
         )
         fix.processMonitor.setActiveApps([quietApp])
 
-        #expect(originalTap?.events.contains(.invalidate) == true)
+        #expect(originalTap?.events.contains(.invalidate) == false)
+        #expect(fix.lastTap() === originalTap)
         #expect(fix.engine.getAudioLevel(for: quietApp) == 0)
 
         let resumedApp = AudioApp(
@@ -246,6 +247,7 @@ struct AudioEngineTapInitialStateTests {
         )
         fix.processMonitor.setActiveApps([resumedApp])
 
+        #expect(originalTap?.events.contains(.invalidate) == true)
         #expect(fix.lastTap() !== originalTap)
         #expect(fix.lastTap()?.app.processObjectIDs == resumedApp.processObjectIDs)
     }

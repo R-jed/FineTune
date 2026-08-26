@@ -31,10 +31,10 @@ enum TapTargetPolicy {
         return description
     }
 
-    /// Returns true when an existing tap should survive a process-object list change.
-    /// Bundle-prearmed taps already follow the app by bundle identity on macOS 26+.
-    /// Concrete process taps are also kept when HAL temporarily reports no process object;
-    /// a later non-empty replacement object set still forces a rebuild.
+    /// Returns true when an existing tap still covers the updated process target.
+    /// Bundle-prearmed taps follow the same direct app by bundle identity on macOS 26+.
+    /// Concrete taps survive HAL process-list shrinkage, including a transient empty list;
+    /// any newly introduced process object still requires a rebuild so it is captured.
     static func shouldKeepBundlePrearm(existingApp: AudioApp, updatedApp: AudioApp) -> Bool {
         guard existingApp.persistenceIdentifier == updatedApp.persistenceIdentifier,
               existingApp.isHelperBacked == updatedApp.isHelperBacked else {
@@ -45,6 +45,8 @@ enum TapTargetPolicy {
             return true
         }
 
-        return !existingApp.processObjectIDs.isEmpty && updatedApp.processObjectIDs.isEmpty
+        let existingIDs = Set(existingApp.processObjectIDs)
+        guard !existingIDs.isEmpty else { return false }
+        return Set(updatedApp.processObjectIDs).isSubset(of: existingIDs)
     }
 }

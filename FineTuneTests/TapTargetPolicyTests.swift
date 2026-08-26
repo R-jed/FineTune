@@ -50,16 +50,20 @@ struct TapTargetPolicyTests {
         #expect(!TapTargetPolicy.canBundlePrearm(app(bundleID: nil)))
     }
 
-    @Test("Concrete tap survives transient process disappearance but rebuilds for a replacement object")
+    @Test("Concrete tap survives process-list shrinkage and rebuilds when a new object appears")
     func concreteTapLifetimePolicy() {
-        let active = app(processObjectIDs: [AudioObjectID(9001)])
+        let active = app(processObjectIDs: [AudioObjectID(9001), AudioObjectID(9002)])
         let dormant = app()
-        let replacement = app(processObjectIDs: [AudioObjectID(9002)])
-        let helper = app(processObjectIDs: [AudioObjectID(9002)], isHelperBacked: true)
-        let differentBundle = app(processObjectIDs: [AudioObjectID(9002)], bundleID: "com.test.other")
+        let subset = app(processObjectIDs: [AudioObjectID(9001)])
+        let replacement = app(processObjectIDs: [AudioObjectID(9003)])
+        let superset = app(processObjectIDs: [AudioObjectID(9001), AudioObjectID(9002), AudioObjectID(9003)])
+        let helper = app(processObjectIDs: [AudioObjectID(9001)], isHelperBacked: true)
+        let differentBundle = app(processObjectIDs: [AudioObjectID(9001)], bundleID: "com.test.other")
 
         #expect(TapTargetPolicy.shouldKeepBundlePrearm(existingApp: active, updatedApp: dormant))
+        #expect(TapTargetPolicy.shouldKeepBundlePrearm(existingApp: active, updatedApp: subset))
         #expect(!TapTargetPolicy.shouldKeepBundlePrearm(existingApp: active, updatedApp: replacement))
+        #expect(!TapTargetPolicy.shouldKeepBundlePrearm(existingApp: active, updatedApp: superset))
         #expect(!TapTargetPolicy.shouldKeepBundlePrearm(existingApp: active, updatedApp: helper))
         #expect(!TapTargetPolicy.shouldKeepBundlePrearm(existingApp: active, updatedApp: differentBundle))
     }
