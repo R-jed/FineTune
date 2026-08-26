@@ -46,6 +46,13 @@ struct AutoEQPicker: View {
         isExpanded ? "Close AutoEQ" : "AutoEQ correction"
     }
 
+    private var catalogLoadFailed: Bool {
+        if case .error = profileManager.catalogState {
+            return true
+        }
+        return false
+    }
+
     // MARK: - Body
 
     var body: some View {
@@ -82,6 +89,7 @@ struct AutoEQPicker: View {
         .buttonStyle(.plain)
         .onHover { isButtonHovered = $0 }
         .help(triggerHelp)
+        .accessibilityLabel("AutoEQ correction")
         .animation(DesignTokens.Animation.hover, value: isButtonHovered)
     }
 
@@ -115,6 +123,19 @@ struct AutoEQPicker: View {
                 preampEnabled: preampEnabled,
                 onPreampToggle: onPreampToggle
             )
+
+            if catalogLoadFailed {
+                Divider()
+                    .padding(.horizontal, DesignTokens.Spacing.sm)
+
+                Button("Retry") {
+                    Task { await profileManager.refreshCatalog() }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .padding(.vertical, DesignTokens.Spacing.sm)
+                .accessibilityLabel("Retry AutoEQ catalog")
+            }
         }
         .frame(width: popoverWidth)
         .background(
