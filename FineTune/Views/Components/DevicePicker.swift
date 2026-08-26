@@ -564,7 +564,7 @@ extension DevicePicker {
         isFollowingDefault: Bool,
         defaultDeviceUID: String?,
         triggerWidth: CGFloat = 105,
-        onDeviceSelected: @escaping (String) -> Void,
+        onDeviceSelected: @escaping () -> Void = {},
         onSelectFollowDefault: @escaping () -> Void
     ) {
         self.devices = devices
@@ -576,7 +576,7 @@ extension DevicePicker {
         self.triggerWidth = triggerWidth
         self.mode = .single
         self.onModeChange = { _ in }
-        self.onDeviceSelected = onDeviceSelected
+        self.onDeviceSelected = { _ in onDeviceSelected() }
         self.onDevicesSelected = { _ in }
         self.onSelectFollowDefault = onSelectFollowDefault
         self.showModeToggle = false
@@ -593,7 +593,7 @@ extension DevicePicker {
                 selectedDeviceUID: MockData.sampleDevices[0].uid,
                 isFollowingDefault: true,
                 defaultDeviceUID: MockData.sampleDevices[0].uid,
-                onDeviceSelected: { _ in },
+                onDeviceSelected: {},
                 onSelectFollowDefault: {}
             )
         }
@@ -634,9 +634,9 @@ extension DevicePicker {
 }
 
 #Preview("Device Picker - Interactive") {
-    struct MultiModePreview: View {
+    struct InteractivePreview: View {
         @State private var mode: DeviceSelectionMode = .single
-        @State private var selectedUID = ""
+        @State private var selectedUID: String = ""
         @State private var selectedUIDs: Set<String> = []
         @State private var isFollowingDefault = true
 
@@ -687,5 +687,5 @@ extension DevicePicker {
             }
         }
     }
-    return MultiModePreview()
+    return InteractivePreview()
 }
