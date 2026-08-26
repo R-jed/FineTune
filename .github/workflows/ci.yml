@@ -29,9 +29,9 @@ jobs:
         with:
           xcode-version: latest-stable
 
-      - name: Apply staged app lifecycle repair
-        if: ${{ hashFiles('tasks/app_lifecycle_acceptance_repair.py') != '' }}
-        run: python3 tasks/app_lifecycle_acceptance_repair.py
+      - name: Apply staged settings write ordering repair
+        if: ${{ hashFiles('tasks/settings_write_order_repair.py') != '' }}
+        run: python3 tasks/settings_write_order_repair.py
 
       - name: Build
         run: |
@@ -72,8 +72,8 @@ jobs:
           path: build/TestResults.xcresult
           retention-days: 7
 
-      - name: Commit verified app lifecycle repair
-        if: ${{ success() && github.event_name == 'pull_request' && hashFiles('tasks/app_lifecycle_acceptance_repair.py') != '' }}
+      - name: Commit verified settings write ordering repair
+        if: ${{ success() && github.event_name == 'pull_request' && hashFiles('tasks/settings_write_order_repair.py') != '' }}
         run: |
           expected_head="${{ github.event.pull_request.head.sha }}"
           head_ref="${{ github.event.pull_request.head.ref }}"
@@ -83,16 +83,13 @@ jobs:
             exit 1
           fi
 
-          rm tasks/app_lifecycle_acceptance_repair.py
+          rm tasks/settings_write_order_repair.py
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add \
-            FineTune/Audio/Monitors/AudioProcessMonitor.swift \
             FineTune/Settings/SettingsManager.swift \
-            FineTune/Audio/Engine/AudioEngine.swift \
-            FineTuneTests/AudioEngineTapInitialStateTests.swift \
-            FineTuneTests/AudioAppIdentityTests.swift \
-            tasks/app_lifecycle_acceptance_repair.py
+            FineTuneTests/SettingsManagerWriteOrderingTests.swift \
+            tasks/settings_write_order_repair.py
           git diff --cached --quiet && { echo "repair produced no staged changes"; exit 1; }
-          git commit -m "fix: repair integrated app lifecycle"
+          git commit -m "fix: serialize settings persistence writes"
           git push origin "HEAD:refs/heads/${head_ref}"
