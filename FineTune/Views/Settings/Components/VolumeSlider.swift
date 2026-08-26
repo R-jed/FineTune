@@ -8,11 +8,18 @@ struct VolumeSlider: View {
     @Binding var value: Float
     let range: ClosedRange<Float>
     let width: CGFloat
+    let accessibilityLabel: LocalizedStringResource
 
-    init(_ value: Binding<Float>, range: ClosedRange<Float> = 0...1, width: CGFloat = 160) {
+    init(
+        _ value: Binding<Float>,
+        range: ClosedRange<Float> = 0...1,
+        width: CGFloat = 160,
+        accessibilityLabel: LocalizedStringResource = "Volume"
+    ) {
         self._value = value
         self.range = range
         self.width = width
+        self.accessibilityLabel = accessibilityLabel
     }
 
     private var percentageRange: ClosedRange<Int> {
@@ -27,7 +34,10 @@ struct VolumeSlider: View {
                     set: { value = Float($0) }
                 ),
                 in: Double(range.lowerBound)...Double(range.upperBound)
-            )
+            ) {
+                Text(accessibilityLabel)
+            }
+            .labelsHidden()
             .frame(width: width)
 
             EditablePercentage(
