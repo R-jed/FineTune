@@ -45,6 +45,7 @@ private struct HUDStyleOption: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(Text(style.displayName))
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     @ViewBuilder
