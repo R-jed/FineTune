@@ -65,6 +65,12 @@ struct InputDeviceRow: View {
 
     var body: some View {
         deviceHeader
+            .contentShape(Rectangle())
+            .onTapGesture {
+                if !isDefault {
+                    onSetDefault()
+                }
+            }
             .hoverableRow(isFocused: isFocused)
             .onChange(of: volume) { _, newValue in
                 // Skip external sync mid-drag.
@@ -80,25 +86,14 @@ struct InputDeviceRow: View {
 
     private var deviceHeader: some View {
         HStack(spacing: DesignTokens.Spacing.sm) {
-            Button(action: onSetDefault) {
-                HStack(spacing: DesignTokens.Spacing.sm) {
-                    DeviceBadge(icon: displayIcon, isSelected: isDefault, fallbackSymbol: "mic")
+            DeviceBadge(icon: displayIcon, isSelected: isDefault, fallbackSymbol: "mic")
 
-                    Text(device.name)
-                        .font(DesignTokens.Typography.rowName)
-                        .lineLimit(1)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .help(Text(verbatim: device.name))
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .disabled(isDefault)
-            .accessibilityLabel(
-                isDefault
-                    ? Text(verbatim: device.name) + Text(" is the default input device")
-                    : Text("Set default input device") + Text(verbatim: ": \(device.name)")
-            )
+            // Device name
+            Text(device.name)
+                .font(DesignTokens.Typography.rowName)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .help(Text(verbatim: device.name))
 
             // Mute button (mic icon)
             InputMuteButton(isMuted: showMutedIcon) {
