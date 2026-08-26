@@ -1,4 +1,3 @@
-// FineTune/Views/Components/EQPresetPicker.swift
 import SwiftUI
 
 // MARK: - Unified Picker Types
@@ -67,6 +66,8 @@ struct EQPresetPicker: View {
     let onDeleteUserPreset: (UUID) -> Void
     let onRenameUserPreset: (UUID, String) -> Void
 
+    @State private var pendingDeletion: EQPickerItem?
+
     private var sections: [EQPickerSection] {
         var result: [EQPickerSection] = []
         if !userPresets.isEmpty {
@@ -74,6 +75,17 @@ struct EQPresetPicker: View {
         }
         result.append(contentsOf: EQPreset.Category.allCases.map { .builtIn($0) })
         return result
+    }
+
+    private var isDeleteConfirmationPresented: Binding<Bool> {
+        Binding(
+            get: { pendingDeletion != nil },
+            set: { isPresented in
+                if !isPresented {
+                    pendingDeletion = nil
+                }
+            }
+        )
     }
 
     private func items(for section: EQPickerSection) -> [EQPickerItem] {
@@ -92,6 +104,15 @@ struct EQPresetPicker: View {
                   let userPreset = userPresets.first(where: { $0.id == userID }) {
             onUserPresetSelected(userPreset)
         }
+    }
+
+    private func confirmPendingDeletion() {
+        guard let item = pendingDeletion, let userID = item.userPresetID else {
+            pendingDeletion = nil
+            return
+        }
+        pendingDeletion = nil
+        onDeleteUserPreset(userID)
     }
 
     var body: some View {
@@ -115,10 +136,26 @@ struct EQPresetPicker: View {
                 UserPresetItemView(
                     item: item,
                     isSelected: isSelected,
-                    onDelete: onDeleteUserPreset
+                    onRequestDelete: { pendingDeletion = item }
                 )
             } else {
                 BuiltInPresetItemView(item: item, isSelected: isSelected)
+            }
+        }
+        .confirmationDialog(
+            "Delete preset?",
+            isPresented: isDeleteConfirmationPresented,
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                confirmPendingDeletion()
+            }
+            Button("Cancel", role: .cancel) {
+                pendingDeletion = nil
+            }
+        } message: {
+            if let pendingDeletion {
+                Text("Delete") + Text(verbatim: " \(pendingDeletion.name)? ") + Text("This cannot be undone.")
             }
         }
     }
@@ -144,12 +181,12 @@ private struct BuiltInPresetItemView: View {
     }
 }
 
-// MARK: - User Preset Item (with hover-revealed delete)
+// MARK: - User Preset Item
 
 private struct UserPresetItemView: View {
     let item: EQPickerItem
     let isSelected: Bool
-    let onDelete: (UUID) -> Void
+    let onRequestDelete: () -> Void
 
     @State private var isHovered = false
 
@@ -157,25 +194,26 @@ private struct UserPresetItemView: View {
         HStack(spacing: DesignTokens.Spacing.xs) {
             Text(verbatim: item.name)
                 .lineLimit(1)
+                .help(Text(verbatim: item.name))
             Spacer(minLength: DesignTokens.Spacing.xs)
             if isSelected {
                 Image(systemName: "checkmark")
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(Color.accentColor)
             }
-            if let userID = item.userPresetID {
-                Button {
-                    onDelete(userID)
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 10))
-                        .symbolRenderingMode(.hierarchical)
-                        .foregroundStyle(isHovered ? DesignTokens.Colors.interactiveHover : .clear)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(Text("Delete preset") + Text(verbatim: " \(item.name)"))
-                .help("Delete preset")
+            Button(action: onRequestDelete) {
+                Image(systemName: "trash")
+                    .font(.system(size: 10))
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(
+                        isHovered
+                            ? DesignTokens.Colors.mutedIndicator
+                            : DesignTokens.Colors.textTertiary
+                    )
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Text("Delete preset") + Text(verbatim: " \(item.name)"))
+            .help("Delete preset")
         }
         .whenHovered { isHovered = $0 }
         .animation(DesignTokens.Animation.hover, value: isHovered)
