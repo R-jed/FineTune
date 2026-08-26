@@ -22,6 +22,8 @@ struct EQPanelView: View {
     @State private var renamingPresetID: UUID?
     @FocusState private var isRenameFieldFocused: Bool
 
+    @State private var pendingDeletion: UserEQPreset?
+
     private let frequencyLabels = ["32", "64", "125", "250", "500", "1k", "2k", "4k", "8k", "16k"]
 
     // MARK: - Preset Matching
@@ -49,12 +51,22 @@ struct EQPanelView: View {
     /// Whether the current curve is custom (doesn't match any preset).
     private var isCustomCurve: Bool { selectedPickerItem == nil }
 
+    private var isDeleteConfirmationPresented: Binding<Bool> {
+        Binding(
+            get: { pendingDeletion != nil },
+            set: { isPresented in
+                if !isPresented {
+                    pendingDeletion = nil
+                }
+            }
+        )
+    }
+
     var body: some View {
         // Entire EQ panel content inside recessed background
         VStack(spacing: 12) {
-            // Header: Toggle left, save field or spacer in middle, Preset right
+            // Header: Toggle left, save/rename/delete controls in the middle, Preset right
             HStack {
-                // EQ toggle on left
                 HStack(spacing: 6) {
                     Toggle("Equalizer", isOn: $settings.isEnabled)
                         .toggleStyle(.switch)
@@ -78,15 +90,17 @@ struct EQPanelView: View {
                     Spacer()
 
                     if currentUserPreset != nil {
-                        renameButton
-                            .transition(.blurReplace.combined(with: .opacity))
+                        HStack(spacing: DesignTokens.Spacing.xs) {
+                            renameButton
+                            deleteButton
+                        }
+                        .transition(.blurReplace.combined(with: .opacity))
                     } else if isCustomCurve {
                         saveButton
                             .transition(.blurReplace.combined(with: .opacity))
                     }
                 }
 
-                // Preset picker on right (always visible)
                 HStack(spacing: DesignTokens.Spacing.sm) {
                     Text("Preset")
                         .font(DesignTokens.Typography.pickerText)
@@ -96,13 +110,11 @@ struct EQPanelView: View {
                         selectedItem: selectedPickerItem,
                         userPresets: userPresets,
                         onBuiltInSelected: onPresetSelected,
-                        onUserPresetSelected: onUserPresetSelected,
-                        onDeleteUserPreset: onDeleteUserPreset,
-                        onRenameUserPreset: onRenameUserPreset
+                        onUserPresetSelected: onUserPresetSelected
                     )
                 }
             }
-            .zIndex(1)  // Ensure dropdown renders above sliders
+            .zIndex(1)
 
             HStack(spacing: 0) {
                 ForEach(0..<10, id: \.self) { index in
@@ -135,6 +147,24 @@ struct EQPanelView: View {
         .padding(.bottom, DesignTokens.Spacing.xs)
         .animation(reduceMotion ? nil : DesignTokens.Animation.quick, value: isSaving)
         .animation(reduceMotion ? nil : DesignTokens.Animation.quick, value: isRenaming)
+        .confirmationDialog(
+            "Delete preset?",
+            isPresented: isDeleteConfirmationPresented,
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                confirmPendingDeletion()
+            }
+            Button("Cancel", role: .cancel) {
+                pendingDeletion = nil
+            }
+        } message: {
+            if let pendingDeletion {
+                Text("Delete")
+                    + Text(verbatim: " \(pendingDeletion.name)? ")
+                    + Text("This cannot be undone.")
+            }
+        }
     }
 
     // MARK: - Save Button
@@ -212,7 +242,6 @@ struct EQPanelView: View {
     private func commitSave() {
         let trimmed = savePresetName.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return }
-        // Store with isEnabled = true — isEnabled is per-app state, not preset state
         var presetSettings = settings
         presetSettings.isEnabled = true
         onSavePreset(trimmed, presetSettings)
@@ -225,7 +254,7 @@ struct EQPanelView: View {
         savePresetName = ""
     }
 
-    // MARK: - Rename Button
+    // MARK: - User Preset Actions
 
     private var renameButton: some View {
         Button {
@@ -246,6 +275,20 @@ struct EQPanelView: View {
         .buttonStyle(.plain)
         .help("Rename preset")
         .accessibilityLabel("Rename current preset")
+    }
+
+    private var deleteButton: some View {
+        Button {
+            pendingDeletion = currentUserPreset
+        } label: {
+            Image(systemName: "trash")
+                .font(.system(size: 11))
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(DesignTokens.Colors.mutedIndicator)
+        }
+        .buttonStyle(.plain)
+        .help("Delete preset")
+        .accessibilityLabel("Delete current preset")
     }
 
     // MARK: - Rename Preset Field
@@ -298,7 +341,7 @@ struct EQPanelView: View {
         }
     }
 
-    // MARK: - Rename Actions
+    // MARK: - Rename / Delete Actions
 
     private func commitRename() {
         let trimmed = renamePresetName.trimmingCharacters(in: .whitespaces)
@@ -314,12 +357,17 @@ struct EQPanelView: View {
         renamePresetName = ""
         renamingPresetID = nil
     }
+
+    private func confirmPendingDeletion() {
+        guard let preset = pendingDeletion else { return }
+        pendingDeletion = nil
+        onDeleteUserPreset(preset.id)
+    }
 }
 
 // MARK: - Previews
 
 #Preview {
-    // Simulating how it appears inside ExpandableGlassRow
     VStack {
         EQPanelView(
             settings: .constant(EQSettings()),
