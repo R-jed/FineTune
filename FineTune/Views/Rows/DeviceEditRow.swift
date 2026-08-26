@@ -93,7 +93,7 @@ struct DeviceEditRow<ExpandedContent: View>: View {
                 Text(verbatim: device.name)
                     .font(DesignTokens.Typography.rowName)
                     .lineLimit(1)
-                    .help(Text(verbatim: device.uid))
+                    .help(Text(verbatim: "\(device.name)\n\(device.uid)"))
 
                 if isDefault {
                     Text("DEFAULT")
@@ -221,8 +221,9 @@ struct DeviceEditRow<ExpandedContent: View>: View {
 
 // MARK: - Editable Priority Number
 
-/// Inline editable priority number — click to type a new position.
-/// Same interaction pattern as `EditablePercentage` but displays just a number.
+/// Inline editable priority number — activate it to type a new position.
+/// Uses a real Button in display mode so keyboard and assistive-technology
+/// users can reach the same editing path as pointer users.
 private struct EditablePriority: View {
     let index: Int
     let count: Int
@@ -245,7 +246,7 @@ private struct EditablePriority: View {
     var body: some View {
         Group {
             if isEditing {
-                TextField("", text: $inputText)
+                TextField("Priority position", text: $inputText)
                     .textFieldStyle(.plain)
                     .font(.system(size: 11, weight: .semibold).monospacedDigit())
                     .foregroundStyle(textColor)
@@ -254,10 +255,18 @@ private struct EditablePriority: View {
                     .onSubmit { commit() }
                     .onExitCommand { cancel() }
                     .fixedSize()
+                    .accessibilityLabel("Priority position")
             } else {
-                Text(verbatim: "\(displayNumber)")
-                    .font(.system(size: 11, weight: .semibold).monospacedDigit())
-                    .foregroundStyle(isHovered ? DesignTokens.Colors.textPrimary : textColor)
+                Button(action: startEditing) {
+                    Text(verbatim: "\(displayNumber)")
+                        .font(.system(size: 11, weight: .semibold).monospacedDigit())
+                        .foregroundStyle(isHovered ? DesignTokens.Colors.textPrimary : textColor)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Edit priority position")
+                .accessibilityValue(Text(verbatim: "\(displayNumber)"))
             }
         }
         .padding(.horizontal, isEditing ? 4 : 2)
@@ -286,9 +295,6 @@ private struct EditablePriority: View {
         }
         .frame(width: 16, alignment: .center)
         .contentShape(Rectangle())
-        .onTapGesture { if !isEditing { startEditing() } }
-        .accessibilityAddTraits(.isButton)
-        .accessibilityLabel("Edit priority position")
         .onHover { hovering in
             isHovered = hovering
             if hovering {
