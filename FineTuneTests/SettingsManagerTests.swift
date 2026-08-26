@@ -239,6 +239,23 @@ struct SelectedAppPinningTests {
         #expect(manager.getPinnedAppInfo() == [first, second, third])
     }
 
+    @Test("Visible app reorder seeds identifiers not yet in persisted order")
+    func visibleAppOrderSeedsUnseenIdentifiers() {
+        let manager = SettingsManager(
+            directory: FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+        )
+        let first = "com.example.first"
+        let second = "com.example.second"
+        let third = "com.example.third"
+
+        manager.moveApp(third, to: first, currentOrder: [first, second, third])
+        #expect(manager.appOrder == [third, first, second])
+
+        manager.moveApp(third, to: second, currentOrder: manager.appOrder)
+        #expect(manager.appOrder == [first, second, third])
+    }
+
     @Test("Resetting all settings clears the custom app order")
     func resetClearsAppOrder() {
         let manager = SettingsManager(

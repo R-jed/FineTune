@@ -39,7 +39,10 @@ struct InactiveAppRow: View {
     let sliderWidth: CGFloat
     let onTogglePin: () -> Void
     let onHide: () -> Void
-    let onMoveApp: (String) -> Bool
+    let isDragging: Bool
+    let dragOffset: CGFloat
+    let onDragChanged: (CGFloat) -> Void
+    let onDragEnded: () -> Void
     let isFocused: Bool
 
     @State private var localEQSettings: EQSettings
@@ -76,7 +79,10 @@ struct InactiveAppRow: View {
         sliderWidth: CGFloat = DesignTokens.Dimensions.sliderWidth,
         onTogglePin: @escaping () -> Void = {},
         onHide: @escaping () -> Void = {},
-        onMoveApp: @escaping (String) -> Bool = { _ in false },
+        isDragging: Bool = false,
+        dragOffset: CGFloat = 0,
+        onDragChanged: @escaping (CGFloat) -> Void = { _ in },
+        onDragEnded: @escaping () -> Void = {},
         isFocused: Bool = false
     ) {
         self.appInfo = appInfo
@@ -110,7 +116,10 @@ struct InactiveAppRow: View {
         self.sliderWidth = sliderWidth
         self.onTogglePin = onTogglePin
         self.onHide = onHide
-        self.onMoveApp = onMoveApp
+        self.isDragging = isDragging
+        self.dragOffset = dragOffset
+        self.onDragChanged = onDragChanged
+        self.onDragEnded = onDragEnded
         self.isFocused = isFocused
         self._localEQSettings = State(initialValue: eqSettings)
     }
@@ -152,6 +161,16 @@ struct InactiveAppRow: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .layoutPriority(1)
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 2)
+                        .onChanged { value in
+                            onDragChanged(value.translation.height)
+                        }
+                        .onEnded { _ in
+                            onDragEnded()
+                        }
+                )
 
                 // Shared controls section (VU meter always 0 for inactive apps)
                 AppRowControls(
@@ -182,12 +201,6 @@ struct InactiveAppRow: View {
             }
             .frame(height: DesignTokens.Dimensions.rowContentHeight)
             .contentShape(Rectangle())
-            .draggable(appInfo.persistenceIdentifier) {
-                Text(appInfo.displayName)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 6))
-            }
             .opacity(0.6)
         } expandedContent: {
             // EQ panel
@@ -211,14 +224,21 @@ struct InactiveAppRow: View {
             )
             .padding(.top, DesignTokens.Spacing.sm)
         }
+        .offset(y: dragOffset)
+        .shadow(
+            color: Color.black.opacity(isDragging ? 0.18 : 0),
+            radius: isDragging ? 8 : 0,
+            x: 0,
+            y: isDragging ? 4 : 0
+        )
+        .zIndex(isDragging ? 10 : 0)
+        .transaction { transaction in
+            if isDragging {
+                transaction.animation = nil
+            }
+        }
         .onChange(of: eqSettings) { _, newValue in
             localEQSettings = newValue
-        }
-        .dropDestination(for: String.self) { identifiers, _ in
-            guard let sourceIdentifier = identifiers.first,
-                  sourceIdentifier != appInfo.persistenceIdentifier
-            else { return false }
-            return onMoveApp(sourceIdentifier)
         }
     }
 }

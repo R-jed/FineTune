@@ -37,7 +37,10 @@ struct AppRowWithLevelPolling: View {
     let isPinned: Bool
     let onTogglePin: () -> Void
     let onHide: () -> Void
-    let onMoveApp: (String) -> Bool
+    let isDragging: Bool
+    let dragOffset: CGFloat
+    let onDragChanged: (CGFloat) -> Void
+    let onDragEnded: () -> Void
     let isFocused: Bool
 
     @State private var displayLevel: Float = 0
@@ -78,7 +81,10 @@ struct AppRowWithLevelPolling: View {
         isPinned: Bool = false,
         onTogglePin: @escaping () -> Void = {},
         onHide: @escaping () -> Void = {},
-        onMoveApp: @escaping (String) -> Bool = { _ in false },
+        isDragging: Bool = false,
+        dragOffset: CGFloat = 0,
+        onDragChanged: @escaping (CGFloat) -> Void = { _ in },
+        onDragEnded: @escaping () -> Void = {},
         isFocused: Bool = false
     ) {
         self.app = app
@@ -115,7 +121,10 @@ struct AppRowWithLevelPolling: View {
         self.isPinned = isPinned
         self.onTogglePin = onTogglePin
         self.onHide = onHide
-        self.onMoveApp = onMoveApp
+        self.isDragging = isDragging
+        self.dragOffset = dragOffset
+        self.onDragChanged = onDragChanged
+        self.onDragEnded = onDragEnded
         self.isFocused = isFocused
     }
 
@@ -154,7 +163,10 @@ struct AppRowWithLevelPolling: View {
             isPinned: isPinned,
             onTogglePin: onTogglePin,
             onHide: onHide,
-            onMoveApp: onMoveApp,
+            isDragging: isDragging,
+            dragOffset: dragOffset,
+            onDragChanged: onDragChanged,
+            onDragEnded: onDragEnded,
             isFocused: isFocused
         )
         .onAppear {

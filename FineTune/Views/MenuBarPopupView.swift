@@ -72,7 +72,8 @@ struct MenuBarPopupView: View {
 
     /// Editable copy of device order for drag-and-drop reordering
     @State private var editableDeviceOrder: [AudioDevice] = []
-    @State private var deviceDragState = DeviceReorderDragState()
+    @State private var deviceDragState = RowReorderDragState()
+    @State private var appDragState = RowReorderDragState()
 
     /// Device whose inline detail panel is expanded in edit mode (nil when
     /// collapsed). Mirrors the `expandedRowID` pattern used for per-app EQ.
@@ -198,6 +199,9 @@ struct MenuBarPopupView: View {
             }
         }
         .onChange(of: audioEngine.apps) { _, _ in
+            if appDragState.draggedID != nil {
+                appDragState.reset()
+            }
             syncNavOrder()
         }
         .onChange(of: isEditingDevicePriority) { _, editing in
@@ -709,8 +713,8 @@ struct MenuBarPopupView: View {
             deviceCount: editableDeviceOrder.count,
             isExpanded: expandedDeviceUID == device.uid,
             isHidden: isDeviceHidden,
-            isDragging: deviceDragState.draggedUID == device.uid,
-            dragOffset: deviceDragState.draggedUID == device.uid
+            isDragging: deviceDragState.draggedID == device.uid,
+            dragOffset: deviceDragState.draggedID == device.uid
                 ? deviceDragState.effectiveTranslation
                 : 0,
             onDragChanged: { rawTranslation in
@@ -720,7 +724,7 @@ struct MenuBarPopupView: View {
             onReorder: { newIndex in
                 guard let fromIndex = editableDeviceOrder.firstIndex(where: { $0.uid == device.uid }) else { return }
                 guard newIndex != fromIndex, newIndex >= 0, newIndex < editableDeviceOrder.count else { return }
-                withAnimation(Self.deviceReorderGlide) {
+                withAnimation(Self.rowReorderGlide) {
                     editableDeviceOrder.move(
                         fromOffsets: IndexSet(integer: fromIndex),
                         toOffset: newIndex > fromIndex ? newIndex + 1 : newIndex
@@ -1015,10 +1019,14 @@ struct MenuBarPopupView: View {
                 onHide: {
                     audioEngine.ignoreApp(app)
                 },
-                onMoveApp: { sourceIdentifier in
-                    audioEngine.moveApp(sourceIdentifier, to: app.persistenceIdentifier)
-                    return true
+                isDragging: appDragState.draggedID == app.persistenceIdentifier,
+                dragOffset: appDragState.draggedID == app.persistenceIdentifier
+                    ? appDragState.effectiveTranslation
+                    : 0,
+                onDragChanged: { rawTranslation in
+                    updateAppDrag(appID: app.persistenceIdentifier, rawTranslation: rawTranslation)
                 },
+                onDragEnded: { endAppDrag(appID: app.persistenceIdentifier) },
                 isFocused: hasKeyboardEngaged && selectedRow == .app(persistenceID: displayableApp.id)
             )
             .id(app.id)
@@ -1094,10 +1102,14 @@ struct MenuBarPopupView: View {
             onHide: {
                 audioEngine.ignoreApp(info)
             },
-            onMoveApp: { sourceIdentifier in
-                audioEngine.moveApp(sourceIdentifier, to: identifier)
-                return true
+            isDragging: appDragState.draggedID == identifier,
+            dragOffset: appDragState.draggedID == identifier
+                ? appDragState.effectiveTranslation
+                : 0,
+            onDragChanged: { rawTranslation in
+                updateAppDrag(appID: identifier, rawTranslation: rawTranslation)
             },
+            onDragEnded: { endAppDrag(appID: identifier) },
             isFocused: hasKeyboardEngaged && selectedRow == .app(persistenceID: displayableApp.id)
         )
         .id(PopupKeyboardNavModel.RowID.app(persistenceID: displayableApp.id))
@@ -1126,18 +1138,18 @@ struct MenuBarPopupView: View {
         }
     }
 
-    private static let deviceReorderGlide =
+    private static let rowReorderGlide =
         Animation.timingCurve(0.16, 1, 0.3, 1, duration: 0.32)
 
-    private static let deviceReorderSwap =
+    private static let rowReorderSwap =
         Animation.timingCurve(0.16, 1, 0.3, 1, duration: 0.18)
 
     private func updateDeviceDrag(deviceUID: String, rawTranslation: CGFloat) {
-        if deviceDragState.draggedUID != deviceUID {
+        if deviceDragState.draggedID != deviceUID {
             expandedDeviceUID = nil
         }
 
-        deviceDragState.update(uid: deviceUID, rawTranslation: rawTranslation)
+        deviceDragState.update(id: deviceUID, rawTranslation: rawTranslation)
 
         guard var index = editableDeviceOrder.firstIndex(where: { $0.uid == deviceUID }) else {
             deviceDragState.reset()
@@ -1153,7 +1165,7 @@ struct MenuBarPopupView: View {
             count: editableDeviceOrder.count
         ) {
             let adjacentIndex = index + direction
-            withAnimation(Self.deviceReorderSwap) {
+            withAnimation(Self.rowReorderSwap) {
                 editableDeviceOrder.swapAt(index, adjacentIndex)
             }
             index = adjacentIndex
@@ -1161,15 +1173,61 @@ struct MenuBarPopupView: View {
     }
 
     private func endDeviceDrag(deviceUID: String) {
-        guard deviceDragState.draggedUID == deviceUID else { return }
-        withAnimation(Self.deviceReorderGlide) {
+        guard deviceDragState.draggedID == deviceUID else { return }
+        withAnimation(Self.rowReorderGlide) {
             deviceDragState.reset()
         }
+    }
+
+    private func updateAppDrag(appID: String, rawTranslation: CGFloat) {
+        if appDragState.draggedID != appID {
+            // Reordering assumes the same collapsed row extent used by the device list.
+            // Collapse any open EQ before the first midpoint calculation.
+            expandedRowID = nil
+        }
+
+        appDragState.update(id: appID, rawTranslation: rawTranslation)
+
+        var currentOrder = audioEngine.displayableApps.map(\.id)
+        guard var index = currentOrder.firstIndex(of: appID) else {
+            appDragState.reset()
+            return
+        }
+
+        let rowExtent = DesignTokens.Dimensions.rowContentHeight + 12
+        var didReorder = false
+        while let direction = appDragState.consumeSwapIfNeeded(
+            rowExtent: rowExtent,
+            index: index,
+            count: currentOrder.count
+        ) {
+            let adjacentIndex = index + direction
+            let targetID = currentOrder[adjacentIndex]
+            withAnimation(Self.rowReorderSwap) {
+                audioEngine.moveApp(appID, to: targetID)
+            }
+            currentOrder.swapAt(index, adjacentIndex)
+            index = adjacentIndex
+            didReorder = true
+        }
+
+        if didReorder {
+            syncNavOrder()
+        }
+    }
+
+    private func endAppDrag(appID: String) {
+        guard appDragState.draggedID == appID else { return }
+        withAnimation(Self.rowReorderGlide) {
+            appDragState.reset()
+        }
+        syncNavOrder()
     }
 
     // MARK: - Device Priority Edit
 
     private func toggleDevicePriorityEdit() {
+        appDragState.reset()
         deviceDragState.reset()
         if isEditingDevicePriority {
             // Exiting edit mode: persist to the correct priority list and
@@ -1219,6 +1277,7 @@ struct MenuBarPopupView: View {
 
     private func resetToRootPage() {
         exitEditModeSaving()
+        appDragState.reset()
         expandedRowID = nil
         expandedDeviceUID = nil
         showingInputDevices = false

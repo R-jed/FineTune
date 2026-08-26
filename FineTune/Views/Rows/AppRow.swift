@@ -37,7 +37,10 @@ struct AppRow: View {
     let isPinned: Bool
     let onTogglePin: () -> Void
     let onHide: () -> Void
-    let onMoveApp: (String) -> Bool
+    let isDragging: Bool
+    let dragOffset: CGFloat
+    let onDragChanged: (CGFloat) -> Void
+    let onDragEnded: () -> Void
     let isFocused: Bool
 
     @State private var isIconHovered = false
@@ -77,7 +80,10 @@ struct AppRow: View {
         isPinned: Bool = false,
         onTogglePin: @escaping () -> Void = {},
         onHide: @escaping () -> Void = {},
-        onMoveApp: @escaping (String) -> Bool = { _ in false },
+        isDragging: Bool = false,
+        dragOffset: CGFloat = 0,
+        onDragChanged: @escaping (CGFloat) -> Void = { _ in },
+        onDragEnded: @escaping () -> Void = {},
         isFocused: Bool = false
     ) {
         self.app = app
@@ -113,7 +119,10 @@ struct AppRow: View {
         self.isPinned = isPinned
         self.onTogglePin = onTogglePin
         self.onHide = onHide
-        self.onMoveApp = onMoveApp
+        self.isDragging = isDragging
+        self.dragOffset = dragOffset
+        self.onDragChanged = onDragChanged
+        self.onDragEnded = onDragEnded
         self.isFocused = isFocused
         // Initialize local EQ state for reactive UI updates
         self._localEQSettings = State(initialValue: eqSettings)
@@ -171,6 +180,16 @@ struct AppRow: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .layoutPriority(1)
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 2)
+                        .onChanged { value in
+                            onDragChanged(value.translation.height)
+                        }
+                        .onEnded { _ in
+                            onDragEnded()
+                        }
+                )
 
                 // Shared controls section
                 AppRowControls(
@@ -201,12 +220,6 @@ struct AppRow: View {
             }
             .frame(height: DesignTokens.Dimensions.rowContentHeight)
             .contentShape(Rectangle())
-            .draggable(app.persistenceIdentifier) {
-                Text(app.name)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 6))
-            }
         } expandedContent: {
             // EQ panel - shown when expanded
             // SwiftUI calculates natural height via conditional rendering
@@ -230,15 +243,22 @@ struct AppRow: View {
             )
             .padding(.top, DesignTokens.Spacing.sm)
         }
+        .offset(y: dragOffset)
+        .shadow(
+            color: Color.black.opacity(isDragging ? 0.18 : 0),
+            radius: isDragging ? 8 : 0,
+            x: 0,
+            y: isDragging ? 4 : 0
+        )
+        .zIndex(isDragging ? 10 : 0)
+        .transaction { transaction in
+            if isDragging {
+                transaction.animation = nil
+            }
+        }
         .onChange(of: eqSettings) { _, newValue in
             // Sync from parent when external EQ settings change
             localEQSettings = newValue
-        }
-        .dropDestination(for: String.self) { identifiers, _ in
-            guard let sourceIdentifier = identifiers.first,
-                  sourceIdentifier != app.persistenceIdentifier
-            else { return false }
-            return onMoveApp(sourceIdentifier)
         }
     }
 }

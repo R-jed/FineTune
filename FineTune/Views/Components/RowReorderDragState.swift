@@ -1,23 +1,23 @@
 import CoreGraphics
 
-/// Pointer-drag bookkeeping for device priority reordering.
+/// Pointer-drag bookkeeping for vertically reordered rows.
 ///
 /// `originAdjustment` is advanced by one row extent after every adjacent swap.
 /// Subtracting it from the raw gesture translation keeps the dragged row under
 /// the pointer even though its layout slot has moved.
-struct DeviceReorderDragState: Equatable {
-    private(set) var draggedUID: String?
+struct RowReorderDragState: Equatable {
+    private(set) var draggedID: String?
     private(set) var rawTranslation: CGFloat = 0
     private(set) var originAdjustment: CGFloat = 0
 
     var effectiveTranslation: CGFloat {
-        guard draggedUID != nil else { return 0 }
+        guard draggedID != nil else { return 0 }
         return rawTranslation - originAdjustment
     }
 
-    mutating func update(uid: String, rawTranslation: CGFloat) {
-        if draggedUID != uid {
-            draggedUID = uid
+    mutating func update(id: String, rawTranslation: CGFloat) {
+        if draggedID != id {
+            draggedID = id
             self.rawTranslation = 0
             originAdjustment = 0
         }
@@ -31,7 +31,7 @@ struct DeviceReorderDragState: Equatable {
         index: Int,
         count: Int
     ) -> Int? {
-        guard draggedUID != nil, rowExtent > 0, count > 1 else { return nil }
+        guard draggedID != nil, rowExtent > 0, count > 1 else { return nil }
 
         let midpoint = rowExtent / 2
         if effectiveTranslation > midpoint, index + 1 < count {
@@ -46,7 +46,7 @@ struct DeviceReorderDragState: Equatable {
     }
 
     mutating func reset() {
-        draggedUID = nil
+        draggedID = nil
         rawTranslation = 0
         originAdjustment = 0
     }
