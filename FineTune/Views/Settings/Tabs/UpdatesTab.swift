@@ -41,7 +41,7 @@ struct UpdatesTab: View {
                         "Automatic updates",
                         description: "Check for new versions automatically"
                     ) {
-                        Toggle("", isOn: automaticallyChecksBinding)
+                        Toggle("Automatic updates", isOn: automaticallyChecksBinding)
                             .toggleStyle(.switch)
                             .controlSize(.small)
                             .labelsHidden()
