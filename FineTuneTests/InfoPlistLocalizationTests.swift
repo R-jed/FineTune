@@ -5,9 +5,9 @@ import Testing
 struct InfoPlistLocalizationTests {
     @Test("Simplified Chinese privacy purpose strings are compiled into the app bundle")
     func simplifiedChinesePrivacyPurposeStrings() throws {
-        let appBundle = try #require(
-            Bundle.allBundles.first { $0.bundleIdentifier == "com.finetuneapp.FineTune" }
-        )
+        let appBundle = Bundle.main
+        #expect(appBundle.bundleIdentifier == "com.finetuneapp.FineTune")
+
         let stringsURL = try #require(
             appBundle.url(
                 forResource: "InfoPlist",
