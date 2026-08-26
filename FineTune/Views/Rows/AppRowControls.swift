@@ -16,6 +16,7 @@ struct AppRowControls: View {
     let boost: BoostLevel
     let isEQExpanded: Bool
     var sliderWidth: CGFloat = DesignTokens.Dimensions.sliderWidth
+    var volumeAccessibilityLabel: Text = Text("App volume")
     let onVolumeChange: (Float) -> Void
     let onMuteChange: (Bool) -> Void
     let onBoostChange: (BoostLevel) -> Void
@@ -31,6 +32,7 @@ struct AppRowControls: View {
     @State private var dragOverrideValue: Double?
     @State private var isEQButtonHovered = false
     @State private var isPinButtonHovered = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var sliderValue: Double {
         dragOverrideValue ?? VolumeMapping.gainToSlider(volume)
@@ -101,7 +103,8 @@ struct AppRowControls: View {
                     if !editing {
                         dragOverrideValue = nil
                     }
-                }
+                },
+                accessibilityLabel: volumeAccessibilityLabel
             )
             .frame(width: sliderWidth)
             .opacity(showMutedIcon ? 0.5 : 1.0)
@@ -173,8 +176,8 @@ struct AppRowControls: View {
             .accessibilityLabel(isEQExpanded ? "Close Equalizer" : "Equalizer")
             .onHover { isEQButtonHovered = $0 }
             .help(isEQExpanded ? "Close Equalizer" : "Equalizer")
-            .animation(.spring(response: 0.3, dampingFraction: 0.75), value: isEQExpanded)
-            .animation(DesignTokens.Animation.hover, value: isEQButtonHovered)
+            .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.75), value: isEQExpanded)
+            .animation(reduceMotion ? nil : DesignTokens.Animation.hover, value: isEQButtonHovered)
 
             // Pin toggle. The unpinned state uses a slash so the state remains
             // readable without relying on fill weight alone.
@@ -193,7 +196,7 @@ struct AppRowControls: View {
             .accessibilityLabel(isPinned ? "Unpin app" : "Pin app")
             .onHover { isPinButtonHovered = $0 }
             .help(isPinned ? "Unpin app" : "Pin app")
-            .animation(DesignTokens.Animation.hover, value: isPinButtonHovered)
+            .animation(reduceMotion ? nil : DesignTokens.Animation.hover, value: isPinButtonHovered)
 
         }
         .fixedSize()
