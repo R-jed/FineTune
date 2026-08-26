@@ -58,6 +58,7 @@ private struct BaseMuteButton: View {
     let unmutedHelp: LocalizedStringResource
     let action: () -> Void
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isPulsing = false
     @State private var isHovered = false
 
@@ -74,7 +75,7 @@ private struct BaseMuteButton: View {
             .font(.system(size: 14))
             .symbolRenderingMode(.hierarchical)
             .foregroundStyle(buttonColor)
-            .scaleEffect(isPulsing ? 1.1 : 1.0)
+            .scaleEffect(!reduceMotion && isPulsing ? 1.1 : 1.0)
             .frame(
                 minWidth: DesignTokens.Dimensions.minTouchTarget,
                 minHeight: DesignTokens.Dimensions.minTouchTarget
@@ -86,9 +87,13 @@ private struct BaseMuteButton: View {
             isHovered = hovering
         }
         .help(isMuted ? mutedHelp : unmutedHelp)
-        .animation(.spring(response: 0.25, dampingFraction: 0.5), value: isPulsing)
+        .animation(reduceMotion ? nil : .spring(response: 0.25, dampingFraction: 0.5), value: isPulsing)
         .animation(DesignTokens.Animation.hover, value: isHovered)
         .onChange(of: isMuted) { _, _ in
+            guard !reduceMotion else {
+                isPulsing = false
+                return
+            }
             isPulsing = true
             Task {
                 try? await Task.sleep(for: .seconds(0.25))
@@ -110,10 +115,15 @@ private struct BaseMuteButton: View {
 
 /// Internal button style for press feedback
 private struct MuteButtonPressStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.9 : 1.0)
-            .animation(.spring(response: 0.2, dampingFraction: 0.6), value: configuration.isPressed)
+            .scaleEffect(!reduceMotion && configuration.isPressed ? 0.9 : 1.0)
+            .animation(
+                reduceMotion ? nil : .spring(response: 0.2, dampingFraction: 0.6),
+                value: configuration.isPressed
+            )
     }
 }
 
