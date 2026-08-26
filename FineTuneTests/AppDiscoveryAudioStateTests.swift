@@ -154,8 +154,81 @@ struct AppDiscoveryAudioStateTests {
         #expect(fix.tapProbe.creationCount == 0)
     }
 
-    @Test("Saved multi-device state is visible before tap creation and provisions when audio becomes ready")
-    func multiDeviceStateRestoresBeforeTapExists() throws {
+    @Test("Quiet follow-default app stays lazy until a Core Audio process object exists")
+    func quietFollowDefaultAppDoesNotPrearm() {
+        let quiet = quietApp()
+        let device = outputDevice(id: 7101, uid: "uid-a", name: "Output A")
+        let fix = makeAppDiscoveryFixture(
+            permissionStatus: .authorized,
+            apps: [quiet],
+            devices: [device]
+        )
+
+        fix.engine.applyPersistedSettings()
+
+        #expect(fix.engine.isFollowingDefault(for: quiet))
+        #expect(fix.tapProbe.creationCount == 0)
+    }
+
+    @Test("Choosing the current default as an explicit route still prearms a quiet app")
+    func sameTargetExplicitSelectionPrearmsQuietApp() throws {
+        let quiet = quietApp()
+        let device = outputDevice(id: 7101, uid: "uid-b", name: "Output B")
+        let fix = makeAppDiscoveryFixture(
+            permissionStatus: .authorized,
+            apps: [quiet],
+            devices: [device]
+        )
+
+        fix.engine.applyPersistedSettings()
+        #expect(fix.tapProbe.creationCount == 0)
+
+        fix.engine.setDevice(for: quiet, deviceUID: device.uid)
+
+        let tap = try #require(fix.tapProbe.lastTap)
+        #expect(fix.tapProbe.creationCount == 1)
+        #expect(!fix.engine.isFollowingDefault(for: quiet))
+        #expect(tap.app.processObjectIDs.isEmpty)
+        #expect(tap.currentDeviceUIDs == [device.uid])
+    }
+
+    @Test("Saved explicit route prearms before first audio and survives direct process-object arrival")
+    func explicitRoutePrearmsAndSurvivesDirectAudioStart() throws {
+        let quiet = quietApp()
+        let deviceA = outputDevice(id: 7101, uid: "uid-a", name: "Output A")
+        let deviceB = outputDevice(id: 7102, uid: "uid-b", name: "Output B")
+        let fix = makeAppDiscoveryFixture(
+            permissionStatus: .authorized,
+            apps: [quiet],
+            devices: [deviceA, deviceB]
+        )
+        fix.settings.setDeviceRouting(for: quiet.persistenceIdentifier, deviceUID: deviceB.uid)
+
+        fix.engine.applyPersistedSettings()
+
+        let prearmedTap = try #require(fix.tapProbe.lastTap)
+        #expect(fix.tapProbe.creationCount == 1)
+        #expect(prearmedTap.app.processObjectIDs.isEmpty)
+        #expect(prearmedTap.currentDeviceUIDs == [deviceB.uid])
+
+        let ready = AudioApp(
+            id: quiet.id,
+            processObjectIDs: [AudioObjectID(9001)],
+            name: quiet.name,
+            icon: quiet.icon,
+            bundleID: quiet.bundleID,
+            isAudioActive: true
+        )
+        fix.processMonitor.setActiveApps([ready])
+
+        #expect(fix.tapProbe.creationCount == 1)
+        #expect(fix.tapProbe.lastTap === prearmedTap)
+        #expect(!prearmedTap.events.contains(.invalidate))
+        #expect(fix.engine.getDeviceUID(for: ready) == deviceB.uid)
+    }
+
+    @Test("Saved multi-device route prearms before first audio and survives direct process-object arrival")
+    func multiDeviceStatePrearmsBeforeAudio() throws {
         let quiet = quietApp()
         let deviceA = outputDevice(id: 7101, uid: "uid-a", name: "Output A")
         let deviceB = outputDevice(id: 7102, uid: "uid-b", name: "Output B")
@@ -170,11 +243,14 @@ struct AppDiscoveryAudioStateTests {
 
         fix.engine.applyPersistedSettings()
 
+        let prearmedTap = try #require(fix.tapProbe.lastTap)
         #expect(fix.engine.getDeviceSelectionMode(for: quiet) == .multi)
         #expect(fix.engine.getSelectedDeviceUIDs(for: quiet) == selectedUIDs)
         #expect(fix.engine.getDeviceUID(for: quiet) == deviceA.uid)
         #expect(fix.engine.displayableApps.map(\.id) == [quiet.persistenceIdentifier])
-        #expect(fix.tapProbe.creationCount == 0)
+        #expect(fix.tapProbe.creationCount == 1)
+        #expect(prearmedTap.app.processObjectIDs.isEmpty)
+        #expect(prearmedTap.currentDeviceUIDs == [deviceA.uid, deviceB.uid])
 
         let ready = AudioApp(
             id: quiet.id,
@@ -186,8 +262,42 @@ struct AppDiscoveryAudioStateTests {
         )
         fix.processMonitor.setActiveApps([ready])
 
-        let tap = try #require(fix.tapProbe.lastTap)
-        #expect(tap.app.processObjectIDs == ready.processObjectIDs)
-        #expect(tap.currentDeviceUIDs == [deviceA.uid, deviceB.uid])
+        #expect(fix.tapProbe.creationCount == 1)
+        #expect(fix.tapProbe.lastTap === prearmedTap)
+        #expect(!prearmedTap.events.contains(.invalidate))
+    }
+
+    @Test("Helper ownership retires a parent bundle prearm and rebuilds from process objects")
+    func helperOwnershipFallsBackToProcessTargeting() throws {
+        let quiet = quietApp()
+        let deviceA = outputDevice(id: 7101, uid: "uid-a", name: "Output A")
+        let deviceB = outputDevice(id: 7102, uid: "uid-b", name: "Output B")
+        let fix = makeAppDiscoveryFixture(
+            permissionStatus: .authorized,
+            apps: [quiet],
+            devices: [deviceA, deviceB]
+        )
+        fix.settings.setDeviceRouting(for: quiet.persistenceIdentifier, deviceUID: deviceB.uid)
+        fix.engine.applyPersistedSettings()
+        let prearmedTap = try #require(fix.tapProbe.lastTap)
+
+        let helperReady = AudioApp(
+            id: quiet.id,
+            processObjectIDs: [AudioObjectID(9002)],
+            name: quiet.name,
+            icon: quiet.icon,
+            bundleID: quiet.bundleID,
+            isHelperBacked: true,
+            isAudioActive: true
+        )
+        fix.processMonitor.setActiveApps([helperReady])
+
+        #expect(prearmedTap.events.contains(.invalidate))
+        #expect(fix.tapProbe.creationCount == 2)
+        let replacementTap = try #require(fix.tapProbe.lastTap)
+        #expect(replacementTap !== prearmedTap)
+        #expect(replacementTap.app.processObjectIDs == helperReady.processObjectIDs)
+        #expect(replacementTap.app.isHelperBacked)
+        #expect(replacementTap.currentDeviceUIDs == [deviceB.uid])
     }
 }

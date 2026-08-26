@@ -924,8 +924,9 @@ final class AudioEngine {
                 }
             }
 
-            guard appDeviceRouting[app.id] != deviceUID else { return }
+            let routeIsUnchanged = appDeviceRouting[app.id] == deviceUID
             appDeviceRouting[app.id] = deviceUID
+            if routeIsUnchanged, taps[app.id] != nil { return }
         } else {
             // "System Audio" selected - follow default
             followsDefault.insert(app.id)
@@ -938,8 +939,9 @@ final class AudioEngine {
                 logger.warning("No default device available for \(app.name), will route when available")
                 return
             }
-            guard appDeviceRouting[app.id] != defaultUID else { return }
+            let routeIsUnchanged = appDeviceRouting[app.id] == defaultUID
             appDeviceRouting[app.id] = defaultUID
+            if routeIsUnchanged, taps[app.id] != nil { return }
         }
 
         // Switch tap if needed
@@ -1054,10 +1056,21 @@ final class AudioEngine {
         }
     }
 
+    private func canProvisionTap(for app: AudioApp) -> Bool {
+        if !app.processObjectIDs.isEmpty { return true }
+        guard TapTargetPolicy.canBundlePrearm(app) else { return false }
+
+        if volumeState.getDeviceSelectionMode(for: app.id) == .multi {
+            return true
+        }
+
+        return !followsDefault.contains(app.id)
+    }
+
     /// Creates a tap with the specified device UIDs
     private func ensureTapWithDevices(for app: AudioApp, deviceUIDs: [String]) {
         guard !deviceUIDs.isEmpty else { return }
-        guard !app.processObjectIDs.isEmpty else { return }
+        guard canProvisionTap(for: app) else { return }
         guard taps[app.id] == nil else { return }
         guard permission.status == .authorized else { return }
 
@@ -1198,7 +1211,7 @@ final class AudioEngine {
                 continue
             }
 
-            // Always create tap for audio apps (always-on strategy)
+            // Provision active process-object taps and explicit/multi quiet bundle prearms.
             ensureTapExists(for: app, deviceUID: deviceUID)
 
             // Only mark as applied if tap was successfully created
@@ -1221,7 +1234,7 @@ final class AudioEngine {
     }
 
     private func ensureTapExists(for app: AudioApp, deviceUID: String) {
-        guard !app.processObjectIDs.isEmpty else { return }
+        guard canProvisionTap(for: app) else { return }
         guard taps[app.id] == nil else { return }
         guard permission.status == .authorized else { return }
 
@@ -1837,10 +1850,16 @@ final class AudioEngine {
         for (pid, tap) in Array(taps) {
             if let app = appsByPID[pid] {
                 let identityChanged = app.persistenceIdentifier != tap.app.persistenceIdentifier
+                let helperBackingChanged = app.isHelperBacked != tap.app.isHelperBacked
                 let processObjectsChanged = Set(app.processObjectIDs) != Set(tap.app.processObjectIDs)
-                guard identityChanged || processObjectsChanged else { continue }
+                let keepsBundlePrearm = TapTargetPolicy.shouldKeepBundlePrearm(
+                    existingApp: tap.app,
+                    updatedApp: app
+                )
+                let processObjectsRequireRebuild = processObjectsChanged && !keepsBundlePrearm
+                guard identityChanged || helperBackingChanged || processObjectsRequireRebuild else { continue }
 
-                logger.info("Retiring tap for PID \(pid): app identity or process objects changed")
+                logger.info("Retiring tap for PID \(pid): app identity, helper ownership, or process objects changed")
                 retireTap(for: pid, resetRuntimeState: identityChanged)
             } else if liveIdentifiers.contains(tap.app.persistenceIdentifier) {
                 logger.info("Retiring tap for PID \(pid): representative PID moved")

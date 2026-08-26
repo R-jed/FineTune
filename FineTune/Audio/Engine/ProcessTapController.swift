@@ -559,6 +559,24 @@ final class ProcessTapController: ProcessTapControlling {
     private func createProcessTap(preferredDeviceUID: String?) throws -> (description: CATapDescription, tapID: AudioObjectID) {
         var lastError: OSStatus = noErr
 
+        if let bundleTap = TapTargetPolicy.bundlePrearmDescription(for: app) {
+            var bundleTapID: AudioObjectID = .unknown
+            let bundleErr = AudioHardwareCreateProcessTap(bundleTap, &bundleTapID)
+            guard bundleErr == noErr else {
+                throw NSError(
+                    domain: NSOSStatusErrorDomain,
+                    code: Int(bundleErr),
+                    userInfo: [
+                        NSLocalizedDescriptionKey: "Failed to create bundle-prearmed process tap: \(bundleErr)"
+                    ]
+                )
+            }
+
+            logger.info("Created bundle-prearmed tap for \(self.app.bundleID ?? self.app.name, privacy: .public)")
+            maybeLogEQBypass(for: bundleTapID)
+            return (bundleTap, bundleTapID)
+        }
+
         if let deviceUID = preferredDeviceUID {
             if let outputStream = outputStreamIndex(for: deviceUID) {
                 let streamTap = CATapDescription(processes: app.processObjectIDs, deviceUID: deviceUID, stream: outputStream)
