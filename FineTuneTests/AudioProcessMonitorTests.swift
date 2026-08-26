@@ -5,7 +5,7 @@ import Testing
 
 @Suite("AudioProcessMonitor app discovery")
 struct AudioProcessMonitorTests {
-    @Test("Includes user GUI apps and filters background services")
+    @Test("Includes user GUI apps and audio-capable accessory apps while filtering background services")
     func userApplicationFilter() {
         let appURL = URL(fileURLWithPath: "/Applications/WeChat.app")
         let serviceURL = URL(fileURLWithPath: "/Applications/WeChat.app/Contents/XPCServices/Helper.xpc")
@@ -27,19 +27,19 @@ struct AudioProcessMonitorTests {
             activationPolicy: .accessory,
             isTerminated: false,
             bundleURL: menuBarURL,
-            isAudioActive: true
+            hasAudioProcessObject: true
         ))
         #expect(!AudioProcessMonitor.shouldIncludeUserApplication(
             activationPolicy: .accessory,
             isTerminated: false,
             bundleURL: nestedHelperURL,
-            isAudioActive: true
+            hasAudioProcessObject: true
         ))
         #expect(!AudioProcessMonitor.shouldIncludeUserApplication(
             activationPolicy: .accessory,
             isTerminated: false,
             bundleURL: systemServiceURL,
-            isAudioActive: true
+            hasAudioProcessObject: true
         ))
         #expect(!AudioProcessMonitor.shouldIncludeUserApplication(
             activationPolicy: .regular,

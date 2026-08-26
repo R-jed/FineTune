@@ -182,6 +182,34 @@ struct AppDiscoveryAudioStateTests {
         #expect(fix.tapProbe.creationCount == 0)
     }
 
+    @Test("Dormant Core Audio process object keeps an explicit route armed before first audio")
+    func dormantProcessObjectPrewarmsExplicitRoute() throws {
+        let dormant = AudioApp(
+            id: 42002,
+            processObjectIDs: [AudioObjectID(9001)],
+            name: "Menu Bar Player",
+            icon: NSImage(),
+            bundleID: "com.test.menu-bar-player",
+            isAudioActive: false
+        )
+        let deviceA = outputDevice(id: 7101, uid: "uid-a", name: "Output A")
+        let deviceB = outputDevice(id: 7102, uid: "uid-b", name: "Output B")
+        let fix = makeAppDiscoveryFixture(
+            permissionStatus: .authorized,
+            apps: [dormant],
+            devices: [deviceA, deviceB]
+        )
+        fix.settings.setDeviceRouting(for: dormant.persistenceIdentifier, deviceUID: deviceB.uid)
+
+        fix.engine.applyPersistedSettings()
+
+        let tap = try #require(fix.tapProbe.lastTap)
+        #expect(fix.tapProbe.creationCount == 1)
+        #expect(tap.app.processObjectIDs == dormant.processObjectIDs)
+        #expect(tap.currentDeviceUIDs == [deviceB.uid])
+        #expect(fix.engine.getDeviceUID(for: dormant) == deviceB.uid)
+    }
+
     @Test("Choosing the current default as an explicit route provisions at the earliest supported point")
     func sameTargetExplicitSelectionProvisionsQuietApp() throws {
         let quiet = quietApp()

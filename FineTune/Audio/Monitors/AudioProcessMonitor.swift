@@ -83,7 +83,7 @@ final class AudioProcessMonitor: AudioProcessMonitoring {
         activationPolicy: NSApplication.ActivationPolicy,
         isTerminated: Bool,
         bundleURL: URL?,
-        isAudioActive: Bool = false
+        hasAudioProcessObject: Bool = false
     ) -> Bool {
         guard !isTerminated, let bundleURL, bundleURL.pathExtension == "app" else { return false }
         if activationPolicy == .regular { return true }
@@ -92,7 +92,7 @@ final class AudioProcessMonitor: AudioProcessMonitoring {
         let appBundleCount = bundleURL.standardizedFileURL.pathComponents
             .filter { $0.hasSuffix(".app") }
             .count
-        return isAudioActive
+        return hasAudioProcessObject
             && activationPolicy == .accessory
             && !path.hasPrefix("/System/Library/")
             && appBundleCount == 1
@@ -173,7 +173,7 @@ final class AudioProcessMonitor: AudioProcessMonitoring {
     private func findResponsibleApp(
         for pid: pid_t,
         in runningAppsByPID: [pid_t: NSRunningApplication],
-        isAudioActive: Bool
+        hasAudioProcessObject: Bool
     ) -> NSRunningApplication? {
         // First try Apple's responsibility API (works for XPC services like Safari's WebKit processes)
         if let responsiblePID = getResponsiblePID(for: pid),
@@ -182,7 +182,7 @@ final class AudioProcessMonitor: AudioProcessMonitoring {
                activationPolicy: app.activationPolicy,
                isTerminated: app.isTerminated,
                bundleURL: app.bundleURL,
-               isAudioActive: isAudioActive
+               hasAudioProcessObject: hasAudioProcessObject
            ) {
             return app
         }
@@ -200,7 +200,7 @@ final class AudioProcessMonitor: AudioProcessMonitoring {
                    activationPolicy: app.activationPolicy,
                    isTerminated: app.isTerminated,
                    bundleURL: app.bundleURL,
-                   isAudioActive: isAudioActive
+                   hasAudioProcessObject: hasAudioProcessObject
                ) {
                 return app
             }
@@ -351,20 +351,22 @@ final class AudioProcessMonitor: AudioProcessMonitoring {
                 guard let pid = try? objectID.readProcessPID(), pid != myPID else { continue }
                 let isAudioActive = objectID.readProcessIsRunning()
 
-                // Try to find the parent app (for helper processes like Safari Graphics and Media)
+                // A Core Audio process object is itself enough evidence to keep a top-level
+                // accessory app routable, even while isRunning is false. This lets FineTune
+                // arm the tap before a short notification sound starts without listing every
+                // quiet background accessory app in NSWorkspace.
                 let directApp = runningAppsByPID[pid]
-
                 let directIsUserApp = directApp.map {
                     Self.shouldIncludeUserApplication(
                         activationPolicy: $0.activationPolicy,
                         isTerminated: $0.isTerminated,
                         bundleURL: $0.bundleURL,
-                        isAudioActive: isAudioActive
+                        hasAudioProcessObject: true
                     )
                 } ?? false
                 let resolvedApp = directIsUserApp
                     ? directApp
-                    : findResponsibleApp(for: pid, in: runningAppsByPID, isAudioActive: isAudioActive)
+                    : findResponsibleApp(for: pid, in: runningAppsByPID, hasAudioProcessObject: true)
                 let parentPID = resolvedApp?.processIdentifier ?? pid
                 let isHelper = parentPID != pid
 
@@ -382,10 +384,10 @@ final class AudioProcessMonitor: AudioProcessMonitoring {
                           activationPolicy: resolvedApp.activationPolicy,
                           isTerminated: resolvedApp.isTerminated,
                           bundleURL: resolvedApp.bundleURL,
-                          isAudioActive: isAudioActive
+                          hasAudioProcessObject: true
                       ) else { continue }
 
-                // Skip system daemons (siri, coreaudio, etc.) - they shouldn't appear in the apps list
+                // Skip system daemons (siri, coreaudio, etc.) - they shouldn't appear as user apps
                 if isSystemDaemon(bundleID: bundleID, name: name) { continue }
 
                 // Merge helper process objectIDs into parent app entry
