@@ -1,4 +1,3 @@
-// FineTune/Views/Components/PopoverHost.swift
 import SwiftUI
 import AppKit
 
@@ -141,9 +140,23 @@ struct PopoverHost<Content: View>: NSViewRepresentable {
             // Get trigger button frame in screen coordinates
             let triggerFrame = parentWindow.convertToScreen(parentView.convert(parentView.bounds, to: nil))
 
-            // Local monitor: clicks within our app (outside panel AND outside trigger)
-            localEventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
+            // Local monitor: clicks within our app and Escape while the custom
+            // panel is key. Escape is a shared dismissal contract for every
+            // PopoverHost consumer, including pickers without their own key handler.
+            localEventMonitor = NSEvent.addLocalMonitorForEvents(
+                matching: [.leftMouseDown, .rightMouseDown, .keyDown]
+            ) { [weak self] event in
                 guard let self = self, let panel = self.panel else { return event }
+
+                if event.type == .keyDown, event.keyCode == 53 {
+                    self.dismissPanel()
+                    return nil
+                }
+
+                guard event.type == .leftMouseDown || event.type == .rightMouseDown else {
+                    return event
+                }
+
                 let mouseLocation = NSEvent.mouseLocation
                 let isInPanel = panel.frame.contains(mouseLocation)
                 let isInTrigger = triggerFrame.contains(mouseLocation)
@@ -152,7 +165,7 @@ struct PopoverHost<Content: View>: NSViewRepresentable {
                 if !isInPanel && !isInTrigger {
                     self.dismissPanel()
                 }
-                return event  // Don't consume
+                return event  // Don't consume pointer events
             }
 
             // Global monitor: clicks in OTHER apps (dismisses panel + parent)
