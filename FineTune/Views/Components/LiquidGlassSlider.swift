@@ -8,25 +8,29 @@ struct LiquidGlassSlider: View {
     let range: ClosedRange<Double>
     let showUnityMarker: Bool
     let onEditingChanged: ((Bool) -> Void)?
+    let accessibilityLabel: Text
 
     @State private var isEditing = false
     @State private var isHovered = false
+    @FocusState private var isFocused: Bool
 
-    /// Show thumb only when hovering or dragging
+    /// Keep the native thumb/focus treatment visible for every active input path.
     private var showThumb: Bool {
-        isHovered || isEditing
+        isHovered || isEditing || isFocused
     }
 
     init(
         value: Binding<Double>,
         in range: ClosedRange<Double> = 0...1,
         showUnityMarker: Bool = false,
-        onEditingChanged: ((Bool) -> Void)? = nil
+        onEditingChanged: ((Bool) -> Void)? = nil,
+        accessibilityLabel: Text = Text("Volume")
     ) {
         self._value = value
         self.range = range
         self.showUnityMarker = showUnityMarker
         self.onEditingChanged = onEditingChanged
+        self.accessibilityLabel = accessibilityLabel
     }
 
     private let trackHeight: CGFloat = 4
@@ -67,14 +71,16 @@ struct LiquidGlassSlider: View {
                 }
 
                 // Native SwiftUI Slider - gets Liquid Glass thumb on macOS 26+
-                // Thumb only visible on hover/drag
+                // Resting chrome stays quiet; hover, drag, and keyboard focus reveal it.
                 Slider(value: $value, in: range) { editing in
                     isEditing = editing
                     onEditingChanged?(editing)
                 }
                 .controlSize(.mini)
                 .tint(.clear)  // Hide native track, we draw our own
-                .opacity(showThumb ? 1 : 0.01)  // Nearly invisible when not hovered, but still interactive
+                .focused($isFocused)
+                .accessibilityLabel(accessibilityLabel)
+                .opacity(showThumb ? 1 : 0.01)
             }
         }
         .frame(height: DesignTokens.Dimensions.sliderThumbHeight)
