@@ -1,4 +1,3 @@
-// FineTune/Views/Components/ModeToggle.swift
 import Foundation
 import SwiftUI
 
@@ -6,6 +5,7 @@ import SwiftUI
 struct ModeToggle: View {
     @Binding var mode: DeviceSelectionMode
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var hoveredOption: DeviceSelectionMode?
 
     private let options: [(mode: DeviceSelectionMode, label: LocalizedStringResource)] = [
@@ -35,7 +35,7 @@ struct ModeToggle: View {
         let isHovered = hoveredOption == optionMode
 
         Button {
-            withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+            withAnimation(reduceMotion ? nil : .spring(response: 0.25, dampingFraction: 0.8)) {
                 mode = optionMode
             }
         } label: {
@@ -58,8 +58,9 @@ struct ModeToggle: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
         .whenHovered { hovering in
-            withAnimation(DesignTokens.Animation.hover) {
+            withAnimation(reduceMotion ? nil : DesignTokens.Animation.hover) {
                 hoveredOption = hovering ? optionMode : nil
             }
         }
