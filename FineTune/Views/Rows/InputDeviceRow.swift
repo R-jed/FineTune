@@ -88,12 +88,19 @@ struct InputDeviceRow: View {
         HStack(spacing: DesignTokens.Spacing.sm) {
             DeviceBadge(icon: displayIcon, isSelected: isDefault, fallbackSymbol: "mic")
 
-            // Device name
+            // Device name. Weight provides a non-color default-state cue.
             Text(device.name)
-                .font(DesignTokens.Typography.rowName)
+                .font(isDefault ? DesignTokens.Typography.rowNameBold : DesignTokens.Typography.rowName)
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .help(Text(verbatim: device.name))
+                .accessibilityValue(isDefault ? Text("Default device") : Text("Not default"))
+                .accessibilityHint(isDefault ? Text("Current default input device") : Text("Activate to set as default input device"))
+                .accessibilityAction {
+                    if !isDefault {
+                        onSetDefault()
+                    }
+                }
 
             // Mute button (mic icon)
             InputMuteButton(isMuted: showMutedIcon) {
@@ -116,7 +123,8 @@ struct InputDeviceRow: View {
                 value: $sliderValue,
                 onEditingChanged: { editing in
                     isEditing = editing
-                }
+                },
+                accessibilityLabel: Text("Input volume for \(device.name)")
             )
             .opacity(showMutedIcon ? 0.5 : 1.0)
             .onChange(of: sliderValue) { _, newValue in
