@@ -234,10 +234,6 @@ struct AppRow: View {
             // Sync from parent when external EQ settings change
             localEQSettings = newValue
         }
-        .contextMenu {
-            Button("Hide app", systemImage: "eye.slash", action: onHide)
-        }
-        .accessibilityAction(named: "Hide app", onHide)
         .dropDestination(for: String.self) { identifiers, _ in
             guard let sourceIdentifier = identifiers.first,
                   sourceIdentifier != app.persistenceIdentifier

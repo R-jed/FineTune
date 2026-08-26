@@ -370,7 +370,14 @@ struct MenuBarPopupView: View {
     private func mainContent(scrollProxy: ScrollViewProxy) -> some View {
         if isEditingDevicePriority {
             ScrollView {
-                devicesSection
+                VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+                    devicesSection
+
+                    Divider()
+                        .padding(.vertical, DesignTokens.Spacing.xs)
+
+                    appVisibilitySection
+                }
             }
             .scrollIndicators(.never)
             .frame(maxHeight: popupDimensions.maxContentHeight)
@@ -779,17 +786,10 @@ struct MenuBarPopupView: View {
     @ViewBuilder
     private func appsSection(scrollProxy: ScrollViewProxy) -> some View {
         HStack {
-            SectionHeader(title: "Apps")
-            Spacer()
-            let ignoredApps = audioEngine.settingsManager.getIgnoredAppInfo()
-                .sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
-            if !ignoredApps.isEmpty {
-                IgnoredAppsMenu(ignoredApps: ignoredApps) { identifier in
-                    audioEngine.unignoreApp(identifier)
-                }
-            }
-            AddApplicationsButton(action: selectApplications)
-        }
+    SectionHeader(title: "Apps")
+    Spacer()
+    AddApplicationsButton(action: selectApplications)
+}
         .padding(.bottom, DesignTokens.Spacing.xs)
 
         if let appSelectionError {
@@ -814,6 +814,64 @@ struct MenuBarPopupView: View {
             .scrollIndicators(.visible)
             .frame(height: appViewportHeight)
         }
+    }
+
+    private let appVisibilityColumns = [
+        GridItem(.flexible(), spacing: DesignTokens.Spacing.xs),
+        GridItem(.flexible(), spacing: DesignTokens.Spacing.xs)
+    ]
+
+    private var appVisibilitySection: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+            SectionHeader(title: "Apps")
+
+            let visibleApps = audioEngine.displayableApps
+            if !visibleApps.isEmpty {
+                LazyVGrid(columns: appVisibilityColumns, spacing: DesignTokens.Spacing.xs) {
+                    ForEach(visibleApps) { displayableApp in
+                        switch displayableApp {
+                        case .active(let app):
+                            AppVisibilityRow(
+                                icon: app.icon,
+                                name: app.name,
+                                isIgnored: false,
+                                onToggleVisibility: { audioEngine.ignoreApp(app) }
+                            )
+                        case .pinnedInactive(let info):
+                            AppVisibilityRow(
+                                icon: displayableApp.icon,
+                                name: info.displayName,
+                                isIgnored: false,
+                                onToggleVisibility: { audioEngine.ignoreApp(info) }
+                            )
+                        }
+                    }
+                }
+            }
+
+            let ignoredApps = audioEngine.settingsManager.getIgnoredAppInfo()
+                .sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
+            if !ignoredApps.isEmpty {
+                Divider()
+                    .padding(.vertical, DesignTokens.Spacing.xs)
+
+                Text("Hidden apps")
+                    .sectionHeaderStyle()
+                    .padding(.bottom, DesignTokens.Spacing.xs)
+
+                LazyVGrid(columns: appVisibilityColumns, spacing: DesignTokens.Spacing.xs) {
+                    ForEach(ignoredApps, id: \.persistenceIdentifier) { info in
+                        AppVisibilityRow(
+                            icon: DisplayableApp.loadIcon(bundleID: info.bundleID),
+                            name: info.displayName,
+                            isIgnored: true,
+                            onToggleVisibility: { audioEngine.unignoreApp(info.persistenceIdentifier) }
+                        )
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var appViewportHeight: CGFloat {
@@ -1515,36 +1573,55 @@ struct MenuBarPopupView: View {
     }
 }
 
-private struct IgnoredAppsMenu: View {
-    let ignoredApps: [IgnoredAppInfo]
-    let onRestore: (String) -> Void
+private struct AppVisibilityRow: View {
+    let icon: NSImage
+    let name: String
+    let isIgnored: Bool
+    let onToggleVisibility: () -> Void
+
+    @State private var isEyeHovered = false
 
     var body: some View {
-        Menu {
-            ForEach(ignoredApps, id: \.persistenceIdentifier) { app in
-                Button {
-                    onRestore(app.persistenceIdentifier)
-                } label: {
-                    Label {
-                        Text(verbatim: app.displayName)
-                    } icon: {
-                        Image(systemName: "eye")
-                    }
-                }
+        HStack(spacing: DesignTokens.Spacing.sm) {
+            Image(nsImage: icon)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: DesignTokens.Dimensions.iconSize, height: DesignTokens.Dimensions.iconSize)
+                .opacity(isIgnored ? 0.4 : 1.0)
+
+            Text(name)
+                .font(DesignTokens.Typography.rowName)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .foregroundStyle(isIgnored ? DesignTokens.Colors.textSecondary : DesignTokens.Colors.textPrimary)
+
+            Button(action: onToggleVisibility) {
+                Image(systemName: isIgnored ? "eye.slash" : "eye")
+                    .font(.system(size: 13))
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(eyeColor)
+                    .frame(
+                        minWidth: DesignTokens.Dimensions.minTouchTarget,
+                        minHeight: DesignTokens.Dimensions.minTouchTarget
+                    )
+                    .contentShape(Rectangle())
+                    .scaleEffect(isEyeHovered ? 1.1 : 1.0)
             }
-        } label: {
-            HStack(spacing: 4) {
-                Image(systemName: "eye.slash")
-                    .font(.system(size: 10))
-                Text(verbatim: "\(ignoredApps.count) ") + Text("hidden")
-            }
-            .font(DesignTokens.Typography.caption)
-            .foregroundStyle(DesignTokens.Colors.textTertiary)
+            .buttonStyle(.plain)
+            .onHover { isEyeHovered = $0 }
+            .help(isIgnored ? "Show app" : "Hide app")
+            .animation(DesignTokens.Animation.quick, value: isEyeHovered)
         }
-        .menuStyle(.borderlessButton)
-        .fixedSize()
-        .accessibilityLabel("Hidden apps")
-        .help("Hidden apps")
+        .frame(height: DesignTokens.Dimensions.rowContentHeight)
+        .hoverableRow()
+    }
+
+    private var eyeColor: Color {
+        if isIgnored {
+            isEyeHovered ? DesignTokens.Colors.textPrimary : DesignTokens.Colors.textSecondary
+        } else {
+            isEyeHovered ? DesignTokens.Colors.interactiveHover : DesignTokens.Colors.interactiveDefault
+        }
     }
 }
 

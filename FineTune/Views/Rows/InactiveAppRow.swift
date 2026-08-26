@@ -214,10 +214,6 @@ struct InactiveAppRow: View {
         .onChange(of: eqSettings) { _, newValue in
             localEQSettings = newValue
         }
-        .contextMenu {
-            Button("Hide app", systemImage: "eye.slash", action: onHide)
-        }
-        .accessibilityAction(named: "Hide app", onHide)
         .dropDestination(for: String.self) { identifiers, _ in
             guard let sourceIdentifier = identifiers.first,
                   sourceIdentifier != appInfo.persistenceIdentifier
