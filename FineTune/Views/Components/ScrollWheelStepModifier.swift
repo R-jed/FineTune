@@ -21,7 +21,14 @@ struct ScrollWheelStepModifier<V: BinaryFloatingPoint>: ViewModifier {
     }
 
     private func install() {
+        guard monitor == nil else { return }
         monitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { event in
+            // Normal wheel/trackpad scrolling belongs to the surrounding list.
+            // Require Option as an explicit intent signal before consuming the event.
+            guard ScrollWheelStep.shouldAdjust(modifierFlags: event.modifierFlags) else {
+                return event
+            }
+
             ScrollWheelStep.apply(
                 event: event,
                 value: &value,
@@ -41,7 +48,8 @@ struct ScrollWheelStepModifier<V: BinaryFloatingPoint>: ViewModifier {
 }
 
 extension View {
-    /// Smooth scroll-wheel adjustment with a default tuning of "200-pt trackpad swipe ≈ full range."
+    /// Option + scroll adjusts the hovered value. Ordinary scrolling is passed
+    /// through to the surrounding ScrollView.
     func scrollWheelStep<V: BinaryFloatingPoint>(
         _ value: Binding<V>,
         in range: ClosedRange<V>

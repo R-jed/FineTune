@@ -172,9 +172,10 @@ struct AppRowControls: View {
             .animation(.spring(response: 0.3, dampingFraction: 0.75), value: isEQExpanded)
             .animation(DesignTokens.Animation.hover, value: isEQButtonHovered)
 
-            // Pin toggle
+            // Pin toggle. The unpinned state uses a slash so the state remains
+            // readable without relying on fill weight alone.
             Button(action: onTogglePin) {
-                Image(systemName: isPinned ? "pin.fill" : "pin")
+                Image(systemName: isPinned ? "pin.fill" : "pin.slash")
                     .font(.system(size: 12))
                     .symbolRenderingMode(.hierarchical)
                     .foregroundStyle(pinButtonColor)

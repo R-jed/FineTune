@@ -152,13 +152,6 @@ struct InactiveAppRow: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .layoutPriority(1)
-                .contentShape(Rectangle())
-                .draggable(appInfo.persistenceIdentifier) {
-                    Text(appInfo.displayName)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 6))
-                }
 
                 // Shared controls section (VU meter always 0 for inactive apps)
                 AppRowControls(
@@ -188,6 +181,13 @@ struct InactiveAppRow: View {
                 )
             }
             .frame(height: DesignTokens.Dimensions.rowContentHeight)
+            .contentShape(Rectangle())
+            .draggable(appInfo.persistenceIdentifier) {
+                Text(appInfo.displayName)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 6))
+            }
             .opacity(0.6)
         } expandedContent: {
             // EQ panel

@@ -1,9 +1,19 @@
+import AppKit
 import CoreGraphics
 import Testing
 @testable import FineTune
 
 @Suite("ScrollWheelStep continuous mapping")
 struct ScrollWheelStepTests {
+    @Test("Wheel adjustment requires Option")
+    func explicitIntentModifier() {
+        #expect(!ScrollWheelStep.shouldAdjust(modifierFlags: []))
+        #expect(!ScrollWheelStep.shouldAdjust(modifierFlags: [.shift]))
+        #expect(!ScrollWheelStep.shouldAdjust(modifierFlags: [.command]))
+        #expect(ScrollWheelStep.shouldAdjust(modifierFlags: [.option]))
+        #expect(ScrollWheelStep.shouldAdjust(modifierFlags: [.option, .shift]))
+    }
+
     @Test("Precise delta scales linearly by sensitivity")
     func precisePoint() {
         var value: Double = 0.5

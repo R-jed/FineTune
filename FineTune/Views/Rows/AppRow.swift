@@ -171,13 +171,6 @@ struct AppRow: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .layoutPriority(1)
-                .contentShape(Rectangle())
-                .draggable(app.persistenceIdentifier) {
-                    Text(app.name)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 6))
-                }
 
                 // Shared controls section
                 AppRowControls(
@@ -207,6 +200,13 @@ struct AppRow: View {
                 )
             }
             .frame(height: DesignTokens.Dimensions.rowContentHeight)
+            .contentShape(Rectangle())
+            .draggable(app.persistenceIdentifier) {
+                Text(app.name)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 6))
+            }
         } expandedContent: {
             // EQ panel - shown when expanded
             // SwiftUI calculates natural height via conditional rendering

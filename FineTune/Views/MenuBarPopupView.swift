@@ -370,7 +370,14 @@ struct MenuBarPopupView: View {
     private func mainContent(scrollProxy: ScrollViewProxy) -> some View {
         if isEditingDevicePriority {
             ScrollView {
-                devicesSection
+                VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+                    devicesSection
+
+                    Divider()
+                        .padding(.vertical, DesignTokens.Spacing.xs)
+
+                    appsSection(scrollProxy: scrollProxy)
+                }
             }
             .scrollIndicators(.never)
             .frame(maxHeight: popupDimensions.maxContentHeight)
@@ -783,12 +790,14 @@ struct MenuBarPopupView: View {
             Spacer()
             let ignoredApps = audioEngine.settingsManager.getIgnoredAppInfo()
                 .sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
-            if !ignoredApps.isEmpty {
-                IgnoredAppsMenu(ignoredApps: ignoredApps) { identifier in
-                    audioEngine.unignoreApp(identifier)
+            if !isEditingDevicePriority {
+                if !ignoredApps.isEmpty {
+                    HiddenAppsEditButton(count: ignoredApps.count) {
+                        toggleDevicePriorityEdit()
+                    }
                 }
+                AddApplicationsButton(action: selectApplications)
             }
-            AddApplicationsButton(action: selectApplications)
         }
         .padding(.bottom, DesignTokens.Spacing.xs)
 
@@ -805,6 +814,8 @@ struct MenuBarPopupView: View {
 
         if permission.status != .authorized {
             PermissionBannerView(permission: permission)
+        } else if isEditingDevicePriority {
+            appVisibilityEditContent
         } else if audioEngine.displayableApps.isEmpty {
             emptyStateView
         } else {
@@ -814,6 +825,63 @@ struct MenuBarPopupView: View {
             .scrollIndicators(.visible)
             .frame(height: appViewportHeight)
         }
+    }
+
+    private let appEditColumns = [
+        GridItem(.flexible(), spacing: DesignTokens.Spacing.xs),
+        GridItem(.flexible(), spacing: DesignTokens.Spacing.xs)
+    ]
+
+    @ViewBuilder
+    private var appVisibilityEditContent: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+            if !audioEngine.displayableApps.isEmpty {
+                LazyVGrid(columns: appEditColumns, spacing: DesignTokens.Spacing.xs) {
+                    ForEach(audioEngine.displayableApps) { displayableApp in
+                        switch displayableApp {
+                        case .active(let app):
+                            AppVisibilityEditRow(
+                                icon: app.icon,
+                                name: app.name,
+                                isHidden: false,
+                                onToggleVisibility: { audioEngine.ignoreApp(app) }
+                            )
+                        case .pinnedInactive(let info):
+                            AppVisibilityEditRow(
+                                icon: displayableApp.icon,
+                                name: info.displayName,
+                                isHidden: false,
+                                onToggleVisibility: { audioEngine.ignoreApp(info) }
+                            )
+                        }
+                    }
+                }
+            }
+
+            let ignoredApps = audioEngine.settingsManager.getIgnoredAppInfo()
+                .sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
+            if !ignoredApps.isEmpty {
+                Divider()
+                    .padding(.vertical, DesignTokens.Spacing.xs)
+
+                SectionHeader(title: "Hidden apps")
+                    .padding(.bottom, DesignTokens.Spacing.xs)
+
+                LazyVGrid(columns: appEditColumns, spacing: DesignTokens.Spacing.xs) {
+                    ForEach(ignoredApps, id: \.persistenceIdentifier) { info in
+                        AppVisibilityEditRow(
+                            icon: DisplayableApp.loadIcon(bundleID: info.bundleID),
+                            name: info.displayName,
+                            isHidden: true,
+                            onToggleVisibility: {
+                                audioEngine.unignoreApp(info.persistenceIdentifier)
+                            }
+                        )
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var appViewportHeight: CGFloat {
@@ -1515,33 +1583,23 @@ struct MenuBarPopupView: View {
     }
 }
 
-private struct IgnoredAppsMenu: View {
-    let ignoredApps: [IgnoredAppInfo]
-    let onRestore: (String) -> Void
+private struct HiddenAppsEditButton: View {
+    let count: Int
+    let action: () -> Void
 
     var body: some View {
-        Menu {
-            ForEach(ignoredApps, id: \.persistenceIdentifier) { app in
-                Button {
-                    onRestore(app.persistenceIdentifier)
-                } label: {
-                    Label {
-                        Text(verbatim: app.displayName)
-                    } icon: {
-                        Image(systemName: "eye")
-                    }
-                }
-            }
-        } label: {
+        Button(action: action) {
             HStack(spacing: 4) {
                 Image(systemName: "eye.slash")
                     .font(.system(size: 10))
-                Text(verbatim: "\(ignoredApps.count) ") + Text("hidden")
+                Text(verbatim: "\(count) ") + Text("hidden")
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 8, weight: .semibold))
             }
             .font(DesignTokens.Typography.caption)
             .foregroundStyle(DesignTokens.Colors.textTertiary)
         }
-        .menuStyle(.borderlessButton)
+        .buttonStyle(.plain)
         .fixedSize()
         .accessibilityLabel("Hidden apps")
         .help("Hidden apps")
