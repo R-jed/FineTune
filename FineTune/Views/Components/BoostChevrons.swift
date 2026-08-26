@@ -7,6 +7,7 @@ struct BoostChevrons: View {
     let level: BoostLevel
     let onTap: () -> Void
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isHovered = false
 
     /// Number of lit chevrons for each boost level
@@ -59,7 +60,7 @@ struct BoostChevrons: View {
         .accessibilityLabel { _ in
             accessibilityText
         }
-        .animation(.snappy(duration: 0.2), value: level)
+        .animation(reduceMotion ? nil : .snappy(duration: 0.2), value: level)
         .animation(DesignTokens.Animation.hover, value: isHovered)
     }
 }
