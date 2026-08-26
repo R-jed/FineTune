@@ -11,6 +11,8 @@ struct EQPanelView: View {
     let onDeleteUserPreset: (UUID) -> Void
     let onRenameUserPreset: (UUID, String) -> Void
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     @State private var isSaving = false
     @State private var savePresetName = ""
     @FocusState private var isSaveFieldFocused: Bool
@@ -54,7 +56,7 @@ struct EQPanelView: View {
             HStack {
                 // EQ toggle on left
                 HStack(spacing: 6) {
-                    Toggle("", isOn: $settings.isEnabled)
+                    Toggle("Equalizer", isOn: $settings.isEnabled)
                         .toggleStyle(.switch)
                         .scaleEffect(0.7)
                         .labelsHidden()
@@ -119,8 +121,8 @@ struct EQPanelView: View {
                 }
             }
             .opacity(settings.isEnabled ? 1.0 : 0.3)
-            .allowsHitTesting(settings.isEnabled)
-            .animation(.easeInOut(duration: 0.2), value: settings.isEnabled)
+            .disabled(!settings.isEnabled)
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: settings.isEnabled)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
@@ -131,8 +133,8 @@ struct EQPanelView: View {
         .padding(.horizontal, 2)
         .padding(.top, DesignTokens.Spacing.xs)
         .padding(.bottom, DesignTokens.Spacing.xs)
-        .animation(DesignTokens.Animation.quick, value: isSaving)
-        .animation(DesignTokens.Animation.quick, value: isRenaming)
+        .animation(reduceMotion ? nil : DesignTokens.Animation.quick, value: isSaving)
+        .animation(reduceMotion ? nil : DesignTokens.Animation.quick, value: isRenaming)
     }
 
     // MARK: - Save Button
