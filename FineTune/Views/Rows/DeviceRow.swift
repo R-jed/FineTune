@@ -142,24 +142,31 @@ struct DeviceRow: View {
     private var deviceHeader: some View {
         HStack(spacing: DesignTokens.Spacing.sm) {
             // Tinted badge replaces the prior leading RadioButton.
-            // Selection is now signalled by accent-colored gradient on the
-            // badge plus bold device name; the row-level gesture in `body`
-            // handles tap-to-set-default.
+            // Selection uses both the accent badge and name weight so state is
+            // still readable without relying on color alone.
             DeviceBadge(icon: displayIcon, isSelected: isDefault)
 
             // Device name + optional AutoEQ profile subtitle + AutoEQ picker
             HStack(spacing: DesignTokens.Spacing.xs) {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(device.name)
-                        .font(DesignTokens.Typography.rowName)
+                        .font(isDefault ? DesignTokens.Typography.rowNameBold : DesignTokens.Typography.rowName)
                         .lineLimit(1)
-                        .help(device.name)
+                        .help(Text(verbatim: device.name))
+                        .accessibilityValue(isDefault ? Text("Default device") : Text("Not default"))
+                        .accessibilityHint(isDefault ? Text("Current default output device") : Text("Activate to set as default output device"))
+                        .accessibilityAction {
+                            if !isDefault {
+                                onSetDefault()
+                            }
+                        }
 
                     if let profileName = autoEQProfileName {
                         autoEQSubtitle(profileName: profileName)
                             .font(.system(size: 9))
                             .foregroundStyle(DesignTokens.Colors.textTertiary)
                             .lineLimit(1)
+                            .help(Text(verbatim: profileName))
                     }
                 }
 
@@ -210,7 +217,8 @@ struct DeviceRow: View {
                 value: $sliderValue,
                 onEditingChanged: { editing in
                     isEditing = editing
-                }
+                },
+                accessibilityLabel: Text("Output volume for \(device.name)")
             )
             .opacity(showMutedIcon ? 0.5 : 1.0)
             .onChange(of: sliderValue) { _, newValue in
