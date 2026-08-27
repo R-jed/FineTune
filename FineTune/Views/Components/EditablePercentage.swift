@@ -105,6 +105,7 @@ struct EditablePercentage: View {
             }
         }
         .frame(width: DesignTokens.Dimensions.percentageWidth, alignment: .trailing)
+        .frame(minHeight: DesignTokens.Dimensions.minTouchTarget)
         .contentShape(Rectangle())
         .onTapGesture { if !isEditing { startEditing() } }
         .focusable(canActivateDirectly)
