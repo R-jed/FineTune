@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// Ports Amicro's hover morph: outgoing symbol shrinks to 0.5 while fading,
-/// incoming symbol grows from 0.5 while fading in.
+/// Hover emphasis that preserves the control's current semantic symbol.
+/// The secondary symbol remains part of the call-site contract until callers are simplified,
+/// but hover itself only changes emphasis and never previews the opposite action.
 struct HoverMorphSymbol: View {
     let primarySymbol: String
     let secondarySymbol: String
@@ -13,22 +14,13 @@ struct HoverMorphSymbol: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        ZStack {
-            Image(systemName: primarySymbol)
-                .foregroundStyle(primaryColor)
-                .opacity(isHovered ? 0 : 1)
-                .scaleEffect(reduceMotion ? 1 : (isHovered ? 0.5 : 1))
-
-            Image(systemName: secondarySymbol)
-                .foregroundStyle(secondaryColor)
-                .opacity(isHovered ? 1 : 0)
-                .scaleEffect(reduceMotion ? 1 : (isHovered ? 1 : 0.5))
-        }
-        .font(font)
-        .symbolRenderingMode(.hierarchical)
-        .animation(
-            reduceMotion ? nil : .interpolatingSpring(stiffness: 600, damping: 25),
-            value: isHovered
-        )
+        Image(systemName: primarySymbol)
+            .font(font)
+            .symbolRenderingMode(.hierarchical)
+            .foregroundStyle(isHovered ? secondaryColor : primaryColor)
+            .animation(
+                reduceMotion ? nil : DesignTokens.Animation.hover,
+                value: isHovered
+            )
     }
 }
