@@ -61,21 +61,51 @@ struct DeviceEditRow<ExpandedContent: View>: View {
     }
 
     var body: some View {
-        ExpandableGlassRow(isExpanded: isExpanded) {
-            headerRow
-                .opacity(isHidden && !isDefault ? 0.5 : 1.0)
-                .animation(.easeOut(duration: 0.2), value: isHidden)
-        } expandedContent: {
-            expandedContent()
-        }
-        .reorderDragAppearance(isDragging: isDragging, offset: dragOffset)
-        .accessibilityAction(named: Text("Move Up")) {
-            guard priorityIndex > 0 else { return }
-            onReorder(priorityIndex - 1)
-        }
-        .accessibilityAction(named: Text("Move Down")) {
-            guard priorityIndex + 1 < deviceCount else { return }
-            onReorder(priorityIndex + 1)
+        accessibleReorderActions(
+            ExpandableGlassRow(isExpanded: isExpanded) {
+                headerRow
+                    .opacity(isHidden && !isDefault ? 0.5 : 1.0)
+                    .animation(.easeOut(duration: 0.2), value: isHidden)
+            } expandedContent: {
+                expandedContent()
+            }
+            .reorderDragAppearance(isDragging: isDragging, offset: dragOffset)
+        )
+    }
+
+    @ViewBuilder
+    private func accessibleReorderActions<Content: View>(_ content: Content) -> some View {
+        let moveUpTarget = DeviceReorderAccessibility.targetIndex(
+            currentIndex: priorityIndex,
+            direction: -1,
+            count: deviceCount
+        )
+        let moveDownTarget = DeviceReorderAccessibility.targetIndex(
+            currentIndex: priorityIndex,
+            direction: 1,
+            count: deviceCount
+        )
+
+        if let moveUpTarget, let moveDownTarget {
+            content
+                .accessibilityAction(named: Text("Move Up")) {
+                    onReorder(moveUpTarget)
+                }
+                .accessibilityAction(named: Text("Move Down")) {
+                    onReorder(moveDownTarget)
+                }
+        } else if let moveUpTarget {
+            content
+                .accessibilityAction(named: Text("Move Up")) {
+                    onReorder(moveUpTarget)
+                }
+        } else if let moveDownTarget {
+            content
+                .accessibilityAction(named: Text("Move Down")) {
+                    onReorder(moveDownTarget)
+                }
+        } else {
+            content
         }
     }
 
@@ -237,6 +267,15 @@ struct DeviceEditRow<ExpandedContent: View>: View {
         .accessibilityLabel(Text(inspectorAccessibilityLabel))
         .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: isExpanded)
         .animation(DesignTokens.Animation.hover, value: isInfoButtonHovered)
+    }
+}
+
+enum DeviceReorderAccessibility {
+    static func targetIndex(currentIndex: Int, direction: Int, count: Int) -> Int? {
+        guard direction == -1 || direction == 1 else { return nil }
+        let targetIndex = currentIndex + direction
+        guard (0..<count).contains(targetIndex) else { return nil }
+        return targetIndex
     }
 }
 
