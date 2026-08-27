@@ -29,6 +29,7 @@ struct DeviceEditRow<ExpandedContent: View>: View {
     @State private var showingIconPicker = false
     @State private var isIconHovered = false
     @State private var isHideButtonHovered = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var displayIcon: NSImage? {
         DeviceIconResolver.displayIcon(
@@ -68,6 +69,14 @@ struct DeviceEditRow<ExpandedContent: View>: View {
             expandedContent()
         }
         .reorderDragAppearance(isDragging: isDragging, offset: dragOffset)
+        .accessibilityAction(named: Text("Move Up")) {
+            guard priorityIndex > 0 else { return }
+            onReorder(priorityIndex - 1)
+        }
+        .accessibilityAction(named: Text("Move Down")) {
+            guard priorityIndex + 1 < deviceCount else { return }
+            onReorder(priorityIndex + 1)
+        }
     }
 
     private var infoButtonColor: Color {
@@ -103,7 +112,7 @@ struct DeviceEditRow<ExpandedContent: View>: View {
 
                 if isDefault {
                     Text("DEFAULT")
-                        .font(.system(size: 9, weight: .semibold))
+                        .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(DesignTokens.Colors.textSecondary)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
@@ -146,7 +155,7 @@ struct DeviceEditRow<ExpandedContent: View>: View {
             .overlay(alignment: .bottomTrailing) {
                 if isIconHovered {
                     Image(systemName: "pencil.circle.fill")
-                        .font(.system(size: 9))
+                        .font(.system(size: 11))
                         .symbolRenderingMode(.palette)
                         .foregroundStyle(Color.white, DesignTokens.Colors.accentPrimary)
                         .offset(x: 3, y: 3)
@@ -172,19 +181,14 @@ struct DeviceEditRow<ExpandedContent: View>: View {
         Button {
             onToggleHidden()
         } label: {
-            HoverMorphSymbol(
-                primarySymbol: isHidden ? "eye.slash" : "eye",
-                secondarySymbol: isHidden ? "eye" : "eye.slash",
-                isHovered: isHideButtonHovered && !isDefault,
-                primaryColor: hideSymbolColor(isHidden: isHidden, hovered: false),
-                secondaryColor: hideSymbolColor(isHidden: !isHidden, hovered: true),
-                font: .system(size: 11)
-            )
-            .frame(
-                minWidth: DesignTokens.Dimensions.minTouchTarget,
-                minHeight: DesignTokens.Dimensions.minTouchTarget
-            )
-            .contentShape(Rectangle())
+            Image(systemName: isHidden ? "eye.slash" : "eye")
+                .font(.system(size: 12))
+                .foregroundStyle(hideSymbolColor)
+                .frame(
+                    minWidth: DesignTokens.Dimensions.minTouchTarget,
+                    minHeight: DesignTokens.Dimensions.minTouchTarget
+                )
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .disabled(isDefault)
@@ -193,14 +197,14 @@ struct DeviceEditRow<ExpandedContent: View>: View {
         .accessibilityLabel(Text(hideAccessibilityLabel))
     }
 
-    private func hideSymbolColor(isHidden: Bool, hovered: Bool) -> Color {
+    private var hideSymbolColor: Color {
         if isDefault {
             return DesignTokens.Colors.textTertiary.opacity(0.4)
         }
         if isHidden {
             return DesignTokens.Colors.mutedIndicator
         }
-        return hovered
+        return isHideButtonHovered
             ? DesignTokens.Colors.interactiveHover
             : DesignTokens.Colors.textTertiary
     }
@@ -212,11 +216,11 @@ struct DeviceEditRow<ExpandedContent: View>: View {
             ZStack {
                 Image(systemName: "info.circle")
                     .opacity(isExpanded ? 0 : 1)
-                    .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                    .rotationEffect(.degrees(reduceMotion ? 0 : (isExpanded ? 90 : 0)))
 
                 Image(systemName: "xmark")
                     .opacity(isExpanded ? 1 : 0)
-                    .rotationEffect(.degrees(isExpanded ? 0 : -90))
+                    .rotationEffect(.degrees(reduceMotion ? 0 : (isExpanded ? 0 : -90)))
             }
             .font(.system(size: 12))
             .symbolRenderingMode(.hierarchical)
@@ -231,7 +235,7 @@ struct DeviceEditRow<ExpandedContent: View>: View {
         .onHover { isInfoButtonHovered = $0 }
         .help(inspectorHelpText)
         .accessibilityLabel(Text(inspectorAccessibilityLabel))
-        .animation(.spring(response: 0.3, dampingFraction: 0.75), value: isExpanded)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: isExpanded)
         .animation(DesignTokens.Animation.hover, value: isInfoButtonHovered)
     }
 }
@@ -393,7 +397,7 @@ struct DeviceEditRowTapCarveoutPreview: View {
                         lastEvent = "Reorder to \(newIndex + 1)"
                     },
                     onToggleExpand: {
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                        withAnimation(.easeOut(duration: 0.16)) {
                             let uid = MockData.sampleDevices[0].uid
                             expandedUID = (expandedUID == uid) ? nil : uid
                             lastEvent = "Toggled expand → \(expandedUID ?? "nil")"
