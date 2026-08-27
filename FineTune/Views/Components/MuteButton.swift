@@ -82,7 +82,6 @@ private struct BaseMuteButton: View {
         .buttonStyle(MuteButtonPressStyle())
         .onHover { isHovered = $0 }
         .help(isMuted ? mutedHelp : unmutedHelp)
-        .accessibilityLabel(isMuted ? Text(mutedHelp) : Text(unmutedHelp))
     }
 
     private var symbolColor: Color {
