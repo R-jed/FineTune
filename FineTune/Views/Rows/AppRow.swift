@@ -171,7 +171,7 @@ struct AppRow: View {
                         mode: deviceSelectionMode
                     ) {
                         subtitle
-                            .font(.system(size: 9))
+                            .font(DesignTokens.Typography.caption)
                             .foregroundStyle(DesignTokens.Colors.textTertiary)
                             .lineLimit(1)
                     }
