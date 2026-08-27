@@ -128,7 +128,7 @@ final class AppListCoordinator {
     }
 
     func isFollowingDefaultForInactive(identifier: String) -> Bool {
-        settingsManager.isFollowingDefault(identifier)
+        settingsManager.isFollowingDefault(for: identifier)
     }
 
     func getDeviceSelectionModeForInactive(identifier: String) -> DeviceSelectionMode {
