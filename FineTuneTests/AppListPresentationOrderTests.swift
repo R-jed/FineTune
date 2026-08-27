@@ -73,6 +73,56 @@ struct AppListPresentationOrderTests {
 
         #expect(ordered.map(\.id) == [pinnedA.id, pinnedZ.id, normalA.id, normalZ.id])
     }
+
+    @Test("accessible reorder returns adjacent target only inside the same pin group")
+    func accessibleReorderTargetStaysInsideGroup() {
+        let order = ["pinned-a", "pinned-b", "normal-a", "normal-b"]
+        let pinned: Set<String> = ["pinned-a", "pinned-b"]
+
+        #expect(AppListPresentationOrder.reorderTarget(
+            for: "pinned-a",
+            direction: 1,
+            orderedIdentifiers: order,
+            pinnedIdentifiers: pinned
+        ) == "pinned-b")
+        #expect(AppListPresentationOrder.reorderTarget(
+            for: "normal-b",
+            direction: -1,
+            orderedIdentifiers: order,
+            pinnedIdentifiers: pinned
+        ) == "normal-a")
+        #expect(AppListPresentationOrder.reorderTarget(
+            for: "pinned-b",
+            direction: 1,
+            orderedIdentifiers: order,
+            pinnedIdentifiers: pinned
+        ) == nil)
+        #expect(AppListPresentationOrder.reorderTarget(
+            for: "normal-a",
+            direction: -1,
+            orderedIdentifiers: order,
+            pinnedIdentifiers: pinned
+        ) == nil)
+    }
+
+    @Test("accessible reorder omits actions at the outer list boundaries")
+    func accessibleReorderTargetStopsAtListBoundary() {
+        let order = ["pinned-a", "normal-a"]
+        let pinned: Set<String> = ["pinned-a"]
+
+        #expect(AppListPresentationOrder.reorderTarget(
+            for: "pinned-a",
+            direction: -1,
+            orderedIdentifiers: order,
+            pinnedIdentifiers: pinned
+        ) == nil)
+        #expect(AppListPresentationOrder.reorderTarget(
+            for: "normal-a",
+            direction: 1,
+            orderedIdentifiers: order,
+            pinnedIdentifiers: pinned
+        ) == nil)
+    }
 }
 
 @Suite("U1 app reorder group boundary")
