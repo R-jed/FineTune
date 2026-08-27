@@ -329,13 +329,13 @@ enum DesignTokens {
         static let pickerText = Font.system(size: 11, weight: .regular)
 
         /// EQ frequency labels
-        static let eqLabel = Font.system(size: 9, weight: .medium, design: .monospaced)
+        static let eqLabel = Font.system(size: 10, weight: .medium, design: .monospaced)
 
         /// AutoEQ card profile name
         static let cardProfileName = Font.system(size: 12, weight: .semibold)
 
         /// AutoEQ card source/measuredBy
-        static let cardSource = Font.system(size: 9, weight: .regular)
+        static let cardSource = Font.system(size: 10, weight: .regular)
 
         /// Settings card header (sentence case, 13pt semibold)
         static let cardHeader = Font.system(size: 13, weight: .semibold)
@@ -422,7 +422,7 @@ enum DesignTokens {
         static let sliderThumbSize: CGFloat = 12
 
         /// Minimum touch target
-        static let minTouchTarget: CGFloat = 16
+        static let minTouchTarget: CGFloat = 20
 
         /// Row content height
         static let rowContentHeight: CGFloat = 28
