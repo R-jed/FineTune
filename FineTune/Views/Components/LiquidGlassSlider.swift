@@ -36,7 +36,9 @@ struct LiquidGlassSlider: View {
     private let trackHeight: CGFloat = 4
 
     private var normalizedValue: Double {
-        (value - range.lowerBound) / (range.upperBound - range.lowerBound)
+        let span = range.upperBound - range.lowerBound
+        guard span > 0 else { return 0 }
+        return min(1, max(0, (value - range.lowerBound) / span))
     }
 
     var body: some View {
@@ -49,10 +51,12 @@ struct LiquidGlassSlider: View {
                         .fill(DesignTokens.Colors.sliderTrack)
                         .frame(height: trackHeight)
 
-                    // Filled track
-                    Capsule()
-                        .fill(DesignTokens.Colors.accentPrimary)
-                        .frame(width: max(trackHeight, geo.size.width * normalizedValue), height: trackHeight)
+                    // A true zero value has no accent-colored fill.
+                    if normalizedValue > 0 {
+                        Capsule()
+                            .fill(DesignTokens.Colors.accentPrimary)
+                            .frame(width: geo.size.width * normalizedValue, height: trackHeight)
+                    }
                 }
                 .frame(maxHeight: .infinity)
                 .allowsHitTesting(false)
