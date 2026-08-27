@@ -7,10 +7,12 @@ struct PopupExpansionStateTests {
     func appExpansionReversesImmediately() {
         var state = PopupExpansionState()
 
-        #expect(state.toggleApp("spotify"))
+        let opened = state.toggleApp("spotify")
+        #expect(opened)
         #expect(state.appID == "spotify")
 
-        #expect(state.toggleApp("spotify") == false)
+        let closed = state.toggleApp("spotify")
+        #expect(closed == false)
         #expect(state.appID == nil)
     }
 
@@ -18,8 +20,11 @@ struct PopupExpansionStateTests {
     func appExpansionRetargets() {
         var state = PopupExpansionState()
 
-        #expect(state.toggleApp("spotify"))
-        #expect(state.toggleApp("chrome"))
+        let openedSpotify = state.toggleApp("spotify")
+        #expect(openedSpotify)
+
+        let openedChrome = state.toggleApp("chrome")
+        #expect(openedChrome)
         #expect(state.appID == "chrome")
     }
 
@@ -27,11 +32,13 @@ struct PopupExpansionStateTests {
     func expansionKindsAreExclusive() {
         var state = PopupExpansionState()
 
-        #expect(state.toggleDevice("output-a"))
+        let openedDevice = state.toggleDevice("output-a")
+        #expect(openedDevice)
         #expect(state.deviceUID == "output-a")
         #expect(state.appID == nil)
 
-        #expect(state.toggleApp("spotify"))
+        let openedApp = state.toggleApp("spotify")
+        #expect(openedApp)
         #expect(state.appID == "spotify")
         #expect(state.deviceUID == nil)
     }
