@@ -124,18 +124,19 @@ struct AppRow: View {
         self.onDragChanged = onDragChanged
         self.onDragEnded = onDragEnded
         self.isFocused = isFocused
-        // Initialize local EQ state for reactive UI updates
         self._localEQSettings = State(initialValue: eqSettings)
     }
 
     var body: some View {
         ExpandableGlassRow(isExpanded: isEQExpanded, isFocused: isFocused) {
-            // Header: Main row content (always visible)
             HStack(spacing: DesignTokens.Spacing.sm) {
-                // VU Meter
+                ReorderDragHandle(
+                    onChanged: onDragChanged,
+                    onEnded: onDragEnded
+                )
+
                 VUMeter(level: audioLevel, isMuted: isMutedExternal || volume == 0)
 
-                // App icon - clickable to activate app
                 Button(action: onAppActivate) {
                     Image(nsImage: app.icon)
                         .resizable()
@@ -156,9 +157,6 @@ struct AppRow: View {
                     }
                 }
 
-                // App name + optional routing subtitle (hidden when the app is on
-                // system default; the same VStack-with-subtitle pattern as device
-                // rows' AutoEQ subtitle).
                 VStack(alignment: .leading, spacing: 1) {
                     Text(app.name)
                         .font(DesignTokens.Typography.rowName)
@@ -181,17 +179,11 @@ struct AppRow: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .layoutPriority(1)
                 .contentShape(Rectangle())
-                .gesture(
-                    DragGesture(minimumDistance: 2)
-                        .onChanged { value in
-                            onDragChanged(value.translation.height)
-                        }
-                        .onEnded { _ in
-                            onDragEnded()
-                        }
+                .reorderDragTarget(
+                    onChanged: onDragChanged,
+                    onEnded: onDragEnded
                 )
 
-                // Shared controls section
                 AppRowControls(
                     volume: volume,
                     isMuted: isMutedExternal,
@@ -221,8 +213,6 @@ struct AppRow: View {
             .frame(height: DesignTokens.Dimensions.rowContentHeight)
             .contentShape(Rectangle())
         } expandedContent: {
-            // EQ panel - shown when expanded
-            // SwiftUI calculates natural height via conditional rendering
             EQPanelView(
                 settings: $localEQSettings,
                 userPresets: userPresets,
@@ -243,27 +233,12 @@ struct AppRow: View {
             )
             .padding(.top, DesignTokens.Spacing.sm)
         }
-        .offset(y: dragOffset)
-        .shadow(
-            color: Color.black.opacity(isDragging ? 0.18 : 0),
-            radius: isDragging ? 8 : 0,
-            x: 0,
-            y: isDragging ? 4 : 0
-        )
-        .zIndex(isDragging ? 10 : 0)
-        .transaction { transaction in
-            if isDragging {
-                transaction.animation = nil
-            }
-        }
+        .reorderDragAppearance(isDragging: isDragging, offset: dragOffset)
         .onChange(of: eqSettings) { _, newValue in
-            // Sync from parent when external EQ settings change
             localEQSettings = newValue
         }
     }
 }
-
-// MARK: - Previews
 
 #Preview("App Row") {
     PreviewContainer {
