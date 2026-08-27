@@ -1,6 +1,6 @@
 # Reorder Motion + Liquid Glass UI Result
 
-Status: automated axis passed, real-machine/UI axis pending
+Status: automated functional axis passed; static performance review completed; measured performance and real-machine/UI axes pending
 
 Branch: `feat/reorder-liquid-glass-ui`
 Fixed-point baseline: `639af28e4a8123e1bbc655591a6586c2b8420c17`
@@ -47,7 +47,17 @@ CI #279 / run `33065012491` completed successfully on that exact SHA:
 - complete non-UI Tests passed
 - test-result upload passed
 
-The final history-cleaned HEAD must repeat the same exact-head Build + complete non-UI Test gate before the automated axis can be considered final.
+Final history-cleaned product HEAD:
+
+`b20c5e3301a1c087de2399eef47dbfdd5085333e`
+
+CI #283 / run `33066051188` completed successfully on that exact SHA:
+
+- Build passed
+- complete non-UI Tests passed
+- test-result upload passed
+
+The automated functional axis is final for `b20c5e3...`. Any later documentation-only closure commit must repeat the exact-head CI gate before that newer branch HEAD is called fully verified.
 
 ## Source-review result
 
@@ -73,6 +83,38 @@ Known low-severity entropy:
 - legacy content-layer names such as the no-op `darkGlassBackground()` helper and the old popup-overlay token/tests still exist even though the owned host supplies the popup surface
 - these do not add a second runtime material layer, but they should be considered cleanup candidates rather than evidence of current popup behavior
 
+## Performance stress review
+
+Static performance review against fixed point `639af28e...` found no confirmed performance regression in the product diff.
+
+Confirmed findings:
+
+- `RowReorderDragState` performs constant-time arithmetic/state updates per midpoint check and introduces no I/O, locks, or task creation
+- repeated App reorder persistence is protected by `SettingsManager.scheduleSave()` cancellation plus a 500 ms debounce, so rapid adjacent swaps do not create a disk-write storm
+- direct `NSStatusBarButton` attachment removes the fixed-point implementation's recursive `NSApp.windows` button search and initial retry loop
+- direct popup-controller attachment removes the old discovery/synthetic-action path
+- PR #13 changes `MenuBarPopupView` App reorder identity and popup-window filtering, but does not change the existing `updateAppDrag` reorder algorithm
+
+Unverified hot paths that require measured stress testing:
+
+- App dragging still rebuilds and sorts `audioEngine.displayableApps` on drag updates, and each adjacent swap calls `AudioEngine.moveApp`, which rebuilds that list again before `SettingsManager.moveApp`; this is primarily pre-existing scaling cost and should be measured with unusually large App lists
+- the FineTune-owned popup host reports every SwiftUI geometry-size change through a new main-actor `Task` and calls animated `NSWindow.setFrame`; rapid EQ/device-detail expansion, popup density changes, or other repeated size changes could create overlapping main-thread resize work
+- dragged-row shadow and Liquid Glass compositing cost are GPU/UI costs that functional unit tests cannot validate
+- no current CI test records SwiftUI/AppKit frame time, dropped frames, peak RSS, allocations, or main-thread task backlog
+
+Measured stress gate:
+
+- compare the branch against `639af28e...` on the same Mac and OS build
+- exercise large App lists at 100, 250, and 500 synthetic rows where a debug harness is available
+- drag top-to-bottom and bottom-to-top repeatedly, including fast multi-row and direction reversals
+- open/close the popup 100 times through both the status item and global shortcut
+- expand/collapse App EQ and device detail 100 times and cycle Compact/Comfortable/Spacious while recording popup resize behavior
+- drive rapid volume/mute/default-device changes and verify menu icon updates do not accumulate animation or image-allocation work
+- record Time Profiler, Core Animation, Allocations, main-thread responsiveness, dropped frames, peak RSS, and object/monitor counts
+- investigate a repeatable regression of about 10% or more in p95 main-thread work or peak RSS relative to the fixed point, any monotonic memory growth, any accumulating event monitor/window count, or visible frame/task backlog
+
+Performance status: static review passed with unverified hot paths. The measured performance axis remains pending. No production optimization should be made from static suspicion alone.
+
 ## Real-machine/UI acceptance still required
 
 Do not mark the iteration complete until the actual app passes:
@@ -97,5 +139,6 @@ Do not mark the iteration complete until the actual app passes:
 - status-item highlight
 - menu icon crossfade
 - multi-display positioning where available
+- measured performance stress gate above
 
-The PR must remain Draft and unmerged until explicit authorization after real-machine acceptance.
+The PR must remain Draft and unmerged until explicit authorization after real-machine/UI and measured performance acceptance.

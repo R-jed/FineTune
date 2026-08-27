@@ -1,6 +1,6 @@
 # Reorder Motion + macOS Liquid Glass UI Iteration
 
-Status: planned, implementation not started
+Status: implemented; automated functional axis passed; measured performance and real-machine/UI acceptance pending
 
 Branch: `feat/reorder-liquid-glass-ui`
 
@@ -415,6 +415,39 @@ Final automated gate:
 - test-result upload
 - final diff review against `639af28e...`
 
+## Performance stress acceptance
+
+The static performance review for the implemented product head found no confirmed regression, but functional CI does not measure SwiftUI/AppKit frame time, GPU compositing, peak memory, or main-thread backlog. Measured performance remains a separate acceptance axis.
+
+Run the stress comparison against fixed point `639af28e...` on the same Mac and macOS build.
+
+Stress scenarios:
+
+- use 100, 250, and 500 synthetic App rows where a debug stress harness is available
+- repeatedly drag App/device rows from top to bottom and back, including fast multi-row travel and direction reversals
+- open and close the popup 100 times through the status item and global shortcut
+- expand/collapse App EQ and device detail 100 times
+- cycle Compact, Comfortable, and Spacious repeatedly while the popup is open
+- drive rapid volume, mute, and default-device changes while observing status-item icon updates
+- include Reduce Motion on/off because it changes animation behavior
+
+Record:
+
+- Time Profiler main-thread cost
+- Core Animation dropped-frame behavior at the display's actual refresh rate
+- Allocations and peak RSS
+- repeated `NSPanel`, global event monitor, and relevant object counts
+- whether popup resize work or main-actor tasks accumulate after the interaction stops
+
+Investigate before acceptance if repeated runs show:
+
+- about 10% or greater regression in p95 main-thread work or peak RSS relative to the fixed point
+- monotonic memory growth
+- accumulating window/event-monitor counts
+- visible frame drops or a resize/task backlog that persists after input stops
+
+Do not optimize production code from static suspicion alone. Profile the hot path first, then make the smallest measured fix.
+
 ## Real-machine reorder acceptance
 
 Test with at least three items so midpoint crossing and multi-row travel are observable.
@@ -503,6 +536,7 @@ Do not mark this iteration complete until all are true:
 - final diff is limited to the planned UI/host/test/doc scope
 - exact-head Build passes
 - complete non-UI Tests pass
+- measured performance stress acceptance passes against `639af28e...`
 - reorder real-machine acceptance passes for active Apps, inactive Apps, output devices, and input devices
 - Light/Dark/System Liquid Glass matrix passes on macOS 27
 - accessibility appearance checks pass
