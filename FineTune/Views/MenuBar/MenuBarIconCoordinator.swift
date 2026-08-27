@@ -72,11 +72,15 @@ final class MenuBarIconCoordinator: MediaKeyIconFlashing {
             return .deviceFlash(symbol: symbol)
         }
         let id = deviceVolumeMonitor.defaultDeviceID
-        let volume = deviceVolumeMonitor.volumes[id] ?? 0
+        let storedVolume = deviceVolumeMonitor.volumes[id] ?? 0
+        let tier = deviceVolumeMonitor.outputVolumeBackend(for: id)
+        let displayFraction = Float(
+            VolumeMapping.sliderFraction(forSystemGain: storedVolume, tier: tier)
+        )
         let muted = deviceVolumeMonitor.muteStates[id] ?? false
         return MenuBarIconState.baseline(
             style: settings.appSettings.menuBarIconStyle,
-            volume: volume,
+            volume: displayFraction,
             muted: muted,
             deviceSymbol: currentDeviceSymbol()
         )

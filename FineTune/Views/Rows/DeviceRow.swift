@@ -45,24 +45,38 @@ struct DeviceRow: View {
     let iconOverrideSymbol: String?
 
     @State private var sliderValue: Double
+    @State private var interactionOverrideValue: Double?
     @State private var isEditing = false
-    @State private var suppressSliderAutoUnmute = false
-    /// Suppresses write-back when slider is being synced from a device volume change.
-    /// Breaks the quantization feedback loop on USB DACs with discrete dB steps.
-    @State private var isUpdatingSliderFromDevice = false
 
-    /// The displayed percentage value, matching EditablePercentage's formula.
-    /// Used for icon and unmute logic so visual state stays consistent with the label.
-    private var displayedPercentage: Int { Int(round(sliderValue * 100)) }
+    private var presentationState: VolumePresentationState {
+        VolumePresentationState(
+            storedFraction: interactionOverrideValue ?? sliderValue,
+            isMuted: interactionOverrideValue == nil ? isMuted : false,
+            sourceIsActive: false
+        )
+    }
 
-    /// Show muted icon when system muted OR displayed volume is 0%.
-    /// Uses percentage threshold (not exact sliderValue == 0) because SwiftUI Slider
-    /// and volume clamping can leave sliderValue at tiny non-zero values (e.g. 0.003)
-    /// that display as "0%" but fail exact Double equality.
-    private var showMutedIcon: Bool { isMuted || displayedPercentage == 0 }
+    private var displayedPercentage: Int {
+        presentationState.displayPercent
+    }
 
-    /// Default slider position to restore when unmuting from 0 (50%)
-    private let defaultUnmuteVolume: Double = 0.5
+    private var showMutedIcon: Bool {
+        presentationState.displaysMuted
+    }
+
+    private var sliderBinding: Binding<Double> {
+        Binding(
+            get: { presentationState.displayFraction },
+            set: { newValue in
+                applyUserVolume(newValue, autoUnmute: true)
+            }
+        )
+    }
+
+    #if DEBUG
+    var displayedPercentageForTest: Int { displayedPercentage }
+    var showMutedIconForTest: Bool { showMutedIcon }
+    #endif
 
     private var displayIcon: NSImage? {
         DeviceIconResolver.displayIcon(
@@ -125,11 +139,6 @@ struct DeviceRow: View {
         deviceHeader
             .contentShape(Rectangle())
             .onTapGesture {
-                // Whole-row tap sets this device as default. Inner controls
-                // (volume slider, mute button, AutoEQ picker, percent field)
-                // are Button/Slider/TextField subviews that capture their
-                // own gestures, so they do not propagate to this handler.
-                // Mirrors the macOS Sound submenu pattern.
                 if !isDefault {
                     onSetDefault()
                 }
@@ -137,16 +146,10 @@ struct DeviceRow: View {
             .hoverableRow(isFocused: isFocused)
     }
 
-    // MARK: - Device Header
-
     private var deviceHeader: some View {
         HStack(spacing: DesignTokens.Spacing.sm) {
-            // Tinted badge replaces the prior leading RadioButton.
-            // Selection uses both the accent badge and name weight so state is
-            // still readable without relying on color alone.
             DeviceBadge(icon: displayIcon, isSelected: isDefault)
 
-            // Device name + optional AutoEQ profile subtitle + AutoEQ picker
             HStack(spacing: DesignTokens.Spacing.xs) {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(device.name)
@@ -171,7 +174,6 @@ struct DeviceRow: View {
 
                 Spacer(minLength: 0)
 
-                // AutoEQ picker inside the name area so slider length stays consistent
                 if device.supportsAutoEQ,
                    let profileManager = autoEQProfileManager,
                    let onSelect = onAutoEQSelect,
@@ -194,54 +196,39 @@ struct DeviceRow: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            // Mute button
-            MuteButton(isMuted: showMutedIcon, levelFraction: sliderValue) {
+            MuteButton(isMuted: showMutedIcon, levelFraction: presentationState.displayFraction) {
                 if showMutedIcon {
-                    // Unmute: restore to default if displayed as 0%
-                    if displayedPercentage == 0 {
-                        suppressSliderAutoUnmute = isMuted
-                        sliderValue = defaultUnmuteVolume
+                    let restoredFraction = presentationState.unmuteFraction()
+                    if restoredFraction != sliderValue {
+                        interactionOverrideValue = restoredFraction
+                        sliderValue = restoredFraction
+                        onVolumeChange(Self.sliderToVolume(restoredFraction, backend: volumeBackend))
                     }
                     if isMuted {
-                        onMuteToggle()  // Toggle system mute
+                        onMuteToggle()
                     }
                 } else {
-                    // Mute
-                    onMuteToggle()  // Toggle system mute
-                }
-            }
-
-            // Volume slider (Liquid Glass)
-            LiquidGlassSlider(
-                value: $sliderValue,
-                onEditingChanged: { editing in
-                    isEditing = editing
-                },
-                accessibilityLabel: Text("Volume") + Text(verbatim: ": \(device.name)")
-            )
-            .opacity(showMutedIcon ? 0.5 : 1.0)
-            .onChange(of: sliderValue) { _, newValue in
-                // Skip write-back when syncing from device (breaks USB DAC quantization spiral)
-                if isUpdatingSliderFromDevice {
-                    isUpdatingSliderFromDevice = false
-                    return
-                }
-                onVolumeChange(Self.sliderToVolume(newValue, backend: volumeBackend))
-                if suppressSliderAutoUnmute {
-                    suppressSliderAutoUnmute = false
-                    return
-                }
-                // Auto-unmute when slider moved while muted
-                if isMuted && newValue > 0 {
                     onMuteToggle()
                 }
             }
 
-            // Editable volume percentage
+            LiquidGlassSlider(
+                value: sliderBinding,
+                onEditingChanged: { editing in
+                    isEditing = editing
+                    if !editing {
+                        interactionOverrideValue = nil
+                    }
+                },
+                accessibilityLabel: Text("Volume") + Text(verbatim: ": \(device.name)")
+            )
+
             EditablePercentage(
                 percentage: Binding(
-                    get: { Int(round(sliderValue * 100)) },
-                    set: { sliderValue = Double($0) / 100.0 }
+                    get: { displayedPercentage },
+                    set: { newPercentage in
+                        applyUserVolume(Double(newPercentage) / 100.0, autoUnmute: true)
+                    }
                 ),
                 range: 0...100,
                 isRowFocused: isFocused
@@ -249,12 +236,27 @@ struct DeviceRow: View {
         }
         .frame(height: DesignTokens.Dimensions.rowContentHeight)
         .onChange(of: volume) { _, newValue in
-            // Only sync from external changes when user is NOT dragging
             guard !isEditing else { return }
             let newSlider = Self.volumeToSlider(newValue, backend: volumeBackend)
-            guard newSlider != sliderValue else { return }
-            isUpdatingSliderFromDevice = true
+            guard newSlider != sliderValue else {
+                interactionOverrideValue = nil
+                return
+            }
             sliderValue = newSlider
+            interactionOverrideValue = nil
+        }
+        .onChange(of: isMuted) { _, _ in
+            interactionOverrideValue = nil
+        }
+    }
+
+    private func applyUserVolume(_ requestedFraction: Double, autoUnmute: Bool) {
+        let plan = presentationState.planAdjustment(to: requestedFraction)
+        interactionOverrideValue = plan.fraction
+        sliderValue = plan.fraction
+        onVolumeChange(Self.sliderToVolume(plan.fraction, backend: volumeBackend))
+        if autoUnmute && plan.shouldUnmute {
+            onMuteToggle()
         }
     }
 
@@ -265,8 +267,6 @@ struct DeviceRow: View {
 }
 
 extension DeviceRow {
-    // MARK: - Volume Mapping
-
     static func volumeToSlider(_ volume: Float, backend: VolumeControlTier) -> Double {
         VolumeMapping.sliderFraction(forSystemGain: volume, tier: backend)
     }
@@ -275,8 +275,6 @@ extension DeviceRow {
         VolumeMapping.systemGain(forSliderFraction: slider, tier: backend)
     }
 }
-
-// MARK: - Previews
 
 #Preview("Device Row - Default") {
     PreviewContainer {

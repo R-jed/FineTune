@@ -57,10 +57,10 @@ struct AppRowControls: View {
         Binding(
             get: { sliderValue },
             set: { newValue in
-                let normalizedValue = max(0, min(1, newValue))
-                dragOverrideValue = normalizedValue
-                onVolumeChange(VolumeMapping.sliderToGain(normalizedValue))
-                if isMuted && normalizedValue > 0 {
+                let plan = presentationState.planAdjustment(to: newValue)
+                dragOverrideValue = plan.fraction
+                onVolumeChange(VolumeMapping.sliderToGain(plan.fraction))
+                if plan.shouldUnmute {
                     onMuteChange(false)
                 }
             }
@@ -130,10 +130,11 @@ struct AppRowControls: View {
                 percentage: Binding(
                     get: { displayedPercentage },
                     set: { newPercentage in
-                        let clampedPercentage = max(0, min(100, newPercentage))
-                        let sliderPosition = Double(clampedPercentage) / 100.0
-                        onVolumeChange(VolumeMapping.sliderToGain(sliderPosition))
-                        if isMuted && sliderPosition > 0 {
+                        let plan = presentationState.planAdjustment(
+                            to: Double(newPercentage) / 100.0
+                        )
+                        onVolumeChange(VolumeMapping.sliderToGain(plan.fraction))
+                        if plan.shouldUnmute {
                             onMuteChange(false)
                         }
                     }

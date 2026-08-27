@@ -128,18 +128,20 @@ struct InactiveAppRow: View {
                 )
 
                 VUMeter(level: 0, isMuted: isMuted || volume == 0)
+                    .opacity(0.6)
 
                 Image(nsImage: icon)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
                     .frame(width: DesignTokens.Dimensions.rowContentHeight - 4, height: DesignTokens.Dimensions.rowContentHeight - 4)
+                    .opacity(0.65)
 
                 VStack(alignment: .leading, spacing: 1) {
                     Text(appInfo.displayName)
                         .font(DesignTokens.Typography.rowName)
                         .lineLimit(1)
                         .help(appInfo.displayName)
-                        .foregroundStyle(DesignTokens.Colors.textPrimary)
+                        .foregroundStyle(DesignTokens.Colors.textSecondary)
 
                     if let subtitle = DevicePicker.routingSubtitle(
                         devices: devices,
@@ -190,7 +192,6 @@ struct InactiveAppRow: View {
             }
             .frame(height: DesignTokens.Dimensions.rowContentHeight)
             .contentShape(Rectangle())
-            .opacity(0.6)
         } expandedContent: {
             EQPanelView(
                 settings: $localEQSettings,

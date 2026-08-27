@@ -1,5 +1,11 @@
 // FineTune/Models/AudioPresentationState.swift
 
+/// Pure result for a user-originated volume change.
+struct VolumeAdjustmentPlan: Equatable {
+    let fraction: Double
+    let shouldUnmute: Bool
+}
+
 /// Pure user-visible volume state. The backend keeps owning the stored volume and mute flag;
 /// this type only derives what FineTune should present to the user.
 struct VolumePresentationState: Equatable {
@@ -39,6 +45,17 @@ struct VolumePresentationState: Equatable {
     /// app may keep showing source activity so users can tell that it is still playing.
     var sourceActivityVisible: Bool {
         sourceIsActive
+    }
+
+    /// Normalize one user-originated volume change and state whether it should clear
+    /// an explicit mute. Every volume surface uses the same rule: values above the
+    /// visible 0% threshold unmute; zero stays muted.
+    func planAdjustment(to requestedFraction: Double) -> VolumeAdjustmentPlan {
+        let fraction = Self.clamp(requestedFraction)
+        return VolumeAdjustmentPlan(
+            fraction: fraction,
+            shouldUnmute: isMuted && Self.percent(fraction) > 0
+        )
     }
 
     /// Value to restore when the user explicitly unmutes a zero-output state.
