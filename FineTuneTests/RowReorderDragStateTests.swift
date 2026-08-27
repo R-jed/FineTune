@@ -68,6 +68,23 @@ struct RowReorderDragStateTests {
         #expect(state.consumeSwapIfNeeded(rowExtent: 44, index: 2, count: 3) == nil)
     }
 
+    @Test("semantic boundary rejects swap without consuming drag distance")
+    func semanticBoundaryDoesNotConsumeOrigin() {
+        var state = RowReorderDragState()
+        state.update(id: "Pinned", rawTranslation: 70)
+
+        let result = state.consumeSwapIfNeeded(
+            rowExtent: 44,
+            index: 0,
+            count: 3,
+            canSwap: { _ in false }
+        )
+
+        #expect(result == nil)
+        #expect(state.originAdjustment == 0)
+        #expect(state.effectiveTranslation == 70)
+    }
+
     @Test("switching dragged row resets accumulated origin adjustment")
     func switchingDraggedRowResetsOrigin() {
         var state = RowReorderDragState()
