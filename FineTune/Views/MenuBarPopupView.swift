@@ -226,12 +226,9 @@ struct MenuBarPopupView: View {
         stateObservedPopup
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { notification in
             // Global notification — fires for every window in the process. Filter to
-            // FluidMenuBarExtra's popup window so unrelated windows (the HID-tap
-            // primer, NSAlert panels, etc.) don't mark the popup as visible and
-            // suppress the HUD.
-            guard let window = notification.object as? NSWindow,
-                  String(describing: type(of: window)).contains("FluidMenuBarExtra")
-            else { return }
+            // FineTune's own popup so unrelated windows (the HID-tap primer,
+            // NSAlert panels, etc.) don't mark the popup as visible and suppress the HUD.
+            guard notification.object is FineTuneMenuBarPopupPanel else { return }
             isPopupVisible = true
             popupVisibility.isVisible = true
             audioEngine.bluetoothDeviceMonitor.refresh()
@@ -242,9 +239,7 @@ struct MenuBarPopupView: View {
             textEntry.buffer = nil
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didResignKeyNotification)) { notification in
-            guard let window = notification.object as? NSWindow,
-                  String(describing: type(of: window)).contains("FluidMenuBarExtra")
-            else { return }
+            guard let window = notification.object as? FineTuneMenuBarPopupPanel else { return }
             hasKeyboardEngaged = false
             selectedRow = nil
             Task { @MainActor in
@@ -1029,7 +1024,7 @@ struct MenuBarPopupView: View {
                 onDragEnded: { endAppDrag(appID: app.persistenceIdentifier) },
                 isFocused: hasKeyboardEngaged && selectedRow == .app(persistenceID: displayableApp.id)
             )
-            .id(app.id)
+            .id(PopupKeyboardNavModel.RowID.app(persistenceID: displayableApp.id))
         }
     }
 

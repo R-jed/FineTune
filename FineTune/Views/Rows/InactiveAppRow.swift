@@ -2,15 +2,10 @@
 import SwiftUI
 
 /// A row displaying a pinned but inactive app (not currently producing audio).
-/// Similar to AppRow but:
-/// - Uses PinnedAppInfo instead of AudioApp
-/// - VU meter always shows 0 (no audio level polling)
-/// - Slightly dimmed appearance to indicate inactive state
-/// - All settings (volume/mute/EQ/device) work normally and are persisted
 struct InactiveAppRow: View {
     let appInfo: PinnedAppInfo
     let icon: NSImage
-    let volume: Float  // Linear gain 0-1 (boost applied separately)
+    let volume: Float
     let devices: [AudioDevice]
     let deviceIconOverrides: [String: String]
     let selectedDeviceUID: String?
@@ -126,19 +121,19 @@ struct InactiveAppRow: View {
 
     var body: some View {
         ExpandableGlassRow(isExpanded: isEQExpanded, isFocused: isFocused) {
-            // Header: Main row content (always visible)
             HStack(spacing: DesignTokens.Spacing.sm) {
-                // VU Meter (always 0 for inactive apps)
+                ReorderDragHandle(
+                    onChanged: onDragChanged,
+                    onEnded: onDragEnded
+                )
+
                 VUMeter(level: 0, isMuted: isMuted || volume == 0)
 
-                // App icon (no activation for inactive apps)
                 Image(nsImage: icon)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
                     .frame(width: DesignTokens.Dimensions.rowContentHeight - 4, height: DesignTokens.Dimensions.rowContentHeight - 4)
 
-                // App name + optional routing subtitle (hidden when the app is on
-                // system default).
                 VStack(alignment: .leading, spacing: 1) {
                     Text(appInfo.displayName)
                         .font(DesignTokens.Typography.rowName)
@@ -162,17 +157,11 @@ struct InactiveAppRow: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .layoutPriority(1)
                 .contentShape(Rectangle())
-                .gesture(
-                    DragGesture(minimumDistance: 2)
-                        .onChanged { value in
-                            onDragChanged(value.translation.height)
-                        }
-                        .onEnded { _ in
-                            onDragEnded()
-                        }
+                .reorderDragTarget(
+                    onChanged: onDragChanged,
+                    onEnded: onDragEnded
                 )
 
-                // Shared controls section (VU meter always 0 for inactive apps)
                 AppRowControls(
                     volume: volume,
                     isMuted: isMuted,
@@ -203,7 +192,6 @@ struct InactiveAppRow: View {
             .contentShape(Rectangle())
             .opacity(0.6)
         } expandedContent: {
-            // EQ panel
             EQPanelView(
                 settings: $localEQSettings,
                 userPresets: userPresets,
@@ -224,19 +212,7 @@ struct InactiveAppRow: View {
             )
             .padding(.top, DesignTokens.Spacing.sm)
         }
-        .offset(y: dragOffset)
-        .shadow(
-            color: Color.black.opacity(isDragging ? 0.18 : 0),
-            radius: isDragging ? 8 : 0,
-            x: 0,
-            y: isDragging ? 4 : 0
-        )
-        .zIndex(isDragging ? 10 : 0)
-        .transaction { transaction in
-            if isDragging {
-                transaction.animation = nil
-            }
-        }
+        .reorderDragAppearance(isDragging: isDragging, offset: dragOffset)
         .onChange(of: eqSettings) { _, newValue in
             localEQSettings = newValue
         }

@@ -67,21 +67,8 @@ struct DeviceEditRow<ExpandedContent: View>: View {
         } expandedContent: {
             expandedContent()
         }
-        .offset(y: dragOffset)
-        .shadow(
-            color: Color.black.opacity(isDragging ? 0.18 : 0),
-            radius: isDragging ? 8 : 0,
-            x: 0,
-            y: isDragging ? 4 : 0
-        )
-        .zIndex(isDragging ? 10 : 0)
-        .transaction { transaction in
-            if isDragging {
-                transaction.animation = nil
-            }
-        }
+        .reorderDragAppearance(isDragging: isDragging, offset: dragOffset)
     }
-
 
     private var infoButtonColor: Color {
         if isExpanded {
@@ -95,25 +82,10 @@ struct DeviceEditRow<ExpandedContent: View>: View {
 
     private var headerRow: some View {
         HStack(spacing: DesignTokens.Spacing.sm) {
-            Image(systemName: "line.3.horizontal")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(DesignTokens.Colors.textTertiary)
-                .frame(
-                    width: 20,
-                    height: DesignTokens.Dimensions.rowContentHeight
-                )
-                .contentShape(Rectangle())
-                .gesture(
-                    DragGesture(minimumDistance: 0)
-                        .onChanged { value in
-                            onDragChanged(value.translation.height)
-                        }
-                        .onEnded { _ in
-                            onDragEnded()
-                        }
-                )
-                .help("Drag to reorder")
-                .accessibilityHidden(true)
+            ReorderDragHandle(
+                onChanged: onDragChanged,
+                onEnded: onDragEnded
+            )
 
             EditablePriority(
                 index: priorityIndex,
@@ -196,8 +168,6 @@ struct DeviceEditRow<ExpandedContent: View>: View {
         }
     }
 
-    /// Eye / eye-slash toggle. Disabled for the current default device —
-    /// it stays visible while it's the default.
     private var hideToggleButton: some View {
         Button {
             onToggleHidden()
@@ -235,7 +205,6 @@ struct DeviceEditRow<ExpandedContent: View>: View {
             : DesignTokens.Colors.textTertiary
     }
 
-
     private var infoButton: some View {
         Button {
             onToggleExpand()
@@ -267,11 +236,6 @@ struct DeviceEditRow<ExpandedContent: View>: View {
     }
 }
 
-// MARK: - Editable Priority Number
-
-/// Inline editable priority number — activate it to type a new position.
-/// Uses a real Button in display mode so keyboard and assistive-technology
-/// users can reach the same editing path as pointer users.
 private struct EditablePriority: View {
     let index: Int
     let count: Int
@@ -284,7 +248,6 @@ private struct EditablePriority: View {
     @State private var coordinator = ClickOutsideCoordinator()
     @State private var componentFrame: CGRect = .zero
 
-    /// Display number is 1-based
     private var displayNumber: Int { index + 1 }
 
     private var textColor: Color {
@@ -396,16 +359,12 @@ private struct EditablePriority: View {
     }
 }
 
-// MARK: - Preference Key
-
 private struct PriorityFrameKey: PreferenceKey {
     static let defaultValue: CGRect = .zero
     static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
         value = nextValue()
     }
 }
-
-// MARK: - Previews
 
 #Preview("DeviceEditRow Tap Carveout") {
     DeviceEditRowTapCarveoutPreview()

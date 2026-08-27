@@ -2,15 +2,9 @@
 import SwiftUI
 import AppKit
 
-/// A frosted glass background using NSVisualEffectView, Apple's documented
-/// translucent material primitive. The default `.popover` material renders
-/// as proper light/dark glass and matches the platform Control Center and
-/// Notification Center surfaces.
+/// Legacy material primitive kept for previews and non-popup surfaces that may
+/// still need an AppKit visual-effect view on older macOS releases.
 struct VisualEffectBackground: NSViewRepresentable {
-    /// Apple's documented material for popover and menu-bar panels. Renders
-    /// vibrant translucency in both appearances. The previous `.hudWindow`
-    /// default was designed for dark floating overlays and washed out badly
-    /// in light mode.
     var material: NSVisualEffectView.Material = .popover
     var blendingMode: NSVisualEffectView.BlendingMode = .behindWindow
 
@@ -28,47 +22,24 @@ struct VisualEffectBackground: NSViewRepresentable {
     }
 }
 
-// MARK: - Colors
-
 extension Color {
-    /// Popup background overlay - uses theme-aware color from DesignTokens
-    /// Darker than before for more contrast with floating glass rows
     static var popupBackgroundOverlay: Color { DesignTokens.Colors.popupOverlay }
 }
 
-// MARK: - View Extensions
-
 extension View {
-    /// Applies the popup's translucent glass background. Adapts to light and
-    /// dark via DesignTokens; the underlying NSVisualEffectView uses the
-    /// `.popover` material so it tracks system appearance natively.
-    /// Name kept for source compatibility; rename pending a follow-up sweep.
+    /// The menu-bar window now owns the single popup surface: Liquid Glass on
+    /// macOS 26+ and one `.popover` material on older supported systems.
+    /// Keep this source-compatible modifier as a content-only no-op so existing
+    /// popup code cannot accidentally stack another material or fixed tint.
     func darkGlassBackground() -> some View {
         self
-            .background(Color.popupBackgroundOverlay)
-            .background(VisualEffectBackground(material: .popover, blendingMode: .behindWindow))
     }
 
-    /// Applies the lifted-card background used by the EQ panel.
-    /// Light reads as a white card on the popup glass; dark reads as a
-    /// translucent surface on the dark glass. Replaces the prior recessed
-    /// treatment which read as a heavy gray block on whiter light glass.
     func eqCardBackground() -> some View {
         modifier(LiftedCardBackgroundModifier())
     }
 }
 
-// MARK: - Lifted Card Background Modifier (EQ panel)
-
-/// Lifted-card background used by the EQ panel.
-/// Light: opaque-ish white card on the popup glass with a hairline edge
-/// and a soft shadow that lifts the card off the surface. Dark: translucent
-/// white on the dark glass with a slightly stronger hairline. Tokens come
-/// from `DesignTokens.Colors.eqCardBackground` and `eqCardBorder`.
-///
-/// The shadow uses a literal `Color.black.opacity(0.06)`. Shadows are a
-/// depth cue, not a chromatic surface, and remain readable in both modes
-/// without an appearance-aware token.
 struct LiftedCardBackgroundModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
@@ -89,20 +60,17 @@ struct LiftedCardBackgroundModifier: ViewModifier {
     }
 }
 
-// MARK: - Previews
-
-#Preview("Dark Glass Popup Background") {
+#Preview("Popup Content Layer") {
     VStack(spacing: 16) {
         Text("OUTPUT DEVICES")
             .sectionHeaderStyle()
-        Text("Dark frosted glass background")
+        Text("Popup surface is supplied by the AppKit host")
             .foregroundStyle(.primary)
     }
     .padding(DesignTokens.Spacing.lg)
     .frame(width: 300)
-    .darkGlassBackground()
+    .background(VisualEffectBackground(material: .popover, blendingMode: .behindWindow))
     .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Dimensions.cornerRadius))
-    .environment(\.colorScheme, .dark)
 }
 
 #Preview("EQ Card - Lifted") {
@@ -120,5 +88,5 @@ struct LiftedCardBackgroundModifier: ViewModifier {
     .padding()
     .eqCardBackground()
     .padding()
-    .darkGlassBackground()
+    .background(VisualEffectBackground(material: .popover, blendingMode: .behindWindow))
 }

@@ -1,7 +1,6 @@
 // FineTune/FineTuneApp.swift
 import SwiftUI
 import UserNotifications
-import FluidMenuBarExtra
 import AppKit
 import os
 
@@ -62,9 +61,6 @@ struct FineTuneApp: App {
     }
 
     var body: some Scene {
-        // Declared before FluidMenuBarExtra so this Settings scene wins over
-        // FluidMenuBarExtra's `Settings {}` placeholder. Both ⌘, and the
-        // gear button route here via openSettings().
         Settings {
             SettingsRootView(
                 settings: audioEngine.settingsManager,
@@ -78,7 +74,13 @@ struct FineTuneApp: App {
             )
             .fineTuneLocale(localizationContext.overrideLocale)
         }
-        FluidMenuBarExtra("FineTune", image: launchIconImage, isInserted: $showMenuBarExtra) {
+        FineTuneMenuBarExtra(
+            "FineTune",
+            image: launchIconImage,
+            isInserted: $showMenuBarExtra,
+            popupController: menuBarPopupController,
+            iconCoordinator: iconCoordinator
+        ) {
             menuBarContent
                 .fineTuneLocale(localizationContext.overrideLocale)
         }
@@ -101,7 +103,6 @@ struct FineTuneApp: App {
             mediaKeyMonitor: mediaKeyMonitor
         )
         .task {
-            // Idempotent: subsequent task runs (popup re-open) are no-ops inside start().
             shortcutsRegistry.start()
         }
     }
@@ -173,8 +174,7 @@ struct FineTuneApp: App {
             settings: settings
         )
         monitor.iconCoordinator = coordinator
-        // Defer start() so NSApplication.shared is fully bootstrapped before we walk NSApp.windows.
-        DispatchQueue.main.async { [coordinator] in coordinator.start() }
+        coordinator.start()
         _iconCoordinator = State(initialValue: coordinator)
 
         // Render the scene's first frame with the user's chosen style instead of a generic
@@ -209,9 +209,8 @@ struct FineTuneApp: App {
         monitor.reconcile()
 
         // Global hotkeys (KeyboardShortcuts SPM, Carbon-backed; no Accessibility
-        // permission required for the hotkey itself). Registry start() is deferred
-        // to a SwiftUI `.task` on the popup content so the FluidMenuBarExtra
-        // status item has been materialized before any hotkey can fire.
+        // permission required for the hotkey itself). FineTune's Scene attaches
+        // the direct popup toggle before the popup content task starts the registry.
         let popupController = MenuBarPopupController()
         let resolver = TargetAppResolver(
             ownBundleID: Bundle.main.bundleIdentifier ?? "com.finetuneapp.FineTune"

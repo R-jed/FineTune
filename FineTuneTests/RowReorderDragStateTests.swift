@@ -35,6 +35,19 @@ struct RowReorderDragStateTests {
         #expect(state.effectiveTranslation == 21)
     }
 
+    @Test("reverse direction after a swap crosses back through the previous midpoint")
+    func reverseDirectionAfterSwap() {
+        var state = RowReorderDragState()
+        state.update(id: "A", rawTranslation: 23)
+        #expect(state.consumeSwapIfNeeded(rowExtent: 44, index: 0, count: 3) == 1)
+
+        state.update(id: "A", rawTranslation: -1)
+
+        #expect(state.consumeSwapIfNeeded(rowExtent: 44, index: 1, count: 3) == -1)
+        #expect(state.originAdjustment == 0)
+        #expect(state.effectiveTranslation == -1)
+    }
+
     @Test("touching midpoint alone does not swap")
     func exactMidpointDoesNotSwap() {
         var state = RowReorderDragState()
@@ -42,6 +55,17 @@ struct RowReorderDragStateTests {
 
         #expect(state.consumeSwapIfNeeded(rowExtent: 44, index: 0, count: 2) == nil)
         #expect(state.effectiveTranslation == 22)
+    }
+
+    @Test("top and bottom boundaries do not reorder past the list")
+    func boundariesClampReorder() {
+        var state = RowReorderDragState()
+        state.update(id: "A", rawTranslation: -100)
+        #expect(state.consumeSwapIfNeeded(rowExtent: 44, index: 0, count: 3) == nil)
+
+        state.reset()
+        state.update(id: "C", rawTranslation: 100)
+        #expect(state.consumeSwapIfNeeded(rowExtent: 44, index: 2, count: 3) == nil)
     }
 
     @Test("switching dragged row resets accumulated origin adjustment")
