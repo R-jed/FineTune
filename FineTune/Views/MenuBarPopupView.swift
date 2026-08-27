@@ -40,12 +40,9 @@ struct MenuBarPopupView: View {
     /// Which device tab is selected (false = output, true = input)
     @State private var showingInputDevices = false
 
-    /// Track which app has its EQ panel expanded (only one at a time)
-    /// Uses DisplayableApp.id (String) to work with both active and inactive apps
-    @State private var expandedRowID: String?
-
-    /// Debounce EQ toggle to prevent rapid clicks during animation
-    @State private var isEQAnimating = false
+    /// Owns the currently expanded structural surface. App EQ and output-device
+    /// detail are mutually exclusive and can retarget without a timing lock.
+    @State private var expansionState = PopupExpansionState()
 
     /// Track popup visibility to pause VU meter polling when hidden
     @State private var isPopupVisible = true
@@ -74,10 +71,6 @@ struct MenuBarPopupView: View {
     @State private var editableDeviceOrder: [AudioDevice] = []
     @State private var deviceDragState = RowReorderDragState()
     @State private var appDragState = RowReorderDragState()
-
-    /// Device whose inline detail panel is expanded in edit mode (nil when
-    /// collapsed). Mirrors the `expandedRowID` pattern used for per-app EQ.
-    @State private var expandedDeviceUID: String?
 
     /// Hover state for support link heart animation
     @State private var isSupportHovered = false
@@ -119,6 +112,10 @@ struct MenuBarPopupView: View {
         case .comfortable: 120
         case .spacious: DesignTokens.Dimensions.sliderWidth
         }
+    }
+
+    private var structuralExpansionAnimation: Animation? {
+        accessibilityReduceMotion ? nil : .easeOut(duration: 0.18)
     }
 
     private var popupLayout: some View {
@@ -342,11 +339,8 @@ struct MenuBarPopupView: View {
     }
 
 
-    /// Handles Escape key: closes EQ first, then dismisses the popup.
-    /// Escape order: expanded device detail → edit mode → expanded app EQ →
-    /// popup dismiss. Expanded device detail is checked before
-    /// `isEditingDevicePriority` so Escape collapses the row first rather than
-    /// tearing down edit mode entirely.
+    /// Handles Escape key: collapses the current structural expansion before
+    /// dismissing the popup. Device detail remains ahead of edit-mode teardown.
     private func handleEscape() {
         // The hidden Escape keyboardShortcut button can win over `.onKeyPress`, so an
         // in-progress keyboard entry is cancelled here too.
@@ -354,16 +348,15 @@ struct MenuBarPopupView: View {
             textEntry.buffer = nil
             return
         }
-        if expandedDeviceUID != nil {
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                expandedDeviceUID = nil
+        if expansionState.deviceUID != nil {
+            withAnimation(structuralExpansionAnimation) {
+                expansionState.collapseDevice()
             }
         } else if isEditingDevicePriority {
             toggleDevicePriorityEdit()
-        } else if expandedRowID != nil {
-            // Collapse any expanded app EQ panel
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                expandedRowID = nil
+        } else if expansionState.appID != nil {
+            withAnimation(structuralExpansionAnimation) {
+                expansionState.collapseApp()
             }
         } else {
             NSApp.keyWindow?.resignKey()
@@ -706,7 +699,7 @@ struct MenuBarPopupView: View {
             isDefault: device.id == defaultDeviceID,
             isInputDevice: showingInputDevices,
             deviceCount: editableDeviceOrder.count,
-            isExpanded: expandedDeviceUID == device.uid,
+            isExpanded: expansionState.deviceUID == device.uid,
             isHidden: isDeviceHidden,
             isDragging: deviceDragState.draggedID == device.uid,
             dragOffset: deviceDragState.draggedID == device.uid
@@ -730,8 +723,8 @@ struct MenuBarPopupView: View {
                 // Input devices have no per-device detail to show —
                 // only output devices carry a volume-tier override.
                 guard !showingInputDevices else { return }
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                    expandedDeviceUID = (expandedDeviceUID == device.uid) ? nil : device.uid
+                withAnimation(structuralExpansionAnimation) {
+                    _ = expansionState.toggleDevice(device.uid)
                 }
             },
             onToggleHidden: {
@@ -747,7 +740,7 @@ struct MenuBarPopupView: View {
             expandedContent: {
                 // Only render when actually expanded. Input devices skip
                 // the expand, so this is never hit for them.
-                if !showingInputDevices && expandedDeviceUID == device.uid {
+                if !showingInputDevices && expansionState.deviceUID == device.uid {
                     DeviceDetailSheet(
                         device: device,
                         transportType: device.id.readTransportType(),
@@ -881,7 +874,7 @@ struct MenuBarPopupView: View {
 
     private var appViewportHeight: CGFloat {
         let collapsedRowHeight = DesignTokens.Dimensions.rowContentHeight + 12
-        if expandedRowID != nil {
+        if expansionState.appID != nil {
             return collapsedRowHeight * 6
         }
         return collapsedRowHeight * CGFloat(min(audioEngine.displayableApps.count, 6))
@@ -998,7 +991,7 @@ struct MenuBarPopupView: View {
                 onRenameUserPreset: { id, newName in
                     audioEngine.settingsManager.updateUserPreset(id: id, name: newName)
                 },
-                isEQExpanded: expandedRowID == displayableApp.id,
+                isEQExpanded: expansionState.appID == displayableApp.id,
                 onEQToggle: {
                     toggleEQ(for: displayableApp.id, scrollProxy: scrollProxy)
                 },
@@ -1086,7 +1079,7 @@ struct MenuBarPopupView: View {
             onRenameUserPreset: { id, newName in
                 audioEngine.settingsManager.updateUserPreset(id: id, name: newName)
             },
-            isEQExpanded: expandedRowID == displayableApp.id,
+            isEQExpanded: expansionState.appID == displayableApp.id,
             onEQToggle: {
                 toggleEQ(for: displayableApp.id, scrollProxy: scrollProxy)
             },
@@ -1110,26 +1103,14 @@ struct MenuBarPopupView: View {
         .id(PopupKeyboardNavModel.RowID.app(persistenceID: displayableApp.id))
     }
 
-    /// Toggle EQ panel for an app (shared between active and inactive rows)
+    /// Toggle EQ panel for an app (shared between active and inactive rows).
+    /// SwiftUI owns interruption and reversal; there is no timing-based input lock.
     private func toggleEQ(for appID: String, scrollProxy: ScrollViewProxy) {
-        guard !isEQAnimating else { return }
-        isEQAnimating = true
-
-        let isExpanding = expandedRowID != appID
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-            if expandedRowID == appID {
-                expandedRowID = nil
-            } else {
-                expandedRowID = appID
-            }
+        withAnimation(structuralExpansionAnimation) {
+            let isExpanding = expansionState.toggleApp(appID)
             if isExpanding {
                 scrollProxy.scrollTo(PopupKeyboardNavModel.RowID.app(persistenceID: appID), anchor: .top)
             }
-        }
-
-        Task {
-            try? await Task.sleep(for: .seconds(0.4))
-            isEQAnimating = false
         }
     }
 
@@ -1141,7 +1122,7 @@ struct MenuBarPopupView: View {
 
     private func updateDeviceDrag(deviceUID: String, rawTranslation: CGFloat) {
         if deviceDragState.draggedID != deviceUID {
-            expandedDeviceUID = nil
+            expansionState.collapseDevice()
         }
 
         deviceDragState.update(id: deviceUID, rawTranslation: rawTranslation)
@@ -1178,7 +1159,7 @@ struct MenuBarPopupView: View {
         if appDragState.draggedID != appID {
             // Reordering assumes the same collapsed row extent used by the device list.
             // Collapse any open EQ before the first midpoint calculation.
-            expandedRowID = nil
+            expansionState.collapseApp()
         }
 
         appDragState.update(id: appID, rawTranslation: rawTranslation)
@@ -1230,7 +1211,7 @@ struct MenuBarPopupView: View {
             // inside edit mode, so it must collapse when the mode does).
             persistEditableOrder()
             isEditingDevicePriority = false
-            expandedDeviceUID = nil
+            expansionState.collapseDevice()
             if wasEditingInputDevices {
                 updateSortedInputDevices()
             } else {
@@ -1267,14 +1248,13 @@ struct MenuBarPopupView: View {
         guard isEditingDevicePriority else { return }
         persistEditableOrder()
         isEditingDevicePriority = false
-        expandedDeviceUID = nil
+        expansionState.collapseDevice()
     }
 
     private func resetToRootPage() {
         exitEditModeSaving()
         appDragState.reset()
-        expandedRowID = nil
-        expandedDeviceUID = nil
+        expansionState.reset()
         showingInputDevices = false
     }
 
@@ -1642,8 +1622,8 @@ struct MenuBarPopupView: View {
             NSApp.keyWindow?.resignKey()
             return .handled
         case .app(let persistenceID):
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                expandedRowID = (expandedRowID == persistenceID) ? nil : persistenceID
+            withAnimation(structuralExpansionAnimation) {
+                _ = expansionState.toggleApp(persistenceID)
             }
             return .handled
         }
