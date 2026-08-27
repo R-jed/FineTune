@@ -83,7 +83,6 @@ struct IconButtonStyleModifier: ViewModifier {
 /// Button styling for glass aesthetic with vibrancy
 struct GlassButtonStyleModifier: ViewModifier {
     @State private var isHovered = false
-    @State private var isPressed = false
 
     func body(content: Content) -> some View {
         content
@@ -100,12 +99,10 @@ struct GlassButtonStyleModifier: ViewModifier {
                         lineWidth: 0.5
                     )
             }
-            .scaleEffect(isPressed ? 0.97 : (isHovered ? 1.02 : 1.0))
             .onHover { hovering in
                 isHovered = hovering
             }
             .animation(DesignTokens.Animation.hover, value: isHovered)
-            .animation(DesignTokens.Animation.quick, value: isPressed)
     }
 }
 
