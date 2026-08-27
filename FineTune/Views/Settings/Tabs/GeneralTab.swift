@@ -8,6 +8,11 @@ struct GeneralTab: View {
 
     @State private var showResetConfirmation = false
 
+    private static let resetConfirmationTitle = LocalizedStringResource(
+        "settings.reset.confirmationTitle",
+        defaultValue: "Reset all settings?"
+    )
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
@@ -21,7 +26,7 @@ struct GeneralTab: View {
         }
         .scrollIndicators(.never)
         .confirmationDialog(
-            "Reset all settings?",
+            Self.resetConfirmationTitle,
             isPresented: $showResetConfirmation,
             titleVisibility: .visible
         ) {
@@ -40,10 +45,24 @@ struct GeneralTab: View {
                 "Launch at Login",
                 description: "Start FineTune when you log in"
             ) {
-                Toggle("", isOn: $settings.appSettings.launchAtLogin)
+                Toggle("Launch at Login", isOn: $settings.appSettings.launchAtLogin)
                     .toggleStyle(.switch)
                     .controlSize(.small)
                     .labelsHidden()
+            }
+            SettingsRowDivider()
+            SettingsRow(
+                "Language",
+                description: "Choose the language used by FineTune"
+            ) {
+                Picker("Language", selection: $settings.appSettings.language) {
+                    ForEach(AppLanguage.allCases, id: \.self) { language in
+                        Text(language.displayName).tag(language)
+                    }
+                }
+                .pickerStyle(.menu)
+                .labelsHidden()
+                .fixedSize()
             }
             SettingsRowDivider()
             SettingsRow(
@@ -57,7 +76,7 @@ struct GeneralTab: View {
                 "Device Disconnect Alerts",
                 description: "Show notification when an audio device disconnects"
             ) {
-                Toggle("", isOn: $settings.appSettings.showDeviceDisconnectAlerts)
+                Toggle("Device Disconnect Alerts", isOn: $settings.appSettings.showDeviceDisconnectAlerts)
                     .toggleStyle(.switch)
                     .controlSize(.small)
                     .labelsHidden()

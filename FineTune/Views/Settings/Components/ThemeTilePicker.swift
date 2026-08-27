@@ -28,28 +28,29 @@ private struct ThemeTile: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        VStack(spacing: 6) {
-            ThemePreviewMockup(preference: preference)
-                .frame(width: 72, height: 46)
-                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .strokeBorder(
-                            isSelected ? Color.accentColor : Color(nsColor: .separatorColor),
-                            lineWidth: isSelected ? 2 : 0.5
-                        )
-                }
+        Button(action: onTap) {
+            VStack(spacing: 6) {
+                ThemePreviewMockup(preference: preference)
+                    .frame(width: 72, height: 46)
+                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .strokeBorder(
+                                isSelected ? Color.accentColor : Color(nsColor: .separatorColor),
+                                lineWidth: isSelected ? 2 : 0.5
+                            )
+                    }
 
-            Text(preference.description)
-                .font(.system(size: 11, weight: isSelected ? .semibold : .regular))
-                .foregroundStyle(isSelected ? .primary : .secondary)
+                Text(preference.displayName)
+                    .font(.system(size: 11, weight: isSelected ? .semibold : .regular))
+                    .foregroundStyle(isSelected ? .primary : .secondary)
+            }
+            .contentShape(Rectangle())
         }
-        .contentShape(Rectangle())
-        .onTapGesture(perform: onTap)
+        .buttonStyle(.plain)
         .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: isSelected)
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
-        .accessibilityLabel(Text(preference.description))
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityLabel(Text(preference.displayName))
     }
 }
 
@@ -135,28 +136,29 @@ private struct PopupSizeTile: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        VStack(spacing: 6) {
-            PopupSizeMockup(size: size)
-                .frame(width: 72, height: 46)
-                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .strokeBorder(
-                            isSelected ? Color.accentColor : Color(nsColor: .separatorColor),
-                            lineWidth: isSelected ? 2 : 0.5
-                        )
-                }
+        Button(action: onTap) {
+            VStack(spacing: 6) {
+                PopupSizeMockup(size: size)
+                    .frame(width: 72, height: 46)
+                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .strokeBorder(
+                                isSelected ? Color.accentColor : Color(nsColor: .separatorColor),
+                                lineWidth: isSelected ? 2 : 0.5
+                            )
+                    }
 
-            Text(size.description)
-                .font(.system(size: 11, weight: isSelected ? .semibold : .regular))
-                .foregroundStyle(isSelected ? .primary : .secondary)
+                Text(size.displayName)
+                    .font(.system(size: 11, weight: isSelected ? .semibold : .regular))
+                    .foregroundStyle(isSelected ? .primary : .secondary)
+            }
+            .contentShape(Rectangle())
         }
-        .contentShape(Rectangle())
-        .onTapGesture(perform: onTap)
+        .buttonStyle(.plain)
         .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: isSelected)
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
-        .accessibilityLabel(Text(size.description))
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityLabel(Text(size.displayName))
     }
 }
 

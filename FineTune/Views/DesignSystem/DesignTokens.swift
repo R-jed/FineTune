@@ -244,24 +244,24 @@ enum DesignTokens {
             dark: NSColor.white.withAlphaComponent(0.40)
         )
 
-        // MARK: VU Meter (Professional audio standard - NOT themed)
+        // MARK: Source Activity Meter
 
-        /// VU meter green segments (bars 0-3, safe levels)
+        /// Source meter green segments (bars 0-3, lower levels)
         static let vuGreen = Color(red: 0.20, green: 0.78, blue: 0.40)
 
-        /// VU meter yellow segments (bars 4-5, caution)
+        /// Source meter yellow segments (bars 4-5, higher levels)
         static let vuYellow = Color(red: 0.95, green: 0.75, blue: 0.20)
 
-        /// VU meter orange segment (bar 6, warning)
+        /// Source meter orange segment (bar 6, near full scale)
         static let vuOrange = Color(red: 0.95, green: 0.50, blue: 0.20)
 
-        /// VU meter red segment (bar 7, peak/clip)
+        /// Source meter red segment (bar 7, full-scale source activity)
         static let vuRed = Color(red: 0.90, green: 0.25, blue: 0.25)
 
-        /// VU meter unlit bar color (matches sliderTrack for visual consistency)
+        /// Source meter unlit bar color (matches sliderTrack for visual consistency)
         static let vuUnlit: Color = .primary.opacity(0.15)
 
-        /// VU meter muted state
+        /// Source meter muted state
         static let vuMuted: Color = .primary.opacity(0.35)
 
         // MARK: AutoEQ
@@ -438,11 +438,6 @@ enum DesignTokens {
         /// Percentage text width (fixed to prevent layout shift)
         static let percentageWidth: CGFloat = 40
 
-        // MARK: VU Meter
-
-        /// VU meter bar count
-        static let vuMeterBarCount: Int = 8
-
         // MARK: Settings Row
 
         /// Settings row icon column width
@@ -468,18 +463,15 @@ enum DesignTokens {
         /// Hover transition (brief and precise per HIG)
         static let hover = SwiftUI.Animation.easeOut(duration: 0.12)
 
-        /// VU meter level change
+        /// Source meter bar transition
         static let vuMeterLevel = SwiftUI.Animation.linear(duration: 0.05)
     }
 
     // MARK: - Timing
 
     enum Timing {
-        /// VU meter update interval (30fps)
+        /// Source meter UI update interval (30fps)
         static let vuMeterUpdateInterval: TimeInterval = 1.0 / 30.0
-
-        /// VU meter peak hold duration
-        static let vuMeterPeakHold: TimeInterval = 0.5
     }
 
     // MARK: - Links

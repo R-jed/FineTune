@@ -1,0 +1,57 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "NSAudioCaptureUsageDescription" : {
+      "comment" : "Privacy purpose string shown by macOS when FineTune requests audio-capture access.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FineTune needs access to control volume levels for individual applications."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FineTune 需要访问系统音频，以便单独控制各个应用的音量。"
+          }
+        }
+      }
+    },
+    "NSBluetoothAlwaysUsageDescription" : {
+      "comment" : "Privacy purpose string shown by macOS when FineTune requests Bluetooth access.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FineTune uses Bluetooth to connect paired audio devices from the menu bar."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FineTune 使用蓝牙，以便通过菜单栏连接已配对的音频设备。"
+          }
+        }
+      }
+    },
+    "NSMicrophoneUsageDescription" : {
+      "comment" : "Privacy purpose string shown by macOS when FineTune requests microphone access.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FineTune needs microphone access to capture audio from apps using input-capable devices."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FineTune 需要麦克风权限，以便在使用支持输入的音频设备时捕获应用音频。"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

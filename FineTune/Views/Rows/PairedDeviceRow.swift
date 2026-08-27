@@ -6,7 +6,7 @@ import SwiftUI
 struct PairedDeviceRow: View {
     let device: PairedBluetoothDevice
     let isConnecting: Bool
-    let errorMessage: String?
+    let errorMessage: BluetoothConnectionError?
     let onConnect: () -> Void
 
     var body: some View {
@@ -25,14 +25,19 @@ struct PairedDeviceRow: View {
                     : DesignTokens.Colors.textPrimary)
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .help(Text(verbatim: device.name))
 
             // Inline error (between name and button)
             if let error = errorMessage {
-                Label(error, systemImage: "exclamationmark.triangle.fill")
-                    .font(DesignTokens.Typography.caption)
-                    .foregroundStyle(DesignTokens.Colors.textTertiary)
-                    .lineLimit(1)
-                    .fixedSize()
+                Label {
+                    errorText(for: error)
+                } icon: {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                }
+                .font(DesignTokens.Typography.caption)
+                .foregroundStyle(DesignTokens.Colors.textTertiary)
+                .lineLimit(1)
+                .fixedSize()
             }
 
             // Connect button or spinner
@@ -65,6 +70,15 @@ struct PairedDeviceRow: View {
         .frame(height: DesignTokens.Dimensions.rowContentHeight)
         .hoverableRow()
     }
+
+    private func errorText(for error: BluetoothConnectionError) -> Text {
+        switch error {
+        case .couldNotConnect:
+            Text("Couldn't connect")
+        case .timedOut:
+            Text("Connection timed out")
+        }
+    }
 }
 
 // MARK: - Previews
@@ -87,7 +101,7 @@ struct PairedDeviceRow: View {
             PairedDeviceRow(
                 device: MockData.samplePairedDevices[0],
                 isConnecting: false,
-                errorMessage: "Connection timed out",
+                errorMessage: .timedOut,
                 onConnect: {}
             )
         }

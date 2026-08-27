@@ -74,13 +74,13 @@ final class AutoEQFetcher {
             let (data, response) = try await URLSession.shared.data(from: Self.indexURL)
             guard let httpResponse = response as? HTTPURLResponse,
                   httpResponse.statusCode == 200 else {
-                catalogState = .error("Failed to fetch catalog")
+                handleCatalogRefreshFailure("Failed to fetch catalog")
                 logger.error("Catalog fetch returned non-200 status")
                 return
             }
 
             guard let text = String(data: data, encoding: .utf8) else {
-                catalogState = .error("Invalid catalog data")
+                handleCatalogRefreshFailure("Invalid catalog data")
                 return
             }
 
@@ -93,12 +93,25 @@ final class AutoEQFetcher {
             // Cache to disk
             saveCatalogToCache(entries)
         } catch {
-            // Keep existing cached catalog if we have one
-            if catalog.isEmpty {
-                catalogState = .error("Network error: \(error.localizedDescription)")
-            }
+            handleCatalogRefreshFailure("Network error: \(error.localizedDescription)")
             logger.error("Catalog fetch failed: \(error.localizedDescription)")
         }
+    }
+
+    /// A failed background refresh must not invalidate an already-usable cached
+    /// catalog. Only surface an error when there is no catalog the UI can use.
+    static func catalogStateAfterRefreshFailure(
+        hasExistingCatalog: Bool,
+        message: String
+    ) -> FetchState {
+        hasExistingCatalog ? .loaded : .error(message)
+    }
+
+    private func handleCatalogRefreshFailure(_ message: String) {
+        catalogState = Self.catalogStateAfterRefreshFailure(
+            hasExistingCatalog: !catalog.isEmpty,
+            message: message
+        )
     }
 
     // MARK: - Profile Fetching

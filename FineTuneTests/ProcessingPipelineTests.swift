@@ -108,6 +108,8 @@ private func processWithDefaults(
     loudnessEqualizerProc: LoudnessEqualizer? = nil,
     loudnessCompensatorProc: LoudnessCompensator? = nil
 ) {
+    let processorState = TapProcessorState()
+    processorState.replaceLoudnessEqualizer(with: loudnessEqualizerProc)
     ProcessTapController.processMappedBuffers(
         inputBuffers: input.bufferList,
         outputBuffers: output.bufferList,
@@ -120,7 +122,7 @@ private func processWithDefaults(
         currentVol: &currentVol,
         eqProc: eqProc,
         autoEQProc: autoEQProc,
-        loudnessEqualizerProc: loudnessEqualizerProc,
+        processorState: processorState,
         loudnessCompensatorProc: loudnessCompensatorProc
     )
 }

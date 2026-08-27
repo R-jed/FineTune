@@ -2,8 +2,8 @@
 import AppKit
 import UniformTypeIdentifiers
 
-/// Represents an app that can be displayed in the UI, either active (currently playing audio)
-/// or pinned but inactive (not currently running or producing audio).
+/// Represents an app that can be displayed in the UI, either registered with Core Audio
+/// or pinned while its process is unavailable.
 enum DisplayableApp: Identifiable {
     case active(AudioApp)
     case pinnedInactive(PinnedAppInfo)

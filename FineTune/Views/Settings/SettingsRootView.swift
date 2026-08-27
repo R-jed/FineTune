@@ -19,6 +19,10 @@ struct SettingsRootView: View {
 
     @State private var selection: Section = .general
 
+    private var localization: LocalizationContext {
+        LocalizationContext(language: settings.appSettings.language)
+    }
+
     var body: some View {
         TabView(selection: $selection) {
             GeneralTab(
@@ -49,9 +53,12 @@ struct SettingsRootView: View {
             .tabItem { Label("Shortcuts", systemImage: "command") }
             .tag(Section.shortcuts)
 
-            UpdatesTab(updateManager: updateManager)
-                .tabItem { Label("Updates", systemImage: "arrow.triangle.2.circlepath") }
-                .tag(Section.updates)
+            UpdatesTab(
+                updateManager: updateManager,
+                language: settings.appSettings.language
+            )
+            .tabItem { Label("Updates", systemImage: "arrow.triangle.2.circlepath") }
+            .tag(Section.updates)
 
             AboutTab()
                 .tabItem { Label("About", systemImage: "info.circle") }
@@ -60,6 +67,10 @@ struct SettingsRootView: View {
         .frame(width: 720, height: 560)
         .preferredColorScheme(settings.appSettings.appearance.swiftUIColorScheme)
         .background(WindowAppearanceBridge(appearance: settings.appSettings.appearance.nsAppearance))
-        .background(WindowTitleBridge(title: "FineTune Settings"))
+        .background(
+            WindowTitleBridge(
+                title: localization.localized("FineTune Settings")
+            )
+        )
     }
 }

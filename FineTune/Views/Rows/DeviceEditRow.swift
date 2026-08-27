@@ -15,6 +15,10 @@ struct DeviceEditRow<ExpandedContent: View>: View {
     let deviceCount: Int
     let isExpanded: Bool
     let isHidden: Bool
+    var isDragging: Bool = false
+    var dragOffset: CGFloat = 0
+    var onDragChanged: (CGFloat) -> Void = { _ in }
+    var onDragEnded: () -> Void = {}
     let onReorder: (Int) -> Void
     let onToggleExpand: () -> Void
     let onToggleHidden: () -> Void
@@ -24,6 +28,7 @@ struct DeviceEditRow<ExpandedContent: View>: View {
     @State private var isInfoButtonHovered = false
     @State private var showingIconPicker = false
     @State private var isIconHovered = false
+    @State private var isHideButtonHovered = false
 
     private var displayIcon: NSImage? {
         DeviceIconResolver.displayIcon(
@@ -31,6 +36,27 @@ struct DeviceEditRow<ExpandedContent: View>: View {
             automatic: device.icon,
             deviceName: device.name
         )
+    }
+
+    private var detailsAccessibilityLabel: LocalizedStringResource {
+        isExpanded ? "Collapse device details" : "Expand device details"
+    }
+
+    private var hideHelpText: LocalizedStringResource {
+        if isDefault { return "Cannot hide the default device" }
+        return isHidden ? "Show in main view" : "Hide from main view"
+    }
+
+    private var hideAccessibilityLabel: LocalizedStringResource {
+        isHidden ? "Show in main view" : "Hide from main view"
+    }
+
+    private var inspectorHelpText: LocalizedStringResource {
+        isExpanded ? "Close device inspector" : "Device inspector"
+    }
+
+    private var inspectorAccessibilityLabel: LocalizedStringResource {
+        isExpanded ? "Close device inspector" : "Open device inspector"
     }
 
     var body: some View {
@@ -41,7 +67,21 @@ struct DeviceEditRow<ExpandedContent: View>: View {
         } expandedContent: {
             expandedContent()
         }
+        .offset(y: dragOffset)
+        .shadow(
+            color: Color.black.opacity(isDragging ? 0.18 : 0),
+            radius: isDragging ? 8 : 0,
+            x: 0,
+            y: isDragging ? 4 : 0
+        )
+        .zIndex(isDragging ? 10 : 0)
+        .transaction { transaction in
+            if isDragging {
+                transaction.animation = nil
+            }
+        }
     }
+
 
     private var infoButtonColor: Color {
         if isExpanded {
@@ -58,7 +98,22 @@ struct DeviceEditRow<ExpandedContent: View>: View {
             Image(systemName: "line.3.horizontal")
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(DesignTokens.Colors.textTertiary)
-                .frame(width: 16)
+                .frame(
+                    width: 20,
+                    height: DesignTokens.Dimensions.rowContentHeight
+                )
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { value in
+                            onDragChanged(value.translation.height)
+                        }
+                        .onEnded { _ in
+                            onDragEnded()
+                        }
+                )
+                .help("Drag to reorder")
+                .accessibilityHidden(true)
 
             EditablePriority(
                 index: priorityIndex,
@@ -69,10 +124,10 @@ struct DeviceEditRow<ExpandedContent: View>: View {
             iconButton
 
             HStack(spacing: DesignTokens.Spacing.sm) {
-                Text(device.name)
+                Text(verbatim: device.name)
                     .font(DesignTokens.Typography.rowName)
                     .lineLimit(1)
-                    .help(device.uid)
+                    .help(Text(verbatim: "\(device.name)\n\(device.uid)"))
 
                 if isDefault {
                     Text("DEFAULT")
@@ -91,7 +146,7 @@ struct DeviceEditRow<ExpandedContent: View>: View {
             .contentShape(Rectangle())
             .onTapGesture { onToggleExpand() }
             .accessibilityAddTraits(.isButton)
-            .accessibilityLabel(isExpanded ? "Collapse device details" : "Expand device details")
+            .accessibilityLabel(Text(detailsAccessibilityLabel))
 
             hideToggleButton
 
@@ -147,28 +202,39 @@ struct DeviceEditRow<ExpandedContent: View>: View {
         Button {
             onToggleHidden()
         } label: {
-            Image(systemName: isHidden ? "eye.slash" : "eye")
-                .font(.system(size: 11))
-                .foregroundStyle(
-                    isDefault
-                        ? DesignTokens.Colors.textTertiary.opacity(0.4)
-                        : (isHidden ? DesignTokens.Colors.mutedIndicator : DesignTokens.Colors.textTertiary)
-                )
-                .contentTransition(.symbolEffect(.replace))
-                .frame(
-                    minWidth: DesignTokens.Dimensions.minTouchTarget,
-                    minHeight: DesignTokens.Dimensions.minTouchTarget
-                )
-                .contentShape(Rectangle())
+            HoverMorphSymbol(
+                primarySymbol: isHidden ? "eye.slash" : "eye",
+                secondarySymbol: isHidden ? "eye" : "eye.slash",
+                isHovered: isHideButtonHovered && !isDefault,
+                primaryColor: hideSymbolColor(isHidden: isHidden, hovered: false),
+                secondaryColor: hideSymbolColor(isHidden: !isHidden, hovered: true),
+                font: .system(size: 11)
+            )
+            .frame(
+                minWidth: DesignTokens.Dimensions.minTouchTarget,
+                minHeight: DesignTokens.Dimensions.minTouchTarget
+            )
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .disabled(isDefault)
-        .help(isDefault
-            ? "Cannot hide the default device"
-            : (isHidden ? "Show in main view" : "Hide from main view")
-        )
-        .accessibilityLabel(isHidden ? "Show in main view" : "Hide from main view")
+        .onHover { isHideButtonHovered = !isDefault && $0 }
+        .help(hideHelpText)
+        .accessibilityLabel(Text(hideAccessibilityLabel))
     }
+
+    private func hideSymbolColor(isHidden: Bool, hovered: Bool) -> Color {
+        if isDefault {
+            return DesignTokens.Colors.textTertiary.opacity(0.4)
+        }
+        if isHidden {
+            return DesignTokens.Colors.mutedIndicator
+        }
+        return hovered
+            ? DesignTokens.Colors.interactiveHover
+            : DesignTokens.Colors.textTertiary
+    }
+
 
     private var infoButton: some View {
         Button {
@@ -194,8 +260,8 @@ struct DeviceEditRow<ExpandedContent: View>: View {
         }
         .buttonStyle(.plain)
         .onHover { isInfoButtonHovered = $0 }
-        .help(isExpanded ? "Close device inspector" : "Device inspector")
-        .accessibilityLabel(isExpanded ? "Close device inspector" : "Open device inspector")
+        .help(inspectorHelpText)
+        .accessibilityLabel(Text(inspectorAccessibilityLabel))
         .animation(.spring(response: 0.3, dampingFraction: 0.75), value: isExpanded)
         .animation(DesignTokens.Animation.hover, value: isInfoButtonHovered)
     }
@@ -203,8 +269,9 @@ struct DeviceEditRow<ExpandedContent: View>: View {
 
 // MARK: - Editable Priority Number
 
-/// Inline editable priority number — click to type a new position.
-/// Same interaction pattern as `EditablePercentage` but displays just a number.
+/// Inline editable priority number — activate it to type a new position.
+/// Uses a real Button in display mode so keyboard and assistive-technology
+/// users can reach the same editing path as pointer users.
 private struct EditablePriority: View {
     let index: Int
     let count: Int
@@ -227,7 +294,7 @@ private struct EditablePriority: View {
     var body: some View {
         Group {
             if isEditing {
-                TextField("", text: $inputText)
+                TextField("Priority position", text: $inputText)
                     .textFieldStyle(.plain)
                     .font(.system(size: 11, weight: .semibold).monospacedDigit())
                     .foregroundStyle(textColor)
@@ -236,10 +303,18 @@ private struct EditablePriority: View {
                     .onSubmit { commit() }
                     .onExitCommand { cancel() }
                     .fixedSize()
+                    .accessibilityLabel("Priority position")
             } else {
-                Text("\(displayNumber)")
-                    .font(.system(size: 11, weight: .semibold).monospacedDigit())
-                    .foregroundStyle(isHovered ? DesignTokens.Colors.textPrimary : textColor)
+                Button(action: startEditing) {
+                    Text(verbatim: "\(displayNumber)")
+                        .font(.system(size: 11, weight: .semibold).monospacedDigit())
+                        .foregroundStyle(isHovered ? DesignTokens.Colors.textPrimary : textColor)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Edit priority position")
+                .accessibilityValue(Text(verbatim: "\(displayNumber)"))
             }
         }
         .padding(.horizontal, isEditing ? 4 : 2)
@@ -268,9 +343,6 @@ private struct EditablePriority: View {
         }
         .frame(width: 16, alignment: .center)
         .contentShape(Rectangle())
-        .onTapGesture { if !isEditing { startEditing() } }
-        .accessibilityAddTraits(.isButton)
-        .accessibilityLabel("Edit priority position")
         .onHover { hovering in
             isHovered = hovering
             if hovering {

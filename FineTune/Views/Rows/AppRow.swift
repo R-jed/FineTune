@@ -33,6 +33,14 @@ struct AppRow: View {
     let onRenameUserPreset: (UUID, String) -> Void
     let isEQExpanded: Bool
     let onEQToggle: () -> Void
+    let sliderWidth: CGFloat
+    let isPinned: Bool
+    let onTogglePin: () -> Void
+    let onHide: () -> Void
+    let isDragging: Bool
+    let dragOffset: CGFloat
+    let onDragChanged: (CGFloat) -> Void
+    let onDragEnded: () -> Void
     let isFocused: Bool
 
     @State private var isIconHovered = false
@@ -68,6 +76,14 @@ struct AppRow: View {
         onRenameUserPreset: @escaping (UUID, String) -> Void = { _, _ in },
         isEQExpanded: Bool = false,
         onEQToggle: @escaping () -> Void = {},
+        sliderWidth: CGFloat = DesignTokens.Dimensions.sliderWidth,
+        isPinned: Bool = false,
+        onTogglePin: @escaping () -> Void = {},
+        onHide: @escaping () -> Void = {},
+        isDragging: Bool = false,
+        dragOffset: CGFloat = 0,
+        onDragChanged: @escaping (CGFloat) -> Void = { _ in },
+        onDragEnded: @escaping () -> Void = {},
         isFocused: Bool = false
     ) {
         self.app = app
@@ -99,6 +115,14 @@ struct AppRow: View {
         self.onRenameUserPreset = onRenameUserPreset
         self.isEQExpanded = isEQExpanded
         self.onEQToggle = onEQToggle
+        self.sliderWidth = sliderWidth
+        self.isPinned = isPinned
+        self.onTogglePin = onTogglePin
+        self.onHide = onHide
+        self.isDragging = isDragging
+        self.dragOffset = dragOffset
+        self.onDragChanged = onDragChanged
+        self.onDragEnded = onDragEnded
         self.isFocused = isFocused
         // Initialize local EQ state for reactive UI updates
         self._localEQSettings = State(initialValue: eqSettings)
@@ -120,7 +144,9 @@ struct AppRow: View {
                         .opacity(isIconHovered ? 0.7 : 1.0)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Open \(app.name)")
+                .accessibilityLabel { _ in
+                    Text("Open") + Text(verbatim: " \(app.name)")
+                }
                 .onHover { hovering in
                     isIconHovered = hovering
                     if hovering {
@@ -146,13 +172,24 @@ struct AppRow: View {
                         isFollowingDefault: isFollowingDefault,
                         mode: deviceSelectionMode
                     ) {
-                        Text(subtitle)
+                        subtitle
                             .font(.system(size: 9))
                             .foregroundStyle(DesignTokens.Colors.textTertiary)
                             .lineLimit(1)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .layoutPriority(1)
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 2)
+                        .onChanged { value in
+                            onDragChanged(value.translation.height)
+                        }
+                        .onEnded { _ in
+                            onDragEnded()
+                        }
+                )
 
                 // Shared controls section
                 AppRowControls(
@@ -167,6 +204,7 @@ struct AppRow: View {
                     deviceSelectionMode: deviceSelectionMode,
                     boost: boost,
                     isEQExpanded: isEQExpanded,
+                    sliderWidth: sliderWidth,
                     onVolumeChange: onVolumeChange,
                     onMuteChange: onMuteChange,
                     onBoostChange: onBoostChange,
@@ -175,10 +213,13 @@ struct AppRow: View {
                     onDeviceModeChange: onDeviceModeChange,
                     onSelectFollowDefault: onSelectFollowDefault,
                     onEQToggle: onEQToggle,
+                    isPinned: isPinned,
+                    onTogglePin: onTogglePin,
                     isRowFocused: isFocused
                 )
             }
             .frame(height: DesignTokens.Dimensions.rowContentHeight)
+            .contentShape(Rectangle())
         } expandedContent: {
             // EQ panel - shown when expanded
             // SwiftUI calculates natural height via conditional rendering
@@ -201,6 +242,19 @@ struct AppRow: View {
                 onRenameUserPreset: onRenameUserPreset
             )
             .padding(.top, DesignTokens.Spacing.sm)
+        }
+        .offset(y: dragOffset)
+        .shadow(
+            color: Color.black.opacity(isDragging ? 0.18 : 0),
+            radius: isDragging ? 8 : 0,
+            x: 0,
+            y: isDragging ? 4 : 0
+        )
+        .zIndex(isDragging ? 10 : 0)
+        .transaction { transaction in
+            if isDragging {
+                transaction.animation = nil
+            }
         }
         .onChange(of: eqSettings) { _, newValue in
             // Sync from parent when external EQ settings change
@@ -259,7 +313,7 @@ struct AppRow: View {
                     volume: Float.random(in: 0.5...1.5),
                     audioLevel: Float.random(in: 0...0.8),
                     devices: MockData.sampleDevices,
-                    selectedDeviceUID: MockData.sampleDevices.randomElement()!.uid,
+                    selectedDeviceUID: MockData.sampleDevices[0].uid,
                     onVolumeChange: { _ in },
                     onMuteChange: { _ in },
                     onDeviceSelected: { _ in }

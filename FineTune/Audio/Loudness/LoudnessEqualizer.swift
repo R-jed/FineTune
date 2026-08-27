@@ -7,10 +7,11 @@ import Foundation
 ///   `output[f * channelCount + ch]`
 ///
 /// **RT-safety contract**: All mutable state is owned exclusively by the real-time
-/// audio thread after init. Settings and sample-rate changes are handled by creating
-/// a **new** instance on the main thread, atomically swapping the `nonisolated(unsafe)`
-/// pointer in ProcessTapController, and deferring destruction of the old instance by
-/// 500ms (matching the BiquadProcessor.swapSetup pattern).
+/// audio thread after init. Settings and sample-rate changes create a **new** instance
+/// on the main thread. TapProcessorState publishes that replacement through a retained
+/// realtime reference and keeps the HAL callback inside a borrowed reader boundary.
+/// Replaced instances are released only after reader quiescence, on the retirement path.
+/// No wall-clock grace period participates in the lifetime proof.
 ///
 /// This eliminates the data-race window that existed when `updateSettings()` and
 /// `updateSampleRate()` mutated sub-processor state from the main thread while
