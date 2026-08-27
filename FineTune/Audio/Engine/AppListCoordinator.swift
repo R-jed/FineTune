@@ -33,6 +33,9 @@ final class AppListCoordinator {
     }
 
     func moveApp(_ identifier: String, to targetIdentifier: String, currentOrder: [String]) {
+        guard settingsManager.isPinned(identifier) == settingsManager.isPinned(targetIdentifier) else {
+            return
+        }
         settingsManager.moveApp(identifier, to: targetIdentifier, currentOrder: currentOrder)
     }
 
@@ -125,7 +128,7 @@ final class AppListCoordinator {
     }
 
     func isFollowingDefaultForInactive(identifier: String) -> Bool {
-        settingsManager.isFollowingDefault(for: identifier)
+        settingsManager.isFollowingDefault(identifier)
     }
 
     func getDeviceSelectionModeForInactive(identifier: String) -> DeviceSelectionMode {
