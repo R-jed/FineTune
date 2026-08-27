@@ -74,7 +74,6 @@ struct MenuBarPopupView: View {
 
     /// Hover state for support link heart animation
     @State private var isSupportHovered = false
-    @State private var isSettingsHovered = false
 
     /// Namespace for device toggle animation
     @Namespace private var deviceToggleNamespace
@@ -305,7 +304,10 @@ struct MenuBarPopupView: View {
             minHeight: DesignTokens.Dimensions.minTouchTarget
         )
         .contentShape(Rectangle())
-        .animation(.spring(response: 0.3, dampingFraction: 0.75), value: isEditingDevicePriority)
+        .animation(
+            accessibilityReduceMotion ? nil : .easeOut(duration: 0.12),
+            value: isEditingDevicePriority
+        )
         .help(editPriorityTitle)
     }
 
@@ -314,15 +316,6 @@ struct MenuBarPopupView: View {
     private var settingsButton: some View {
         Button(action: openSettingsWindow) {
             Image(systemName: "gearshape.fill")
-                .rotationEffect(
-                    .degrees(!accessibilityReduceMotion && isSettingsHovered ? 180 : 0)
-                )
-                .animation(
-                    accessibilityReduceMotion
-                        ? nil
-                        : .interpolatingSpring(stiffness: 400, damping: 25),
-                    value: isSettingsHovered
-                )
         }
         .buttonStyle(.plain)
         .font(.system(size: 12))
@@ -333,7 +326,6 @@ struct MenuBarPopupView: View {
             minHeight: DesignTokens.Dimensions.minTouchTarget
         )
         .contentShape(Rectangle())
-        .onHover { isSettingsHovered = $0 }
         .accessibilityLabel("Settings")
         .help("Settings")
     }
@@ -379,13 +371,16 @@ struct MenuBarPopupView: View {
                 VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
                     devicesSection
 
-                    Divider()
-                        .padding(.vertical, DesignTokens.Spacing.xs)
+                    if !showingInputDevices {
+                        Divider()
+                            .padding(.vertical, DesignTokens.Spacing.xs)
 
-                    appVisibilitySection
+                        appVisibilitySection
+                    }
                 }
             }
-            .scrollIndicators(.never)
+            .scrollIndicators(.automatic)
+            .contentMargins(.trailing, DesignTokens.Spacing.sm, for: .scrollContent)
             .frame(maxHeight: popupDimensions.maxContentHeight)
         } else {
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
@@ -810,6 +805,7 @@ struct MenuBarPopupView: View {
                 appsContent(scrollProxy: scrollProxy)
             }
             .scrollIndicators(.visible)
+            .contentMargins(.trailing, DesignTokens.Spacing.sm, for: .scrollContent)
             .frame(height: appViewportHeight)
         }
     }
@@ -1175,7 +1171,13 @@ struct MenuBarPopupView: View {
         while let direction = appDragState.consumeSwapIfNeeded(
             rowExtent: rowExtent,
             index: index,
-            count: currentOrder.count
+            count: currentOrder.count,
+            canSwap: { direction in
+                let adjacentIndex = index + direction
+                guard currentOrder.indices.contains(adjacentIndex) else { return false }
+                return audioEngine.isPinned(identifier: appID)
+                    == audioEngine.isPinned(identifier: currentOrder[adjacentIndex])
+            }
         ) {
             let adjacentIndex = index + direction
             let targetID = currentOrder[adjacentIndex]
