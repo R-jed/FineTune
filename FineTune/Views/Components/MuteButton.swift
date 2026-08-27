@@ -1,8 +1,8 @@
 // FineTune/Views/Components/MuteButton.swift
 import SwiftUI
 
-/// A mute button with an Amicro-style hover morph. Unmuted wave bucket mirrors
-/// TahoeStyleHUD.waveIconName so the popup, menu-bar icon, and on-screen HUD agree.
+/// High-frequency mute control. The glyph always communicates current state;
+/// hover only changes emphasis so it never previews the opposite semantic state.
 struct MuteButton: View {
     let isMuted: Bool
     let levelFraction: Double
@@ -27,8 +27,7 @@ struct MuteButton: View {
     }
 }
 
-/// A mute button for input devices (microphones)
-/// Shows mic when unmuted, mic.slash when muted
+/// A mute button for input devices (microphones).
 struct InputMuteButton: View {
     let isMuted: Bool
     let action: () -> Void
@@ -48,7 +47,6 @@ struct InputMuteButton: View {
 
 // MARK: - Base Implementation
 
-/// Shared mute button implementation with configurable icons
 private struct BaseMuteButton: View {
     let isMuted: Bool
     let mutedIcon: String
@@ -59,24 +57,21 @@ private struct BaseMuteButton: View {
     let action: () -> Void
 
     @State private var isHovered = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Button(action: action) {
             ZStack {
                 if let layoutReferenceIcon {
-                    // Keeps the button width stable across wave-bucket changes.
                     Image(systemName: layoutReferenceIcon)
                         .opacity(0)
                 }
 
-                HoverMorphSymbol(
-                    primarySymbol: isMuted ? mutedIcon : unmutedIcon,
-                    secondarySymbol: isMuted ? unmutedIcon : mutedIcon,
-                    isHovered: isHovered,
-                    primaryColor: symbolColor(isMuted: isMuted, hovered: false),
-                    secondaryColor: symbolColor(isMuted: !isMuted, hovered: true),
-                    font: .system(size: 14)
-                )
+                Image(systemName: isMuted ? mutedIcon : unmutedIcon)
+                    .font(.system(size: 14))
+                    .foregroundStyle(symbolColor)
+                    .contentTransition(.symbolEffect(.replace))
+                    .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: isMuted)
             }
             .frame(
                 minWidth: DesignTokens.Dimensions.minTouchTarget,
@@ -89,26 +84,24 @@ private struct BaseMuteButton: View {
         .help(isMuted ? mutedHelp : unmutedHelp)
     }
 
-    private func symbolColor(isMuted: Bool, hovered: Bool) -> Color {
+    private var symbolColor: Color {
         if isMuted {
             return DesignTokens.Colors.mutedIndicator
         }
-        return hovered
+        return isHovered
             ? DesignTokens.Colors.interactiveHover
             : DesignTokens.Colors.interactiveDefault
     }
 }
 
-
-/// Internal button style for press feedback
 private struct MuteButtonPressStyle: ButtonStyle {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(!reduceMotion && configuration.isPressed ? 0.9 : 1.0)
+            .scaleEffect(!reduceMotion && configuration.isPressed ? 0.97 : 1.0)
             .animation(
-                reduceMotion ? nil : .spring(response: 0.2, dampingFraction: 0.6),
+                reduceMotion ? nil : .easeOut(duration: 0.08),
                 value: configuration.isPressed
             )
     }
