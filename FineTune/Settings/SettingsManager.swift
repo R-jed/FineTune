@@ -1011,7 +1011,7 @@ final class SettingsManager {
     }
 
     private nonisolated static func writeData(_ data: Data, to url: URL) throws {
-        let directory = url.deletingPathComponent()
+        let directory = url.deletingLastPathComponent()
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         try data.write(to: url, options: .atomic)
     }
