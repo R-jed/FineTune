@@ -128,6 +128,53 @@ struct AppListPresentationOrderTests {
 @Suite("U1 app reorder group boundary")
 @MainActor
 struct AppReorderGroupBoundaryTests {
+    @Test("SettingsManager runtime order presents pinned Apps first")
+    func runtimePresentationOrderGroupsPinnedApps() {
+        let manager = SettingsManager(
+            directory: FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+        )
+        let normalA = "com.test.normal-a"
+        let pinnedA = "com.test.pinned-a"
+        let normalB = "com.test.normal-b"
+        let pinnedB = "com.test.pinned-b"
+        let latentOrder = [normalA, pinnedA, normalB, pinnedB]
+
+        manager.moveApp(normalA, to: normalA, currentOrder: latentOrder)
+        manager.pinApp(
+            pinnedA,
+            info: PinnedAppInfo(persistenceIdentifier: pinnedA, displayName: "Pinned A", bundleID: pinnedA)
+        )
+        manager.pinApp(
+            pinnedB,
+            info: PinnedAppInfo(persistenceIdentifier: pinnedB, displayName: "Pinned B", bundleID: pinnedB)
+        )
+
+        #expect(manager.appOrder == [pinnedA, pinnedB, normalA, normalB])
+    }
+
+    @Test("pin and unpin preserve the latent manual order used by runtime presentation")
+    func runtimePinMembershipPreservesLatentOrder() {
+        let manager = SettingsManager(
+            directory: FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+        )
+        let normalA = "com.test.normal-a"
+        let candidate = "com.test.candidate"
+        let normalB = "com.test.normal-b"
+        let latentOrder = [normalA, candidate, normalB]
+
+        manager.moveApp(normalA, to: normalA, currentOrder: latentOrder)
+        manager.pinApp(
+            candidate,
+            info: PinnedAppInfo(persistenceIdentifier: candidate, displayName: "Candidate", bundleID: candidate)
+        )
+        #expect(manager.appOrder == [candidate, normalA, normalB])
+
+        manager.unpinApp(candidate)
+        #expect(manager.appOrder == latentOrder)
+    }
+
     @Test("drag reorder cannot cross the pinned group boundary")
     func crossGroupMoveIsRejected() {
         let manager = SettingsManager(
