@@ -414,7 +414,13 @@ final class SettingsManager {
             }
     }
 
-    var appOrder: [String] { settings.appOrder }
+    /// Presentation order keeps the persisted latent order intact while grouping pinned Apps first.
+    /// `moveApp` continues mutating the latent order so unpinning restores the App's prior relative place.
+    var appOrder: [String] {
+        let pinned = settings.appOrder.filter { settings.pinnedApps.contains($0) }
+        let normal = settings.appOrder.filter { !settings.pinnedApps.contains($0) }
+        return pinned + normal
+    }
 
     func moveApp(_ identifier: String, to targetIdentifier: String, currentOrder: [String]) {
         for currentIdentifier in currentOrder where !settings.appOrder.contains(currentIdentifier) {
@@ -1005,7 +1011,7 @@ final class SettingsManager {
     }
 
     private nonisolated static func writeData(_ data: Data, to url: URL) throws {
-        let directory = url.deletingLastPathComponent()
+        let directory = url.deletingPathComponent()
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         try data.write(to: url, options: .atomic)
     }
