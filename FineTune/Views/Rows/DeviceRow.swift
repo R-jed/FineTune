@@ -165,7 +165,7 @@ struct DeviceRow: View {
 
                     if let profileName = autoEQProfileName {
                         autoEQSubtitle(profileName: profileName)
-                            .font(.system(size: 9))
+                            .font(DesignTokens.Typography.caption)
                             .foregroundStyle(DesignTokens.Colors.textTertiary)
                             .lineLimit(1)
                             .help(Text(verbatim: profileName))
