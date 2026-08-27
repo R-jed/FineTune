@@ -186,7 +186,7 @@ struct AppRowControls: View {
             .onHover { isEQButtonHovered = $0 }
             .help(isEQExpanded ? "Close Equalizer" : "Equalizer")
             .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: isEQExpanded)
-            .animation(DesignTokens.Animation.hover, value: isEQButtonHovered)
+            .animation(reduceMotion ? nil : DesignTokens.Animation.hover, value: isEQButtonHovered)
 
             Button(action: onTogglePin) {
                 Image(systemName: isPinned ? "pin.fill" : "pin.slash")
@@ -203,7 +203,7 @@ struct AppRowControls: View {
             .accessibilityLabel(isPinned ? "Unpin app" : "Pin app")
             .onHover { isPinButtonHovered = $0 }
             .help(isPinned ? "Unpin app" : "Pin app")
-            .animation(DesignTokens.Animation.hover, value: isPinButtonHovered)
+            .animation(reduceMotion ? nil : DesignTokens.Animation.hover, value: isPinButtonHovered)
         }
         .fixedSize()
     }
