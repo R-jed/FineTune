@@ -183,6 +183,7 @@ struct AppRow: View {
                     onChanged: onDragChanged,
                     onEnded: onDragEnded
                 )
+                .appReorderAccessibility(identifier: app.persistenceIdentifier)
 
                 AppRowControls(
                     volume: volume,

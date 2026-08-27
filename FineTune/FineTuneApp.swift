@@ -102,6 +102,10 @@ struct FineTuneApp: App {
             hudController: hudController,
             mediaKeyMonitor: mediaKeyMonitor
         )
+        .environment(
+            \.appReorderAccessibilityController,
+            AppReorderAccessibilityController(audioEngine: audioEngine)
+        )
         .task {
             shortcutsRegistry.start()
         }
