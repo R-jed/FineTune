@@ -414,8 +414,8 @@ struct AudioEngineTapInitialStateTests {
         )
     }
 
-    @Test("Pinned and unpinned apps share one movable order")
-    func appOrderCrossesPinBoundary() {
+    @Test("Pinned and unpinned apps cannot cross the presentation-group boundary")
+    func appOrderStopsAtPinBoundary() {
         let fix = makeFixture()
         let unpinned = AudioApp(
             id: 54321,
@@ -426,13 +426,15 @@ struct AudioEngineTapInitialStateTests {
         )
         fix.processMonitor.activeApps = [fix.app, unpinned]
         fix.engine.pinApp(fix.app)
+        let persistedOrderBeforeMove = fix.settings.appOrder
 
         fix.engine.moveApp(unpinned.persistenceIdentifier, to: fix.app.persistenceIdentifier)
 
+        #expect(fix.settings.appOrder == persistedOrderBeforeMove)
         #expect(
             fix.engine.displayableApps.map(\.id) == [
-                unpinned.persistenceIdentifier,
                 fix.app.persistenceIdentifier,
+                unpinned.persistenceIdentifier,
             ]
         )
     }
