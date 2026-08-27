@@ -33,4 +33,28 @@ struct AppListPresentationOrder {
             .sorted(by: comesBefore)
         return pinned + normal
     }
+
+    static func reorderTarget(
+        for identifier: String,
+        direction: Int,
+        orderedIdentifiers: [String],
+        pinnedIdentifiers: Set<String>
+    ) -> String? {
+        guard direction == -1 || direction == 1,
+              let sourceIndex = orderedIdentifiers.firstIndex(of: identifier) else {
+            return nil
+        }
+
+        let targetIndex = sourceIndex + direction
+        guard orderedIdentifiers.indices.contains(targetIndex) else {
+            return nil
+        }
+
+        let targetIdentifier = orderedIdentifiers[targetIndex]
+        guard pinnedIdentifiers.contains(identifier) == pinnedIdentifiers.contains(targetIdentifier) else {
+            return nil
+        }
+
+        return targetIdentifier
+    }
 }
