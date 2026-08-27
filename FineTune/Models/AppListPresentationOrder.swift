@@ -1,4 +1,5 @@
 // FineTune/Models/AppListPresentationOrder.swift
+import Foundation
 
 /// Pure ordering seam for Apps shown in the popup.
 ///
