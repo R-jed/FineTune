@@ -34,32 +34,46 @@ struct AppRowControls: View {
     @State private var isPinButtonHovered = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    private var storedSliderFraction: Double {
+        VolumeMapping.gainToSlider(volume)
+    }
+
+    /// During direct manipulation, the local drag value is the user's current intent.
+    /// Treat a drag as locally unmuted while the backend catches up so the slider
+    /// stays under the pointer instead of snapping back to visual zero.
+    private var presentationState: VolumePresentationState {
+        VolumePresentationState(
+            storedFraction: dragOverrideValue ?? storedSliderFraction,
+            isMuted: dragOverrideValue == nil ? isMuted : false,
+            sourceIsActive: false
+        )
+    }
+
     private var sliderValue: Double {
-        dragOverrideValue ?? VolumeMapping.gainToSlider(volume)
+        presentationState.displayFraction
     }
 
     private var sliderBinding: Binding<Double> {
         Binding(
             get: { sliderValue },
             set: { newValue in
-                dragOverrideValue = newValue
-                let gain = VolumeMapping.sliderToGain(newValue)
-                onVolumeChange(gain)
-                if isMuted {
+                let normalizedValue = max(0, min(1, newValue))
+                dragOverrideValue = normalizedValue
+                onVolumeChange(VolumeMapping.sliderToGain(normalizedValue))
+                if isMuted && normalizedValue > 0 {
                     onMuteChange(false)
                 }
             }
         )
     }
 
-    /// The displayed percentage value, matching EditablePercentage's formula.
-    private var displayedPercentage: Int { Int(round(sliderValue * 100)) }
+    private var displayedPercentage: Int {
+        presentationState.displayPercent
+    }
 
-    /// Show muted icon when muted OR displayed volume is 0%.
-    /// Uses percentage threshold (not exact sliderValue == 0) because the x² volume
-    /// mapping round-trip can leave sliderValue at tiny non-zero values (e.g. 0.003)
-    /// that display as "0%" but fail exact Double equality.
-    private var showMutedIcon: Bool { isMuted || displayedPercentage == 0 }
+    private var showMutedIcon: Bool {
+        presentationState.displaysMuted
+    }
 
     private var eqButtonColor: Color {
         if isEQExpanded {
@@ -83,11 +97,11 @@ struct AppRowControls: View {
 
     var body: some View {
         HStack(spacing: DesignTokens.Spacing.sm) {
-            // Mute button
             MuteButton(isMuted: showMutedIcon, levelFraction: sliderValue) {
                 if showMutedIcon {
-                    if displayedPercentage == 0 {
-                        onVolumeChange(1.0)
+                    let restoredFraction = presentationState.unmuteFraction()
+                    if restoredFraction != storedSliderFraction {
+                        onVolumeChange(VolumeMapping.sliderToGain(restoredFraction))
                     }
                     onMuteChange(false)
                 } else {
@@ -95,7 +109,6 @@ struct AppRowControls: View {
                 }
             }
 
-            // Volume slider
             LiquidGlassSlider(
                 value: sliderBinding,
                 showUnityMarker: false,
@@ -107,30 +120,28 @@ struct AppRowControls: View {
                 accessibilityLabel: volumeAccessibilityLabel
             )
             .frame(width: sliderWidth)
-            .opacity(showMutedIcon ? 0.5 : 1.0)
             .scrollWheelStep(
                 sliderBinding,
                 in: 0.0...1.0,
                 requiresOptionModifier: true
             )
 
-            // Editable volume percentage (shows slider position, not raw gain)
             EditablePercentage(
                 percentage: Binding(
-                    get: {
-                        Int(round(sliderValue * 100))
-                    },
+                    get: { displayedPercentage },
                     set: { newPercentage in
-                        let sliderPos = Double(newPercentage) / 100.0
-                        let gain = VolumeMapping.sliderToGain(sliderPos)
-                        onVolumeChange(gain)
+                        let clampedPercentage = max(0, min(100, newPercentage))
+                        let sliderPosition = Double(clampedPercentage) / 100.0
+                        onVolumeChange(VolumeMapping.sliderToGain(sliderPosition))
+                        if isMuted && sliderPosition > 0 {
+                            onMuteChange(false)
+                        }
                     }
                 ),
                 range: 0...100,
                 isRowFocused: isRowFocused
             )
 
-            // Boost chevrons
             BoostChevrons(level: boost, onTap: { onBoostChange(boost.next) })
 
             DevicePicker(
@@ -150,7 +161,6 @@ struct AppRowControls: View {
                 triggerStyle: .iconOnly
             )
 
-            // EQ button
             Button {
                 onEQToggle()
             } label: {
@@ -179,8 +189,6 @@ struct AppRowControls: View {
             .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.75), value: isEQExpanded)
             .animation(reduceMotion ? nil : DesignTokens.Animation.hover, value: isEQButtonHovered)
 
-            // Pin toggle. The unpinned state uses a slash so the state remains
-            // readable without relying on fill weight alone.
             Button(action: onTogglePin) {
                 Image(systemName: isPinned ? "pin.fill" : "pin.slash")
                     .font(.system(size: 12))
@@ -197,7 +205,6 @@ struct AppRowControls: View {
             .onHover { isPinButtonHovered = $0 }
             .help(isPinned ? "Unpin app" : "Pin app")
             .animation(reduceMotion ? nil : DesignTokens.Animation.hover, value: isPinButtonHovered)
-
         }
         .fixedSize()
     }

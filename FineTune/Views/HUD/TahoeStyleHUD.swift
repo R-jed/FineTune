@@ -10,8 +10,6 @@ struct TahoeStyleHUD: View {
     var onSliderChange: ((Float) -> Void)? = nil
     var onHoverChange: ((Bool) -> Void)? = nil
 
-    // MARK: - Constants
-
     static let nameFont: Font = DesignTokens.Typography.rowNameBold
 
     private static let frameWidth: CGFloat = 300
@@ -19,24 +17,26 @@ struct TahoeStyleHUD: View {
     private static let cornerRadius: CGFloat = 22
     private static let percentageWidth: CGFloat = 36
 
-    // MARK: - State
+    @State private var dragValue: Double?
 
-    @State private var dragValue: Double? = nil
-
-    // MARK: - Derived state
+    private var presentationState: VolumePresentationState {
+        VolumePresentationState(
+            storedFraction: dragValue ?? Double(max(0, min(1, sliderFraction))),
+            isMuted: dragValue == nil ? mute : false,
+            sourceIsActive: false
+        )
+    }
 
     private var displayFloat: Float {
-        if let dragValue { return Float(max(0, min(1, dragValue))) }
-        return max(0, min(1, sliderFraction))
+        Float(presentationState.displayFraction)
     }
 
     private var displayedPercent: Int {
-        Int((displayFloat * 100).rounded())
+        presentationState.displayPercent
     }
 
     private var displayMute: Bool {
-        if let dragValue { return Int((dragValue * 100).rounded()) == 0 }
-        return mute
+        presentationState.displaysMuted
     }
 
     private var waveIconName: String {
@@ -69,13 +69,12 @@ struct TahoeStyleHUD: View {
         Binding(
             get: { Double(displayFloat) },
             set: { newValue in
-                dragValue = newValue
-                onSliderChange?(Float(newValue))
+                let normalizedValue = max(0, min(1, newValue))
+                dragValue = normalizedValue
+                onSliderChange?(Float(normalizedValue))
             }
         )
     }
-
-    // MARK: - Body
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -101,7 +100,6 @@ struct TahoeStyleHUD: View {
                     showUnityMarker: false,
                     accessibilityLabel: Text("System volume")
                 )
-                .opacity(displayMute ? 0.5 : 1.0)
 
                 Text(percentageText)
                     .font(.system(size: 11, weight: .semibold).monospacedDigit())
