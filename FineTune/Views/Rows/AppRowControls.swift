@@ -168,11 +168,9 @@ struct AppRowControls: View {
                 ZStack {
                     Image(systemName: "slider.vertical.3")
                         .opacity(isEQExpanded ? 0 : 1)
-                        .rotationEffect(.degrees(isEQExpanded ? 90 : 0))
 
                     Image(systemName: "xmark")
                         .opacity(isEQExpanded ? 1 : 0)
-                        .rotationEffect(.degrees(isEQExpanded ? 0 : -90))
                 }
                 .font(.system(size: 12))
                 .symbolRenderingMode(.hierarchical)
@@ -187,8 +185,8 @@ struct AppRowControls: View {
             .accessibilityLabel(isEQExpanded ? "Close Equalizer" : "Equalizer")
             .onHover { isEQButtonHovered = $0 }
             .help(isEQExpanded ? "Close Equalizer" : "Equalizer")
-            .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.75), value: isEQExpanded)
-            .animation(reduceMotion ? nil : DesignTokens.Animation.hover, value: isEQButtonHovered)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: isEQExpanded)
+            .animation(DesignTokens.Animation.hover, value: isEQButtonHovered)
 
             Button(action: onTogglePin) {
                 Image(systemName: isPinned ? "pin.fill" : "pin.slash")
@@ -205,7 +203,7 @@ struct AppRowControls: View {
             .accessibilityLabel(isPinned ? "Unpin app" : "Pin app")
             .onHover { isPinButtonHovered = $0 }
             .help(isPinned ? "Unpin app" : "Pin app")
-            .animation(reduceMotion ? nil : DesignTokens.Animation.hover, value: isPinButtonHovered)
+            .animation(DesignTokens.Animation.hover, value: isPinButtonHovered)
         }
         .fixedSize()
     }
