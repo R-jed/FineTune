@@ -2,7 +2,7 @@ import CoreGraphics
 
 /// Pointer-drag bookkeeping for vertically reordered rows.
 ///
-/// `originAdjustment` is advanced by one row extent after every adjacent swap.
+/// `originAdjustment` is advanced by one row extent after every accepted adjacent swap.
 /// Subtracting it from the raw gesture translation keeps the dragged row under
 /// the pointer even though its layout slot has moved.
 struct RowReorderDragState: Equatable {
@@ -24,21 +24,23 @@ struct RowReorderDragState: Equatable {
         self.rawTranslation = rawTranslation
     }
 
-    /// Returns -1 or +1 after consuming one adjacent midpoint crossing.
-    /// Call repeatedly so a fast pointer move can cross several rows.
+    /// Returns -1 or +1 after consuming one allowed adjacent midpoint crossing.
+    /// `canSwap` is evaluated before origin adjustment, so semantic boundaries can
+    /// clamp a drag without creating visual translation debt.
     mutating func consumeSwapIfNeeded(
         rowExtent: CGFloat,
         index: Int,
-        count: Int
+        count: Int,
+        canSwap: (Int) -> Bool = { _ in true }
     ) -> Int? {
         guard draggedID != nil, rowExtent > 0, count > 1 else { return nil }
 
         let midpoint = rowExtent / 2
-        if effectiveTranslation > midpoint, index + 1 < count {
+        if effectiveTranslation > midpoint, index + 1 < count, canSwap(1) {
             originAdjustment += rowExtent
             return 1
         }
-        if effectiveTranslation < -midpoint, index > 0 {
+        if effectiveTranslation < -midpoint, index > 0, canSwap(-1) {
             originAdjustment -= rowExtent
             return -1
         }
