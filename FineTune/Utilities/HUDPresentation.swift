@@ -36,14 +36,19 @@ nonisolated enum HUDPresentation {
     ) -> String {
         let localization = LocalizationContext(language: language, baseLocale: baseLocale)
         let subject = deviceName.isEmpty ? localization.localized(unknownDevice) : deviceName
-        if mute {
+        let presentation = VolumePresentationState(
+            storedFraction: sliderFraction,
+            isMuted: mute,
+            sourceIsActive: false
+        )
+        if presentation.displaysMuted {
             return subject + localization.localized(
                 LocalizedStringResource("hud.accessibility.mutedSuffix", defaultValue: ", muted")
             )
         }
         return volumeAnnouncement(
             subject: subject,
-            sliderFraction: sliderFraction,
+            sliderFraction: presentation.displayFraction,
             localization: localization
         )
     }

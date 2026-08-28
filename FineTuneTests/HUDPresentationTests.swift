@@ -35,6 +35,15 @@ struct HUDPresentationTests {
                 baseLocale: locale
             ) == "Unknown device, volume 25 percent"
         )
+        #expect(
+            HUDPresentation.deviceAnnouncement(
+                deviceName: "AirPods Pro",
+                sliderFraction: 0,
+                mute: false,
+                language: .english,
+                baseLocale: locale
+            ) == "AirPods Pro, muted"
+        )
     }
 
     @Test("Tahoe and Classic accessibility labels preserve current English semantics")
