@@ -139,7 +139,7 @@ struct MenuBarPopupView: View {
                 mainContent(scrollProxy: proxy)
                 .onChange(of: selectedRow) { _, newFocus in
                     guard let newFocus else { return }
-                    withAnimation(DesignTokens.Animation.hover) {
+                    withAnimation(accessibilityReduceMotion ? nil : DesignTokens.Animation.hover) {
                         proxy.scrollTo(newFocus, anchor: .center)
                     }
                 }
@@ -488,9 +488,7 @@ struct MenuBarPopupView: View {
         return HStack(spacing: 2) {
             // Output (speaker) button
             Button {
-                withAnimation(accessibilityReduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.75)) {
-                    showingInputDevices = false
-                }
+                selectDeviceTab(showInput: false)
             } label: {
                 Image(systemName: "speaker.wave.2.fill")
                     .font(.system(size: iconSize, weight: .medium))
@@ -511,9 +509,7 @@ struct MenuBarPopupView: View {
 
             // Input (mic) button
             Button {
-                withAnimation(accessibilityReduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.75)) {
-                    showingInputDevices = true
-                }
+                selectDeviceTab(showInput: true)
             } label: {
                 Image(systemName: "mic.fill")
                     .font(.system(size: iconSize, weight: .medium))
@@ -707,7 +703,7 @@ struct MenuBarPopupView: View {
             onReorder: { newIndex in
                 guard let fromIndex = editableDeviceOrder.firstIndex(where: { $0.uid == device.uid }) else { return }
                 guard newIndex != fromIndex, newIndex >= 0, newIndex < editableDeviceOrder.count else { return }
-                withAnimation(Self.rowReorderGlide) {
+                withAnimation(accessibilityReduceMotion ? nil : Self.rowReorderGlide) {
                     editableDeviceOrder.move(
                         fromOffsets: IndexSet(integer: fromIndex),
                         toOffset: newIndex > fromIndex ? newIndex + 1 : newIndex
@@ -1137,7 +1133,7 @@ struct MenuBarPopupView: View {
             count: editableDeviceOrder.count
         ) {
             let adjacentIndex = index + direction
-            withAnimation(Self.rowReorderSwap) {
+            withAnimation(accessibilityReduceMotion ? nil : Self.rowReorderSwap) {
                 editableDeviceOrder.swapAt(index, adjacentIndex)
             }
             index = adjacentIndex
@@ -1146,7 +1142,7 @@ struct MenuBarPopupView: View {
 
     private func endDeviceDrag(deviceUID: String) {
         guard deviceDragState.draggedID == deviceUID else { return }
-        withAnimation(Self.rowReorderGlide) {
+        withAnimation(accessibilityReduceMotion ? nil : Self.rowReorderGlide) {
             deviceDragState.reset()
         }
     }
@@ -1181,7 +1177,7 @@ struct MenuBarPopupView: View {
         ) {
             let adjacentIndex = index + direction
             let targetID = currentOrder[adjacentIndex]
-            withAnimation(Self.rowReorderSwap) {
+            withAnimation(accessibilityReduceMotion ? nil : Self.rowReorderSwap) {
                 audioEngine.moveApp(appID, to: targetID)
             }
             currentOrder.swapAt(index, adjacentIndex)
@@ -1196,7 +1192,7 @@ struct MenuBarPopupView: View {
 
     private func endAppDrag(appID: String) {
         guard appDragState.draggedID == appID else { return }
-        withAnimation(Self.rowReorderGlide) {
+        withAnimation(accessibilityReduceMotion ? nil : Self.rowReorderGlide) {
             appDragState.reset()
         }
         syncNavOrder()
@@ -1269,7 +1265,7 @@ struct MenuBarPopupView: View {
             ? audioEngine.settingsManager.inputDevicePriorityOrder
             : audioEngine.settingsManager.devicePriorityOrder
 
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+        withAnimation(accessibilityReduceMotion ? nil : .easeOut(duration: 0.15)) {
             // Remove devices that disappeared
             editableDeviceOrder.removeAll { latestByUID[$0.uid] == nil }
 
@@ -1631,10 +1627,16 @@ struct MenuBarPopupView: View {
         }
     }
 
-    private func toggleDeviceTab() {
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
-            showingInputDevices.toggle()
+    private func selectDeviceTab(showInput: Bool) {
+        guard showingInputDevices != showInput else { return }
+
+        withAnimation(accessibilityReduceMotion ? nil : .easeOut(duration: 0.15)) {
+            showingInputDevices = showInput
         }
+    }
+
+    private func toggleDeviceTab() {
+        selectDeviceTab(showInput: !showingInputDevices)
     }
 
     /// Activates an app, bringing it to foreground and restoring minimized windows
