@@ -31,7 +31,7 @@ struct SectionHeaderStyleModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .font(DesignTokens.Typography.sectionHeader)
-            .foregroundStyle(DesignTokens.Colors.sectionHeaderText)
+            .foregroundStyle(.secondary)
             .tracking(DesignTokens.Typography.sectionHeaderTracking)
             .textCase(.uppercase)
     }
@@ -144,7 +144,7 @@ extension View {
         modifier(HoverableRowModifier(isFocused: isFocused))
     }
 
-    /// Applies section header text styling (uppercase, spaced, tertiary color)
+    /// Applies section header text styling using the system semantic secondary color.
     func sectionHeaderStyle() -> some View {
         modifier(SectionHeaderStyleModifier())
     }
@@ -195,7 +195,6 @@ extension View {
         .hoverableRow()
     }
     .padding()
-    .darkGlassBackground()
     .environment(\.colorScheme, .dark)
 }
 
@@ -208,7 +207,6 @@ extension View {
             .sectionHeaderStyle()
     }
     .padding()
-    .darkGlassBackground()
     .environment(\.colorScheme, .dark)
 }
 
@@ -219,7 +217,6 @@ extension View {
         Text("0%").percentageStyle()
     }
     .padding()
-    .darkGlassBackground()
     .environment(\.colorScheme, .dark)
 }
 
@@ -241,7 +238,6 @@ extension View {
         .iconButtonStyle(isActive: false)
     }
     .padding()
-    .darkGlassBackground()
     .environment(\.colorScheme, .dark)
 }
 
@@ -258,7 +254,6 @@ extension View {
         .glassButtonStyle()
     }
     .padding()
-    .darkGlassBackground()
     .environment(\.colorScheme, .dark)
 }
 
@@ -289,6 +284,5 @@ extension View {
         }
     }
     .padding()
-    .darkGlassBackground()
     .environment(\.colorScheme, .dark)
 }

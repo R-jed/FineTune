@@ -57,4 +57,22 @@ struct AppListPresentationOrder {
 
         return targetIdentifier
     }
+
+    /// Validates a direct pointer drop target using the same pinned/normal
+    /// group boundary as adjacent accessibility reordering.
+    static func dropTarget(
+        for identifier: String,
+        onto targetIdentifier: String,
+        orderedIdentifiers: [String],
+        pinnedIdentifiers: Set<String>
+    ) -> String? {
+        guard identifier != targetIdentifier,
+              orderedIdentifiers.contains(identifier),
+              orderedIdentifiers.contains(targetIdentifier),
+              pinnedIdentifiers.contains(identifier) == pinnedIdentifiers.contains(targetIdentifier) else {
+            return nil
+        }
+
+        return targetIdentifier
+    }
 }

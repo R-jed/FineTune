@@ -307,7 +307,6 @@ struct SettingsJSONTests {
         original.ddcMuteStates = ["monitor-1": false]
         original.autoEQPreampEnabled = false
         original.hiddenOutputDeviceUIDs = ["uid-hidden-out-1", "uid-hidden-out-2"]
-        original.hiddenInputDeviceUIDs = ["uid-hidden-in-1"]
         original.deviceIconOverrides = ["uid-a": "airpodsmax", "uid-b": "gamecontroller.fill"]
 
         let data = try JSONEncoder().encode(original)
@@ -324,7 +323,6 @@ struct SettingsJSONTests {
         #expect(decoded.ddcMuteStates == original.ddcMuteStates)
         #expect(decoded.autoEQPreampEnabled == false)
         #expect(decoded.hiddenOutputDeviceUIDs == original.hiddenOutputDeviceUIDs)
-        #expect(decoded.hiddenInputDeviceUIDs == original.hiddenInputDeviceUIDs)
         #expect(decoded.deviceIconOverrides == original.deviceIconOverrides)
     }
 
@@ -339,7 +337,6 @@ struct SettingsJSONTests {
         #expect(decoded.systemSoundsFollowsDefault == true)
         #expect(decoded.autoEQPreampEnabled == true)
         #expect(decoded.hiddenOutputDeviceUIDs.isEmpty)
-        #expect(decoded.hiddenInputDeviceUIDs.isEmpty)
         #expect(decoded.deviceIconOverrides.isEmpty)
     }
 
@@ -590,18 +587,6 @@ struct SettingsManagerHiddenDevicesTests {
         #expect(m.hiddenOutputDeviceUIDs.contains(uid) == false)
     }
 
-    @Test("hideInputDevice / unhideInputDevice / isInputDeviceHidden round-trip")
-    func inputHideUnhideParity() {
-        let m = makeManager()
-        let uid = "uid-input-1"
-
-        #expect(m.isInputDeviceHidden(uid) == false)
-        m.hideInputDevice(uid: uid)
-        #expect(m.isInputDeviceHidden(uid) == true)
-        m.unhideInputDevice(uid: uid)
-        #expect(m.isInputDeviceHidden(uid) == false)
-    }
-
     @Test("toggleOutputDeviceHidden flips based on persisted state")
     func toggleOutputFlipsFromPersisted() {
         let m = makeManager()
@@ -613,23 +598,14 @@ struct SettingsManagerHiddenDevicesTests {
         #expect(m.isOutputDeviceHidden(uid) == false)
     }
 
-    @Test("toggleInputDeviceHidden flips based on persisted state")
-    func toggleInputFlipsFromPersisted() {
-        let m = makeManager()
-        let uid = "uid-input-2"
+    @Test("legacy hidden input device state is ignored")
+    func legacyHiddenInputStateIsIgnored() throws {
+        let json = #"{"hiddenInputDeviceUIDs":["legacy-hidden-input"]}"#
+        let decoded = try JSONDecoder().decode(SettingsManager.Settings.self, from: Data(json.utf8))
+        let reencoded = try JSONEncoder().encode(decoded)
+        let object = try #require(JSONSerialization.jsonObject(with: reencoded) as? [String: Any])
 
-        m.toggleInputDeviceHidden(uid: uid)
-        #expect(m.isInputDeviceHidden(uid) == true)
-        m.toggleInputDeviceHidden(uid: uid)
-        #expect(m.isInputDeviceHidden(uid) == false)
-    }
-
-    @Test("Hidden output and input sets are independent")
-    func outputAndInputSetsIndependent() {
-        let m = makeManager()
-        m.hideOutputDevice(uid: "shared-uid")
-        #expect(m.isOutputDeviceHidden("shared-uid") == true)
-        #expect(m.isInputDeviceHidden("shared-uid") == false)
+        #expect(object["hiddenInputDeviceUIDs"] == nil)
     }
 }
 

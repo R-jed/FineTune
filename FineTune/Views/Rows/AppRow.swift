@@ -34,10 +34,8 @@ struct AppRow: View {
     let isEQExpanded: Bool
     let onEQToggle: () -> Void
     let sliderWidth: CGFloat
-    let isDragging: Bool
-    let dragOffset: CGFloat
-    let onDragChanged: (CGFloat) -> Void
-    let onDragEnded: () -> Void
+    let isPinned: Bool
+    let onTogglePin: () -> Void
     let isFocused: Bool
 
     @State private var isIconHovered = false
@@ -74,10 +72,8 @@ struct AppRow: View {
         isEQExpanded: Bool = false,
         onEQToggle: @escaping () -> Void = {},
         sliderWidth: CGFloat = DesignTokens.Dimensions.sliderWidth,
-        isDragging: Bool = false,
-        dragOffset: CGFloat = 0,
-        onDragChanged: @escaping (CGFloat) -> Void = { _ in },
-        onDragEnded: @escaping () -> Void = {},
+        isPinned: Bool,
+        onTogglePin: @escaping () -> Void,
         isFocused: Bool = false
     ) {
         self.app = app
@@ -110,10 +106,8 @@ struct AppRow: View {
         self.isEQExpanded = isEQExpanded
         self.onEQToggle = onEQToggle
         self.sliderWidth = sliderWidth
-        self.isDragging = isDragging
-        self.dragOffset = dragOffset
-        self.onDragChanged = onDragChanged
-        self.onDragEnded = onDragEnded
+        self.isPinned = isPinned
+        self.onTogglePin = onTogglePin
         self.isFocused = isFocused
         self._localEQSettings = State(initialValue: eqSettings)
     }
@@ -121,10 +115,7 @@ struct AppRow: View {
     var body: some View {
         ExpandableGlassRow(isExpanded: isEQExpanded, isFocused: isFocused) {
             HStack(spacing: DesignTokens.Spacing.xs + DesignTokens.Spacing.xxs) {
-                ReorderDragHandle(
-                    onChanged: onDragChanged,
-                    onEnded: onDragEnded
-                )
+                AppPinButton(isPinned: isPinned, action: onTogglePin)
 
                 VUMeter(level: audioLevel, isMuted: isMutedExternal || volume == 0)
 
@@ -163,18 +154,12 @@ struct AppRow: View {
                     ) {
                         subtitle
                             .font(DesignTokens.Typography.caption)
-                            .foregroundStyle(DesignTokens.Colors.textTertiary)
+                            .foregroundStyle(DesignTokens.Colors.textSecondary)
                             .lineLimit(1)
                     }
                 }
                 .frame(minWidth: 96, maxWidth: .infinity, alignment: .leading)
                 .layoutPriority(1)
-                .contentShape(Rectangle())
-                .reorderDragTarget(
-                    onChanged: onDragChanged,
-                    onEnded: onDragEnded
-                )
-                .appReorderAccessibility(identifier: app.persistenceIdentifier)
 
                 AppRowControls(
                     volume: volume,
@@ -223,7 +208,6 @@ struct AppRow: View {
             )
             .padding(.top, DesignTokens.Spacing.sm)
         }
-        .reorderDragAppearance(isDragging: isDragging, offset: dragOffset)
         .onChange(of: eqSettings) { _, newValue in
             localEQSettings = newValue
         }
@@ -241,7 +225,9 @@ struct AppRow: View {
                 selectedDeviceUID: MockData.sampleDevices[0].uid,
                 onVolumeChange: { _ in },
                 onMuteChange: { _ in },
-                onDeviceSelected: { _ in }
+                onDeviceSelected: { _ in },
+                isPinned: false,
+                onTogglePin: {}
             )
 
             AppRow(
@@ -252,7 +238,9 @@ struct AppRow: View {
                 selectedDeviceUID: MockData.sampleDevices[1].uid,
                 onVolumeChange: { _ in },
                 onMuteChange: { _ in },
-                onDeviceSelected: { _ in }
+                onDeviceSelected: { _ in },
+                isPinned: false,
+                onTogglePin: {}
             )
 
             AppRow(
@@ -263,7 +251,9 @@ struct AppRow: View {
                 selectedDeviceUID: MockData.sampleDevices[2].uid,
                 onVolumeChange: { _ in },
                 onMuteChange: { _ in },
-                onDeviceSelected: { _ in }
+                onDeviceSelected: { _ in },
+                isPinned: false,
+                onTogglePin: {}
             )
         }
     }
@@ -281,7 +271,9 @@ struct AppRow: View {
                     selectedDeviceUID: MockData.sampleDevices[0].uid,
                     onVolumeChange: { _ in },
                     onMuteChange: { _ in },
-                    onDeviceSelected: { _ in }
+                    onDeviceSelected: { _ in },
+                    isPinned: false,
+                    onTogglePin: {}
                 )
             }
         }

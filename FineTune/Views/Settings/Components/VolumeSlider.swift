@@ -61,6 +61,5 @@ struct VolumeSlider: View {
     }
     .padding()
     .frame(width: 400)
-    .darkGlassBackground()
     .environment(\.colorScheme, .dark)
 }

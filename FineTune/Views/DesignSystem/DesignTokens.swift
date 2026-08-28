@@ -42,8 +42,8 @@ enum DesignTokens {
 
         // MARK: Interactive
 
-        /// Default interactive element color
-        static let interactiveDefault: Color = .primary.opacity(0.7)
+        /// Enabled controls should retain full semantic label contrast on glass.
+        static let interactiveDefault: Color = .primary
 
         /// Hovered interactive element color
         static let interactiveHover: Color = .primary.opacity(0.9)
@@ -94,17 +94,6 @@ enum DesignTokens {
         static let thumbDot: Color = .black.opacity(0.7)
 
         // MARK: Glass Effects
-
-        /// Popup background overlay. Sits over NSVisualEffectView's `.popover`
-        /// material. Light bumped from 0.10 → 0.50 so the popup reads as
-        /// crisp white-tilted glass over arbitrary wallpapers (Control Center
-        /// sweet spot) instead of muddy gray. The earlier 0.55 wash killed
-        /// vibrancy entirely; 0.50 keeps a hint of desktop tint.
-        static let popupOverlay = dynamicColor(
-            name: "popupOverlay",
-            light: NSColor.white.withAlphaComponent(0.50),
-            dark: NSColor.black.withAlphaComponent(0.4)
-        )
 
         /// Recessed panel background (EQ panel). Light mode is nearly flush
         /// with the surrounding glass; opaque cards do the floating instead.
@@ -230,18 +219,6 @@ enum DesignTokens {
             name: "deviceBadgeMonoForeground",
             light: NSColor.black.withAlphaComponent(0.65),
             dark: NSColor.white.withAlphaComponent(0.70)
-        )
-
-        /// Section-header text ("APPS", "GENERAL", etc.). The system
-        /// `tertiaryLabelColor` is too faint as a section divider in light
-        /// mode; this token gives the headers Apple-app-style readability
-        /// without changing the dark appearance. Light bumped from 0.55
-        /// → 0.65 so headers anchor each section on the whiter glass
-        /// without changing tracking or weight.
-        static let sectionHeaderText = dynamicColor(
-            name: "sectionHeaderText",
-            light: NSColor.black.withAlphaComponent(0.65),
-            dark: NSColor.white.withAlphaComponent(0.40)
         )
 
         // MARK: Source Activity Meter

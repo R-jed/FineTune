@@ -179,6 +179,5 @@ struct EQSliderView: View {
     }
     .frame(width: 120, height: 120)
     .padding()
-    .darkGlassBackground()
     .environment(\.colorScheme, .dark)
 }

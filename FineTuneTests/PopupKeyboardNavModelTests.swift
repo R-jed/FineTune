@@ -204,26 +204,48 @@ struct PopupDevicePriorityEditModeTests {
 
     @Test("Repeated Output/Input switches exit the current edit owner")
     func repeatedTabSwitchesExitCurrentEditOwner() {
-        let outputToInput = PopupDeviceTabSelectionTransition.plan(
+        var session = PopupDevicePriorityEditSession(mode: .output)
+
+        let outputToInput = session.selectTab(
             currentlyShowingInput: false,
-            requestedShowInput: true,
-            editMode: .output
+            requestedShowInput: true
         )
         #expect(outputToInput == .init(showInput: true, editModeToExit: .output))
+        #expect(session.mode == nil)
 
-        let inputToOutput = PopupDeviceTabSelectionTransition.plan(
+        session.begin(showingInputDevices: true)
+        #expect(session.mode == .input)
+
+        let inputToOutput = session.selectTab(
             currentlyShowingInput: true,
-            requestedShowInput: false,
-            editMode: .input
+            requestedShowInput: false
         )
         #expect(inputToOutput == .init(showInput: false, editModeToExit: .input))
+        #expect(session.mode == nil)
 
         #expect(
-            PopupDeviceTabSelectionTransition.plan(
+            session.selectTab(
                 currentlyShowingInput: false,
-                requestedShowInput: false,
-                editMode: .output
+                requestedShowInput: false
             ) == nil
         )
+        #expect(session.mode == nil)
+    }
+
+    @Test("Selecting the active device tab preserves the current edit owner")
+    func sameTabSelectionPreservesEditOwner() {
+        var outputSession = PopupDevicePriorityEditSession(mode: .output)
+        #expect(outputSession.selectTab(
+            currentlyShowingInput: false,
+            requestedShowInput: false
+        ) == nil)
+        #expect(outputSession.mode == .output)
+
+        var inputSession = PopupDevicePriorityEditSession(mode: .input)
+        #expect(inputSession.selectTab(
+            currentlyShowingInput: true,
+            requestedShowInput: true
+        ) == nil)
+        #expect(inputSession.mode == .input)
     }
 }

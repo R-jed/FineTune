@@ -177,3 +177,74 @@ Final merge readiness remains HOLD until all of the following are completed on t
 - U5 Instruments measurements for the frozen performance scenarios; no static performance hypothesis is promoted to pass or blocker without measurement
 
 The pull request must remain Draft/unmerged while any item above is pending.
+
+## Post-Acceptance UI Repair Candidate
+
+Status: AUTOMATED SOURCE PASS / REAL-MACHINE, VOICEOVER/FKA, AND INSTRUMENTS PENDING
+
+This section supersedes the U3/U4/U5 source-shape descriptions above where the user’s real-machine acceptance of baseline `28cdb4aed8a9777fcb768a4f1051191c9f8430e6` exposed regressions. The earlier slice records remain historical evidence for the commits they describe.
+
+### Acceptance failures that triggered this repair
+
+The baseline candidate was rejected on a real Mac for five concrete UI issues:
+
+- Light-mode Liquid Glass readability and hierarchy were not acceptable.
+- Device priority edit exposed unexplained `1/2/3/4` numeric controls.
+- Pin had been moved out of the primary App row into secondary Output management.
+- Custom overlap reorder still flickered when a dragged row crossed another row.
+- Overall popup Liquid Glass/native-control quality was not acceptable.
+
+Automated source closure from the earlier candidate does not override those machine-observed failures.
+
+### Repair source shape
+
+- Normal App rows are consumption-first again. Raw `DragGesture` reorder ownership, drag offsets, `RowReorderDragState`, and the normal-row accessibility reorder bridge were removed. Direct Pin/Unpin is restored in the leading 20 pt management slot for active and pinned-inactive Apps, with required callbacks so missing production wiring is a compile-time error.
+- Pointer App reorder now lives in Output management and uses system `.draggable(String)` / `.dropDestination(for: String.self)` with domain-prefixed payloads. Drop acceptance reuses `AppListPresentationOrder` pin-group policy and mutation still passes through `AudioEngine.moveApp` / `AppListCoordinator`, which independently rejects cross-group moves. Visible Move Up / Move Down controls and accessibility actions remain the non-pointer path.
+- Device edit removed the numeric priority editor entirely. Pointer drop and Move Up / Move Down now converge on one `reorderEditableDevice` mutation path backed by the pure `DeviceReorderAccessibility.reorderedIdentifiers` seam. The drop destination is attached to the row header rather than the expanded inspector body.
+- Output/Input uses a native segmented `Picker`. Selection routes through `PopupDevicePriorityEditSession`, which owns the active edit domain, preserves same-tab editing, and returns the exiting domain so persistence occurs before switching panes.
+- Output management owns output priority plus App visibility, Pin, and reorder. Input management is priority-only; output-only Device Inspector, Hide, and icon customization capabilities are structurally omitted for Input rather than rendered as no-op controls.
+- Legacy `hiddenInputDeviceUIDs` state and APIs were retired. Old JSON containing the key is tolerated and ignored, preventing an input hidden by an older build from remaining inaccessible after the priority-only Input management change.
+- The primary App list explicitly presents Pinned Apps first and Running Apps after them while retaining the existing durable identifiers and stored order semantics.
+- `LiquidGlassSlider` no longer hides the native Slider chrome at rest. The custom fill retains true-zero behavior while the native thumb/focus affordance remains visible.
+- Enabled interactive foregrounds and active routing/profile subtitles use stronger system-semantic contrast. Section headings use system secondary foreground rather than a custom appearance-alpha token.
+- The popup keeps one host-owned Liquid Glass boundary. No second popup-level material or fixed tint was added. Obsolete `popupOverlay`, `popupBackgroundOverlay`, and the no-op `darkGlassBackground()` vocabulary were removed after the host architecture settled.
+- New management, reorder, grouping, and Output/Input strings have Simplified Chinese catalog coverage. Dead localization vocabulary left by the removed header/status UI was removed.
+
+### Deterministic coverage added or updated
+
+- App pointer-drop acceptance inside the Pinned/Normal boundary, including self and missing-source rejection.
+- Device reorder forward/backward movement plus self, missing-source, and invalid-target rejection through the same pure seam used by pointer and accessible movement.
+- Output-vs-Input management ownership.
+- Repeated Output/Input edit-session switching and same-tab edit-owner preservation.
+- Legacy `hiddenInputDeviceUIDs` JSON is ignored and no longer re-encoded.
+- Updated localization assertions for native Output/Input selection, management labels, Pin/Unpin, grouping, drag help, and Move Up / Move Down actions.
+
+### Final local automated verification
+
+On the final source tree before commit:
+
+- `git diff --check`: PASS.
+- Removed-concept scan: no shipping Swift references remain to `RowReorderDragState`, `AppReorderAccessibility`, `reorderDragAppearance`, `reorderDragTarget`, `EditablePriority`, `hiddenInputDeviceUIDs` APIs, `popupOverlay`, `popupBackgroundOverlay`, or `darkGlassBackground()`.
+- Complete non-UI suite: PASS, 917 tests / 0 failures / 0 skipped; 1125 device/configuration test executions passed. Result bundle: `build/UIRepairExactFull.xcresult`.
+- Independent final specification/correctness/test review: no CURRENT Critical/Required source blocker.
+- Independent final architecture/simplicity/readability/security/source-performance review: no CURRENT Critical/Required source blocker.
+
+The existing SwiftUI test harness still emits the pre-existing warning when a few tests access `@State`-backed views without mounting them. The warnings remain limited to existing HUD/cross-surface test patterns and do not represent a test failure.
+
+### Remaining frozen exit gates
+
+This repair is not a visual or release PASS yet. Keep the PR Draft and unmerged until the final exact head completes:
+
+- exact-head GitHub CI after commit/push
+- Light / Dark / System real-machine popup checks over bright and dark backgrounds
+- Compact / Comfortable / Spacious representative-name and forced-scroll checks; Compact remains a source-level exact-fit budget and therefore needs rendered acceptance rather than an arithmetic PASS claim
+- native segmented Output/Input mouse, keyboard, focus, and visual acceptance
+- direct Pin/Unpin rapid interaction and Pinned/Running group movement
+- device and App management drag overlap, reversal, cancel, and drop behavior, especially the previously observed flicker case
+- device Move Up / Move Down alternatives and persistence
+- Slider resting, hover, zero, and keyboard-focus behavior
+- Reduce Motion interaction matrix
+- VoiceOver and Full Keyboard Access discoverability, focus, actions, and resulting-position behavior
+- Instruments measurements for the frozen performance scenarios
+
+No real-machine, VoiceOver/FKA, or Instruments gate is promoted to PASS by the automated evidence above.

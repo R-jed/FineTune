@@ -32,10 +32,7 @@ struct InactiveAppRow: View {
     let isEQExpanded: Bool
     let onEQToggle: () -> Void
     let sliderWidth: CGFloat
-    let isDragging: Bool
-    let dragOffset: CGFloat
-    let onDragChanged: (CGFloat) -> Void
-    let onDragEnded: () -> Void
+    let onTogglePin: () -> Void
     let isFocused: Bool
 
     @State private var localEQSettings: EQSettings
@@ -70,10 +67,7 @@ struct InactiveAppRow: View {
         isEQExpanded: Bool = false,
         onEQToggle: @escaping () -> Void = {},
         sliderWidth: CGFloat = DesignTokens.Dimensions.sliderWidth,
-        isDragging: Bool = false,
-        dragOffset: CGFloat = 0,
-        onDragChanged: @escaping (CGFloat) -> Void = { _ in },
-        onDragEnded: @escaping () -> Void = {},
+        onTogglePin: @escaping () -> Void,
         isFocused: Bool = false
     ) {
         self.appInfo = appInfo
@@ -105,10 +99,7 @@ struct InactiveAppRow: View {
         self.isEQExpanded = isEQExpanded
         self.onEQToggle = onEQToggle
         self.sliderWidth = sliderWidth
-        self.isDragging = isDragging
-        self.dragOffset = dragOffset
-        self.onDragChanged = onDragChanged
-        self.onDragEnded = onDragEnded
+        self.onTogglePin = onTogglePin
         self.isFocused = isFocused
         self._localEQSettings = State(initialValue: eqSettings)
     }
@@ -116,10 +107,7 @@ struct InactiveAppRow: View {
     var body: some View {
         ExpandableGlassRow(isExpanded: isEQExpanded, isFocused: isFocused) {
             HStack(spacing: DesignTokens.Spacing.xs + DesignTokens.Spacing.xxs) {
-                ReorderDragHandle(
-                    onChanged: onDragChanged,
-                    onEnded: onDragEnded
-                )
+                AppPinButton(isPinned: true, action: onTogglePin)
 
                 VUMeter(level: 0, isMuted: isMuted || volume == 0)
                     .opacity(0.6)
@@ -146,18 +134,12 @@ struct InactiveAppRow: View {
                     ) {
                         subtitle
                             .font(DesignTokens.Typography.caption)
-                            .foregroundStyle(DesignTokens.Colors.textTertiary)
+                            .foregroundStyle(DesignTokens.Colors.textSecondary)
                             .lineLimit(1)
                     }
                 }
                 .frame(minWidth: 96, maxWidth: .infinity, alignment: .leading)
                 .layoutPriority(1)
-                .contentShape(Rectangle())
-                .reorderDragTarget(
-                    onChanged: onDragChanged,
-                    onEnded: onDragEnded
-                )
-                .appReorderAccessibility(identifier: appInfo.persistenceIdentifier)
 
                 AppRowControls(
                     volume: volume,
@@ -206,7 +188,6 @@ struct InactiveAppRow: View {
             )
             .padding(.top, DesignTokens.Spacing.sm)
         }
-        .reorderDragAppearance(isDragging: isDragging, offset: dragOffset)
         .onChange(of: eqSettings) { _, newValue in
             localEQSettings = newValue
         }

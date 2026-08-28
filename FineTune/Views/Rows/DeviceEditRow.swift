@@ -2,8 +2,8 @@
 import SwiftUI
 import AppKit
 
-/// Priority-edit-mode row with drag handle, priority number, icon+name,
-/// DEFAULT badge, hide toggle, and an info/close button that expands the
+/// Device-management row with a native drag handle, visible move alternatives,
+/// icon+name, DEFAULT badge, hide toggle, and an info/close button that expands the
 /// Device Inspector pane. Icon opens the icon picker; name+badge is the
 /// tap region for expand — siblings keep their own gestures.
 struct DeviceEditRow<ExpandedContent: View>: View {
@@ -15,13 +15,11 @@ struct DeviceEditRow<ExpandedContent: View>: View {
     let deviceCount: Int
     let isExpanded: Bool
     let isHidden: Bool
-    var isDragging: Bool = false
-    var dragOffset: CGFloat = 0
-    var onDragChanged: (CGFloat) -> Void = { _ in }
-    var onDragEnded: () -> Void = {}
+    let reorderDragPayload: String
+    let onReorderDrop: ([String]) -> Bool
     let onReorder: (Int) -> Void
-    let onToggleExpand: () -> Void
-    let onToggleHidden: () -> Void
+    var onToggleExpand: (() -> Void)? = nil
+    var onToggleHidden: (() -> Void)? = nil
     var onIconSelect: ((String?) -> Void)? = nil
     @ViewBuilder let expandedContent: () -> ExpandedContent
 
@@ -69,7 +67,6 @@ struct DeviceEditRow<ExpandedContent: View>: View {
             } expandedContent: {
                 expandedContent()
             }
-            .reorderDragAppearance(isDragging: isDragging, offset: dragOffset)
         )
     }
 
@@ -121,20 +118,30 @@ struct DeviceEditRow<ExpandedContent: View>: View {
 
     private var headerRow: some View {
         HStack(spacing: DesignTokens.Spacing.sm) {
-            ReorderDragHandle(
-                onChanged: onDragChanged,
-                onEnded: onDragEnded
-            )
+            ReorderDragHandle(payload: reorderDragPayload)
 
-            EditablePriority(
-                index: priorityIndex,
-                count: deviceCount,
-                onReorder: onReorder
-            )
+            iconControl
 
-            iconButton
+            deviceIdentity
 
-            HStack(spacing: DesignTokens.Spacing.sm) {
+            reorderButtons
+
+            if onToggleHidden != nil {
+                hideToggleButton
+            }
+
+            if onToggleExpand != nil {
+                infoButton
+            }
+        }
+        .frame(height: DesignTokens.Dimensions.rowContentHeight)
+        .dropDestination(for: String.self) { items, _ in
+            onReorderDrop(items)
+        }
+    }
+
+    private var deviceIdentityContent: some View {
+        HStack(spacing: DesignTokens.Spacing.sm) {
                 Text(verbatim: device.name)
                     .font(DesignTokens.Typography.rowName)
                     .lineLimit(1)
@@ -153,35 +160,78 @@ struct DeviceEditRow<ExpandedContent: View>: View {
                 }
 
                 Spacer()
-            }
+        }
+    }
+
+    @ViewBuilder
+    private var deviceIdentity: some View {
+        if let onToggleExpand {
+            deviceIdentityContent
             .contentShape(Rectangle())
             .onTapGesture { onToggleExpand() }
             .accessibilityAddTraits(.isButton)
             .accessibilityLabel(Text(detailsAccessibilityLabel))
-
-            hideToggleButton
-
-            infoButton
+        } else {
+            deviceIdentityContent
         }
-        .frame(height: DesignTokens.Dimensions.rowContentHeight)
+    }
+
+    @ViewBuilder
+    private var iconControl: some View {
+        if onIconSelect != nil {
+            iconButton
+        } else {
+            deviceIcon
+        }
+    }
+
+    private var reorderButtons: some View {
+        HStack(spacing: DesignTokens.Spacing.xxs) {
+            if let target = DeviceReorderAccessibility.targetIndex(
+                currentIndex: priorityIndex,
+                direction: -1,
+                count: deviceCount
+            ) {
+                Button { onReorder(target) } label: {
+                    Image(systemName: "chevron.up")
+                        .font(.system(size: 10, weight: .semibold))
+                        .frame(
+                            minWidth: DesignTokens.Dimensions.minTouchTarget,
+                            minHeight: DesignTokens.Dimensions.minTouchTarget
+                        )
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("Move device up")
+                .accessibilityLabel("Move device up")
+            }
+
+            if let target = DeviceReorderAccessibility.targetIndex(
+                currentIndex: priorityIndex,
+                direction: 1,
+                count: deviceCount
+            ) {
+                Button { onReorder(target) } label: {
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 10, weight: .semibold))
+                        .frame(
+                            minWidth: DesignTokens.Dimensions.minTouchTarget,
+                            minHeight: DesignTokens.Dimensions.minTouchTarget
+                        )
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("Move device down")
+                .accessibilityLabel("Move device down")
+            }
+        }
     }
 
     private var iconButton: some View {
         Button {
             showingIconPicker = true
         } label: {
-            Group {
-                if let icon = displayIcon {
-                    Image(nsImage: icon)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                } else {
-                    Image(systemName: isInputDevice ? "mic" : "speaker.wave.2")
-                        .symbolRenderingMode(.hierarchical)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .frame(width: DesignTokens.Dimensions.iconSize, height: DesignTokens.Dimensions.iconSize)
+            deviceIcon
             .overlay(alignment: .bottomTrailing) {
                 if isIconHovered {
                     Image(systemName: "pencil.circle.fill")
@@ -207,9 +257,24 @@ struct DeviceEditRow<ExpandedContent: View>: View {
         }
     }
 
+    private var deviceIcon: some View {
+        Group {
+            if let icon = displayIcon {
+                Image(nsImage: icon)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+            } else {
+                Image(systemName: isInputDevice ? "mic" : "speaker.wave.2")
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(width: DesignTokens.Dimensions.iconSize, height: DesignTokens.Dimensions.iconSize)
+    }
+
     private var hideToggleButton: some View {
         Button {
-            onToggleHidden()
+            onToggleHidden?()
         } label: {
             Image(systemName: isHidden ? "eye.slash" : "eye")
                 .font(.system(size: 12))
@@ -241,7 +306,7 @@ struct DeviceEditRow<ExpandedContent: View>: View {
 
     private var infoButton: some View {
         Button {
-            onToggleExpand()
+            onToggleExpand?()
         } label: {
             ZStack {
                 Image(systemName: "info.circle")
@@ -276,139 +341,22 @@ enum DeviceReorderAccessibility {
         guard (0..<count).contains(targetIndex) else { return nil }
         return targetIndex
     }
-}
 
-private struct EditablePriority: View {
-    let index: Int
-    let count: Int
-    let onReorder: (Int) -> Void
-
-    @State private var isEditing = false
-    @State private var inputText = ""
-    @State private var isHovered = false
-    @FocusState private var isFocused: Bool
-    @State private var coordinator = ClickOutsideCoordinator()
-    @State private var componentFrame: CGRect = .zero
-
-    private var displayNumber: Int { index + 1 }
-
-    private var textColor: Color {
-        isEditing ? DesignTokens.Colors.accentPrimary : DesignTokens.Colors.textSecondary
-    }
-
-    var body: some View {
-        Group {
-            if isEditing {
-                TextField("Priority position", text: $inputText)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 11, weight: .semibold).monospacedDigit())
-                    .foregroundStyle(textColor)
-                    .multilineTextAlignment(.center)
-                    .focused($isFocused)
-                    .onSubmit { commit() }
-                    .onExitCommand { cancel() }
-                    .fixedSize()
-                    .accessibilityLabel("Priority position")
-            } else {
-                Button(action: startEditing) {
-                    Text(verbatim: "\(displayNumber)")
-                        .font(.system(size: 11, weight: .semibold).monospacedDigit())
-                        .foregroundStyle(isHovered ? DesignTokens.Colors.textPrimary : textColor)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Edit priority position")
-                .accessibilityValue(Text(verbatim: "\(displayNumber)"))
-            }
+    static func reorderedIdentifiers(
+        _ orderedIdentifiers: [String],
+        moving identifier: String,
+        to targetIndex: Int
+    ) -> [String]? {
+        guard let sourceIndex = orderedIdentifiers.firstIndex(of: identifier),
+              orderedIdentifiers.indices.contains(targetIndex),
+              sourceIndex != targetIndex else {
+            return nil
         }
-        .padding(.horizontal, isEditing ? 4 : 2)
-        .padding(.vertical, isEditing ? 2 : 1)
-        .background {
-            GeometryReader { geo in
-                Color.clear
-                    .preference(key: PriorityFrameKey.self, value: geo.frame(in: .global))
-            }
-        }
-        .onPreferenceChange(PriorityFrameKey.self) { frame in
-            updateScreenFrame(from: frame)
-        }
-        .background {
-            if isEditing {
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(DesignTokens.Colors.accentPrimary.opacity(0.12))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 4)
-                            .strokeBorder(DesignTokens.Colors.accentPrimary.opacity(0.4), lineWidth: 1)
-                    }
-            } else if isHovered {
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(Color.primary.opacity(0.08))
-            }
-        }
-        .frame(
-            minWidth: DesignTokens.Dimensions.minTouchTarget,
-            minHeight: DesignTokens.Dimensions.minTouchTarget,
-            alignment: .center
-        )
-        .contentShape(Rectangle())
-        .onHover { hovering in
-            isHovered = hovering
-            if hovering {
-                NSCursor.pointingHand.push()
-            } else {
-                NSCursor.pop()
-            }
-        }
-        .onChange(of: isEditing) { _, editing in
-            if !editing {
-                coordinator.removeMonitors()
-            }
-        }
-        .animation(.easeOut(duration: 0.15), value: isEditing)
-        .animation(.easeOut(duration: 0.1), value: isHovered)
-    }
 
-    private func startEditing() {
-        inputText = "\(displayNumber)"
-        isEditing = true
-
-        coordinator.install(
-            excludingFrame: componentFrame,
-            onClickOutside: { [self] in
-                cancel()
-            }
-        )
-
-        Task { @MainActor in
-            isFocused = true
-        }
-    }
-
-    private func commit() {
-        let cleaned = inputText.trimmingCharacters(in: .whitespaces)
-        if let value = Int(cleaned), (1...count).contains(value) {
-            let newIndex = value - 1
-            if newIndex != index {
-                onReorder(newIndex)
-            }
-        }
-        isEditing = false
-    }
-
-    private func cancel() {
-        isEditing = false
-    }
-
-    private func updateScreenFrame(from globalFrame: CGRect) {
-        componentFrame = screenFrame(from: globalFrame)
-    }
-}
-
-private struct PriorityFrameKey: PreferenceKey {
-    static let defaultValue: CGRect = .zero
-    static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
-        value = nextValue()
+        var result = orderedIdentifiers
+        let movedIdentifier = result.remove(at: sourceIndex)
+        result.insert(movedIdentifier, at: min(targetIndex, result.count))
+        return result
     }
 }
 
@@ -435,6 +383,8 @@ struct DeviceEditRowTapCarveoutPreview: View {
                     deviceCount: 3,
                     isExpanded: expandedUID == MockData.sampleDevices[0].uid,
                     isHidden: false,
+                    reorderDragPayload: "preview-device",
+                    onReorderDrop: { _ in false },
                     onReorder: { newIndex in
                         lastEvent = "Reorder to \(newIndex + 1)"
                     },

@@ -1,7 +1,7 @@
 // FineTune/Views/Rows/AppRowControls.swift
 import SwiftUI
 
-/// Shared fast controls for app rows: mute, volume, boost, routing, and EQ.
+/// Shared trailing controls for app rows: mute, volume, boost, routing, and EQ.
 /// Used by both AppRow (active apps) and InactiveAppRow (pinned inactive apps).
 struct AppRowControls: View {
     let volume: Float
@@ -184,5 +184,40 @@ struct AppRowControls: View {
         .onChange(of: isMuted) { _, _ in
             interactionOverrideValue = nil
         }
+    }
+}
+
+/// Direct Pin/Unpin action occupying the management slot freed when normal-row
+/// pointer reordering moved to Output management.
+struct AppPinButton: View {
+    let isPinned: Bool
+    let action: () -> Void
+
+    @State private var isHovered = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var foregroundColor: Color {
+        if isPinned { return DesignTokens.Colors.interactiveActive }
+        if isHovered { return DesignTokens.Colors.interactiveHover }
+        return DesignTokens.Colors.interactiveDefault
+    }
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: isPinned ? "pin.fill" : "pin")
+                .font(.system(size: 12))
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(foregroundColor)
+                .frame(
+                    minWidth: DesignTokens.Dimensions.minTouchTarget,
+                    minHeight: DesignTokens.Dimensions.minTouchTarget
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(isPinned ? "Unpin app" : "Pin app")
+        .onHover { isHovered = $0 }
+        .help(isPinned ? "Unpin app" : "Pin app")
+        .animation(reduceMotion ? nil : DesignTokens.Animation.hover, value: isHovered)
     }
 }

@@ -22,19 +22,7 @@ struct VisualEffectBackground: NSViewRepresentable {
     }
 }
 
-extension Color {
-    static var popupBackgroundOverlay: Color { DesignTokens.Colors.popupOverlay }
-}
-
 extension View {
-    /// The menu-bar window now owns the single popup surface: Liquid Glass on
-    /// macOS 26+ and one `.popover` material on older supported systems.
-    /// Keep this source-compatible modifier as a content-only no-op so existing
-    /// popup code cannot accidentally stack another material or fixed tint.
-    func darkGlassBackground() -> some View {
-        self
-    }
-
     func eqCardBackground() -> some View {
         modifier(LiftedCardBackgroundModifier())
     }

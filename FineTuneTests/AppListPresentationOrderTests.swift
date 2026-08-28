@@ -123,6 +123,43 @@ struct AppListPresentationOrderTests {
             pinnedIdentifiers: pinned
         ) == nil)
     }
+
+    @Test("pointer drop accepts direct targets only inside the same pin group")
+    func pointerDropTargetStaysInsideGroup() {
+        let order = ["pinned-a", "pinned-b", "normal-a", "normal-b"]
+        let pinned: Set<String> = ["pinned-a", "pinned-b"]
+
+        #expect(AppListPresentationOrder.dropTarget(
+            for: "pinned-a",
+            onto: "pinned-b",
+            orderedIdentifiers: order,
+            pinnedIdentifiers: pinned
+        ) == "pinned-b")
+        #expect(AppListPresentationOrder.dropTarget(
+            for: "normal-b",
+            onto: "normal-a",
+            orderedIdentifiers: order,
+            pinnedIdentifiers: pinned
+        ) == "normal-a")
+        #expect(AppListPresentationOrder.dropTarget(
+            for: "pinned-a",
+            onto: "normal-a",
+            orderedIdentifiers: order,
+            pinnedIdentifiers: pinned
+        ) == nil)
+        #expect(AppListPresentationOrder.dropTarget(
+            for: "normal-a",
+            onto: "normal-a",
+            orderedIdentifiers: order,
+            pinnedIdentifiers: pinned
+        ) == nil)
+        #expect(AppListPresentationOrder.dropTarget(
+            for: "missing",
+            onto: "normal-a",
+            orderedIdentifiers: order,
+            pinnedIdentifiers: pinned
+        ) == nil)
+    }
 }
 
 @Suite("U1 app reorder group boundary")

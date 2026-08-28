@@ -10,15 +10,6 @@ struct LiquidGlassSlider: View {
     let onEditingChanged: ((Bool) -> Void)?
     let accessibilityLabel: Text
 
-    @State private var isEditing = false
-    @State private var isHovered = false
-    @FocusState private var isFocused: Bool
-
-    /// Keep the native thumb/focus treatment visible for every active input path.
-    private var showThumb: Bool {
-        isHovered || isEditing || isFocused
-    }
-
     init(
         value: Binding<Double>,
         in range: ClosedRange<Double> = 0...1,
@@ -74,23 +65,19 @@ struct LiquidGlassSlider: View {
                     .allowsHitTesting(false)
                 }
 
-                // Native SwiftUI Slider - gets Liquid Glass thumb on macOS 26+
-                // Resting chrome stays quiet; hover, drag, and keyboard focus reveal it.
+                // Keep the native SwiftUI Slider visible at rest so its thumb,
+                // focus treatment, and Liquid Glass affordance remain recognizable.
+                // Only the track tint is suppressed because the custom track
+                // above is what guarantees a mathematically true zero fill.
                 Slider(value: $value, in: range) { editing in
-                    isEditing = editing
                     onEditingChanged?(editing)
                 }
                 .controlSize(.mini)
                 .tint(.clear)  // Hide native track, we draw our own
-                .focused($isFocused)
                 .accessibilityLabel(accessibilityLabel)
-                .opacity(showThumb ? 1 : 0.01)
             }
         }
         .frame(minHeight: DesignTokens.Dimensions.minTouchTarget)
-        .onHover { hovering in
-            isHovered = hovering
-        }
     }
 }
 

@@ -7,6 +7,7 @@ struct AppManagementRow: View {
     let name: String
     let isIgnored: Bool
     var isPinned: Bool? = nil
+    var reorderDragPayload: String? = nil
     let onToggleVisibility: () -> Void
     var onTogglePin: (() -> Void)? = nil
     var onMoveUp: (() -> Void)? = nil
@@ -16,6 +17,10 @@ struct AppManagementRow: View {
 
     var body: some View {
         HStack(spacing: DesignTokens.Spacing.sm) {
+            if let reorderDragPayload {
+                ReorderDragHandle(payload: reorderDragPayload)
+            }
+
             Image(nsImage: icon)
                 .resizable()
                 .aspectRatio(contentMode: .fit)
