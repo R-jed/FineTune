@@ -23,7 +23,6 @@ struct DropdownMenu<Item: Identifiable, Label: View, ItemContent: View>: View wh
     private let itemSpacing: CGFloat = 2
     private let verticalPadding: CGFloat = 12  // 6 top + 6 bottom
     private let cornerRadius: CGFloat = 8
-    private let animationDuration: Double = 0.15
 
     private var effectivePopoverWidth: CGFloat {
         popoverWidth ?? width
@@ -40,12 +39,17 @@ struct DropdownMenu<Item: Identifiable, Label: View, ItemContent: View>: View wh
         return itemCount * itemHeight + totalSpacing + verticalPadding
     }
 
+    private func setExpanded(_ expanded: Bool) {
+        guard isExpanded != expanded else { return }
+        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.15)) {
+            isExpanded = expanded
+        }
+    }
+
     // MARK: - Trigger Button
     private var triggerButton: some View {
         Button {
-            withAnimation(reduceMotion ? nil : .snappy(duration: 0.2)) {
-                isExpanded.toggle()
-            }
+            setExpanded(!isExpanded)
         } label: {
             HStack {
                 label(selectedItem)
@@ -58,7 +62,6 @@ struct DropdownMenu<Item: Identifiable, Label: View, ItemContent: View>: View wh
                     .font(.system(size: 8, weight: .semibold))
                     .foregroundStyle(.secondary)
                     .rotationEffect(.degrees(isExpanded ? -180 : 0))
-                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: isExpanded)
             }
             .padding(.horizontal, DesignTokens.Spacing.sm)
             .padding(.vertical, 4)
@@ -101,9 +104,7 @@ struct DropdownMenu<Item: Identifiable, Label: View, ItemContent: View>: View wh
                         cornerRadius: cornerRadius,
                         onSelect: { item in
                             onSelect(item)
-                            withAnimation(reduceMotion ? nil : .easeOut(duration: animationDuration)) {
-                                isExpanded = false
-                            }
+                            setExpanded(false)
                         },
                         itemContent: itemContent
                     )
@@ -219,18 +220,22 @@ struct GroupedDropdownMenu<Section: Identifiable & Hashable, Item: Identifiable,
     private let itemHeight: CGFloat = 22
     private let sectionHeaderHeight: CGFloat = 24
     private let cornerRadius: CGFloat = 8
-    private let animationDuration: Double = 0.15
 
     private var effectivePopoverWidth: CGFloat {
         popoverWidth ?? width
     }
 
+    private func setExpanded(_ expanded: Bool) {
+        guard isExpanded != expanded else { return }
+        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.15)) {
+            isExpanded = expanded
+        }
+    }
+
     // MARK: - Trigger Button
     private var triggerButton: some View {
         Button {
-            withAnimation(reduceMotion ? nil : .snappy(duration: 0.2)) {
-                isExpanded.toggle()
-            }
+            setExpanded(!isExpanded)
         } label: {
             HStack {
                 label(selectedItem)
@@ -243,7 +248,6 @@ struct GroupedDropdownMenu<Section: Identifiable & Hashable, Item: Identifiable,
                     .font(.system(size: 8, weight: .semibold))
                     .foregroundStyle(.secondary)
                     .rotationEffect(.degrees(isExpanded ? -180 : 0))
-                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: isExpanded)
             }
             .padding(.horizontal, DesignTokens.Spacing.sm)
             .padding(.vertical, 4)
@@ -288,9 +292,7 @@ struct GroupedDropdownMenu<Section: Identifiable & Hashable, Item: Identifiable,
                         cornerRadius: cornerRadius,
                         onSelect: { item in
                             onSelect(item)
-                            withAnimation(reduceMotion ? nil : .easeOut(duration: animationDuration)) {
-                                isExpanded = false
-                            }
+                            setExpanded(false)
                         },
                         itemContent: itemContent
                     )
