@@ -35,7 +35,7 @@ struct ModeToggle: View {
         let isHovered = hoveredOption == optionMode
 
         Button {
-            withAnimation(reduceMotion ? nil : .spring(response: 0.25, dampingFraction: 0.8)) {
+            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.12)) {
                 mode = optionMode
             }
         } label: {
