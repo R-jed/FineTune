@@ -51,6 +51,7 @@ struct DeviceIconPicker: View {
                     }
                 }
             }
+            .contentMargins(.trailing, DesignTokens.Spacing.sm, for: .scrollContent)
             .frame(height: 300)
             .scrollIndicators(.never)
 

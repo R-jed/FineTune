@@ -1,7 +1,7 @@
 // FineTune/Views/Rows/AppRowControls.swift
 import SwiftUI
 
-/// Shared controls for app rows: mute button, volume slider, percentage, VU meter, device picker, EQ, and pin.
+/// Shared fast controls for app rows: mute, volume, boost, routing, and EQ.
 /// Used by both AppRow (active apps) and InactiveAppRow (pinned inactive apps).
 struct AppRowControls: View {
     let volume: Float
@@ -25,26 +25,24 @@ struct AppRowControls: View {
     let onDeviceModeChange: (DeviceSelectionMode) -> Void
     let onSelectFollowDefault: () -> Void
     let onEQToggle: () -> Void
-    var isPinned: Bool = false
-    var onTogglePin: () -> Void = {}
     var isRowFocused: Bool = false
 
-    @State private var dragOverrideValue: Double?
+    @State private var interactionOverrideValue: Double?
+    @State private var isEditing = false
     @State private var isEQButtonHovered = false
-    @State private var isPinButtonHovered = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var storedSliderFraction: Double {
         VolumeMapping.gainToSlider(volume)
     }
 
-    /// During direct manipulation, the local drag value is the user's current intent.
-    /// Treat a drag as locally unmuted while the backend catches up so the slider
+    /// During direct manipulation, the local interaction value is the user's current intent.
+    /// Treat it as locally unmuted while the backend catches up so the slider
     /// stays under the pointer instead of snapping back to visual zero.
     private var presentationState: VolumePresentationState {
         VolumePresentationState(
-            storedFraction: dragOverrideValue ?? storedSliderFraction,
-            isMuted: dragOverrideValue == nil ? isMuted : false,
+            storedFraction: interactionOverrideValue ?? storedSliderFraction,
+            isMuted: interactionOverrideValue == nil ? isMuted : false,
             sourceIsActive: false
         )
     }
@@ -57,12 +55,14 @@ struct AppRowControls: View {
         Binding(
             get: { sliderValue },
             set: { newValue in
-                let plan = presentationState.planAdjustment(to: newValue)
-                dragOverrideValue = plan.fraction
-                onVolumeChange(VolumeMapping.sliderToGain(plan.fraction))
-                if plan.shouldUnmute {
-                    onMuteChange(false)
-                }
+                let state = presentationState
+                let plan = AppVolumeCommandPlan.adjustment(
+                    currentFraction: state.storedFraction,
+                    isMuted: state.isMuted,
+                    requestedFraction: newValue
+                )
+                interactionOverrideValue = plan.fraction
+                plan.apply(setVolume: onVolumeChange, setMute: onMuteChange)
             }
         )
     }
@@ -85,36 +85,22 @@ struct AppRowControls: View {
         }
     }
 
-    private var pinButtonColor: Color {
-        if isPinned {
-            return DesignTokens.Colors.interactiveActive
-        } else if isPinButtonHovered {
-            return DesignTokens.Colors.interactiveHover
-        } else {
-            return DesignTokens.Colors.interactiveDefault
-        }
-    }
-
     var body: some View {
-        HStack(spacing: DesignTokens.Spacing.sm) {
+        HStack(spacing: DesignTokens.Spacing.xs) {
             MuteButton(isMuted: showMutedIcon, levelFraction: sliderValue) {
-                if showMutedIcon {
-                    let restoredFraction = presentationState.unmuteFraction()
-                    if restoredFraction != storedSliderFraction {
-                        onVolumeChange(VolumeMapping.sliderToGain(restoredFraction))
-                    }
-                    onMuteChange(false)
-                } else {
-                    onMuteChange(true)
-                }
+                AppVolumeCommandPlan.muteToggle(
+                    currentGain: volume,
+                    isMuted: isMuted
+                ).apply(setVolume: onVolumeChange, setMute: onMuteChange)
             }
 
             LiquidGlassSlider(
                 value: sliderBinding,
                 showUnityMarker: false,
                 onEditingChanged: { editing in
+                    isEditing = editing
                     if !editing {
-                        dragOverrideValue = nil
+                        interactionOverrideValue = nil
                     }
                 },
                 accessibilityLabel: volumeAccessibilityLabel
@@ -130,13 +116,13 @@ struct AppRowControls: View {
                 percentage: Binding(
                     get: { displayedPercentage },
                     set: { newPercentage in
-                        let plan = presentationState.planAdjustment(
-                            to: Double(newPercentage) / 100.0
+                        let state = presentationState
+                        let plan = AppVolumeCommandPlan.adjustment(
+                            currentFraction: state.storedFraction,
+                            isMuted: state.isMuted,
+                            requestedFraction: Double(newPercentage) / 100.0
                         )
-                        onVolumeChange(VolumeMapping.sliderToGain(plan.fraction))
-                        if plan.shouldUnmute {
-                            onMuteChange(false)
-                        }
+                        plan.apply(setVolume: onVolumeChange, setMute: onMuteChange)
                     }
                 ),
                 range: 0...100,
@@ -185,26 +171,18 @@ struct AppRowControls: View {
             .accessibilityLabel(isEQExpanded ? "Close Equalizer" : "Equalizer")
             .onHover { isEQButtonHovered = $0 }
             .help(isEQExpanded ? "Close Equalizer" : "Equalizer")
-            .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: isEQExpanded)
             .animation(reduceMotion ? nil : DesignTokens.Animation.hover, value: isEQButtonHovered)
-
-            Button(action: onTogglePin) {
-                Image(systemName: isPinned ? "pin.fill" : "pin.slash")
-                    .font(.system(size: 12))
-                    .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(pinButtonColor)
-                    .frame(
-                        minWidth: DesignTokens.Dimensions.minTouchTarget,
-                        minHeight: DesignTokens.Dimensions.minTouchTarget
-                    )
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(isPinned ? "Unpin app" : "Pin app")
-            .onHover { isPinButtonHovered = $0 }
-            .help(isPinned ? "Unpin app" : "Pin app")
-            .animation(reduceMotion ? nil : DesignTokens.Animation.hover, value: isPinButtonHovered)
         }
-        .fixedSize()
+        .onChange(of: volume) { _, _ in
+            // Direct slider manipulation may keep a local optimistic value until
+            // the drag finishes. Wheel/typed changes are not drag sessions, so an
+            // external value update must immediately return presentation ownership
+            // to the backend instead of leaving a stale override in place.
+            guard !isEditing else { return }
+            interactionOverrideValue = nil
+        }
+        .onChange(of: isMuted) { _, _ in
+            interactionOverrideValue = nil
+        }
     }
 }

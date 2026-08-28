@@ -87,7 +87,7 @@ struct LiquidGlassSlider: View {
                 .opacity(showThumb ? 1 : 0.01)
             }
         }
-        .frame(height: DesignTokens.Dimensions.sliderThumbHeight)
+        .frame(minHeight: DesignTokens.Dimensions.minTouchTarget)
         .onHover { hovering in
             isHovered = hovering
         }

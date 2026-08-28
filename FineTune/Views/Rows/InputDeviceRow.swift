@@ -9,8 +9,8 @@ struct InputDeviceRow: View {
     let volume: Float
     let isMuted: Bool
     let onSetDefault: () -> Void
-    let onVolumeChange: (Float) -> Void
-    let onMuteToggle: () -> Void
+    let onUserVolumeChange: (Float) -> Void
+    let onUserMuteToggle: () -> Void
     let isFocused: Bool
     let iconOverrideSymbol: String?
 
@@ -38,7 +38,7 @@ struct InputDeviceRow: View {
         Binding(
             get: { presentationState.displayFraction },
             set: { newValue in
-                applyUserVolume(newValue, autoUnmute: true)
+                applyUserVolume(newValue)
             }
         )
     }
@@ -62,8 +62,8 @@ struct InputDeviceRow: View {
         volume: Float,
         isMuted: Bool,
         onSetDefault: @escaping () -> Void,
-        onVolumeChange: @escaping (Float) -> Void,
-        onMuteToggle: @escaping () -> Void,
+        onUserVolumeChange: @escaping (Float) -> Void,
+        onUserMuteToggle: @escaping () -> Void,
         isFocused: Bool = false,
         iconOverrideSymbol: String? = nil
     ) {
@@ -72,8 +72,8 @@ struct InputDeviceRow: View {
         self.volume = volume
         self.isMuted = isMuted
         self.onSetDefault = onSetDefault
-        self.onVolumeChange = onVolumeChange
-        self.onMuteToggle = onMuteToggle
+        self.onUserVolumeChange = onUserVolumeChange
+        self.onUserMuteToggle = onUserMuteToggle
         self.isFocused = isFocused
         self.iconOverrideSymbol = iconOverrideSymbol
         self._sliderValue = State(initialValue: Double(max(0, min(1, volume))))
@@ -120,19 +120,12 @@ struct InputDeviceRow: View {
                 }
 
             InputMuteButton(isMuted: showMutedIcon) {
-                if showMutedIcon {
-                    let restoredFraction = presentationState.unmuteFraction()
-                    if restoredFraction != sliderValue {
-                        interactionOverrideValue = restoredFraction
-                        sliderValue = restoredFraction
-                        onVolumeChange(Float(restoredFraction))
-                    }
-                    if isMuted {
-                        onMuteToggle()
-                    }
-                } else {
-                    onMuteToggle()
+                let plan = presentationState.planMuteToggle()
+                if plan.fraction != sliderValue {
+                    interactionOverrideValue = plan.fraction
+                    sliderValue = plan.fraction
                 }
+                onUserMuteToggle()
             }
 
             LiquidGlassSlider(
@@ -150,7 +143,7 @@ struct InputDeviceRow: View {
                 percentage: Binding(
                     get: { displayedPercentage },
                     set: { newPercentage in
-                        applyUserVolume(Double(newPercentage) / 100.0, autoUnmute: true)
+                        applyUserVolume(Double(newPercentage) / 100.0)
                     }
                 ),
                 range: 0...100,
@@ -160,14 +153,11 @@ struct InputDeviceRow: View {
         .frame(height: DesignTokens.Dimensions.rowContentHeight)
     }
 
-    private func applyUserVolume(_ requestedFraction: Double, autoUnmute: Bool) {
+    private func applyUserVolume(_ requestedFraction: Double) {
         let plan = presentationState.planAdjustment(to: requestedFraction)
         interactionOverrideValue = plan.fraction
         sliderValue = plan.fraction
-        onVolumeChange(Float(plan.fraction))
-        if autoUnmute && plan.shouldUnmute {
-            onMuteToggle()
-        }
+        onUserVolumeChange(Float(plan.fraction))
     }
 }
 
@@ -186,8 +176,8 @@ struct InputDeviceRow: View {
                 volume: 0.75,
                 isMuted: false,
                 onSetDefault: {},
-                onVolumeChange: { _ in },
-                onMuteToggle: {}
+                onUserVolumeChange: { _ in },
+                onUserMuteToggle: {}
             )
 
             InputDeviceRow(
@@ -202,8 +192,8 @@ struct InputDeviceRow: View {
                 volume: 1.0,
                 isMuted: false,
                 onSetDefault: {},
-                onVolumeChange: { _ in },
-                onMuteToggle: {}
+                onUserVolumeChange: { _ in },
+                onUserMuteToggle: {}
             )
 
             InputDeviceRow(
@@ -218,8 +208,8 @@ struct InputDeviceRow: View {
                 volume: 0.5,
                 isMuted: true,
                 onSetDefault: {},
-                onVolumeChange: { _ in },
-                onMuteToggle: {}
+                onUserVolumeChange: { _ in },
+                onUserMuteToggle: {}
             )
         }
     }

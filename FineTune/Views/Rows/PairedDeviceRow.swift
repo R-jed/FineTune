@@ -57,6 +57,7 @@ struct PairedDeviceRow: View {
                 .foregroundStyle(DesignTokens.Colors.textPrimary)
                 .padding(.horizontal, DesignTokens.Spacing.sm)
                 .padding(.vertical, DesignTokens.Spacing.xxs + 1)
+                .frame(minHeight: DesignTokens.Dimensions.minTouchTarget)
                 .background(
                     RoundedRectangle(cornerRadius: DesignTokens.Dimensions.buttonRadius)
                         .fill(.regularMaterial)

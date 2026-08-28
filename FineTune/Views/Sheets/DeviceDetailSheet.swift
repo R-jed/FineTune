@@ -80,7 +80,7 @@ struct DeviceDetailSheet: View {
 
     private var autoBadge: some View {
         (Text("Auto") + Text(verbatim: ": ") + Text(Self.tierDisplayName(autoDetectedTier)))
-            .font(.system(size: 9, weight: .semibold))
+            .font(.system(size: 10, weight: .semibold))
             .foregroundStyle(DesignTokens.Colors.textSecondary)
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
@@ -147,7 +147,7 @@ struct DeviceDetailSheet: View {
 
             Toggle("Use FineTune's software volume", isOn: useSoftwareBinding)
                 .toggleStyle(.switch)
-                .scaleEffect(0.8)
+                .controlSize(.small)
                 .labelsHidden()
         }
     }

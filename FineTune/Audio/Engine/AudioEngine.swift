@@ -408,9 +408,6 @@ final class AudioEngine {
     /// Combined list of apps producing audio and pinned apps whose process is unavailable.
     /// Every app follows the same user-defined order; unseen apps follow alphabetically.
     var displayableApps: [DisplayableApp] {
-        let orderRank = Dictionary(
-            uniqueKeysWithValues: settingsManager.appOrder.enumerated().map { ($1, $0) }
-        )
         let activeApps = apps
             .filter { !appListCoordinator.isIgnored(identifier: $0.persistenceIdentifier) }
         let activeAppsByIdentifier = Dictionary(
@@ -422,16 +419,17 @@ final class AudioEngine {
             .filter { !activeIdentifiers.contains($0.persistenceIdentifier) }
             .filter { !appListCoordinator.isIgnored(identifier: $0.persistenceIdentifier) }
             .map { DisplayableApp.pinnedInactive($0) }
-
-        return (activeAppsByIdentifier.values.map { DisplayableApp.active($0) } + inactivePinned)
-            .sorted { lhs, rhs in
-                let lhsRank = orderRank[lhs.id]
-                let rhsRank = orderRank[rhs.id]
-                if let lhsRank, let rhsRank { return lhsRank < rhsRank }
-                if lhsRank != nil { return true }
-                if rhsRank != nil { return false }
-                return lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName) == .orderedAscending
-            }
+        let visibleApps = activeAppsByIdentifier.values.map { DisplayableApp.active($0) } + inactivePinned
+        let pinnedIdentifiers = Set(
+            visibleApps.lazy
+                .filter { self.appListCoordinator.isPinned(identifier: $0.id) }
+                .map(\.id)
+        )
+        return AppListPresentationOrder.ordered(
+            visibleApps,
+            pinnedIdentifiers: pinnedIdentifiers,
+            persistedOrder: settingsManager.appOrder
+        )
     }
 
     // MARK: - Pinning
@@ -723,8 +721,14 @@ final class AudioEngine {
     }
 
     func toggleMute(for app: AudioApp) {
-        let current = volumeState.getMute(for: app.id)
-        setMute(for: app, to: !current)
+        let currentMute = volumeState.getMute(for: app.id)
+        AppVolumeCommandPlan.muteToggle(
+            currentGain: volumeState.getVolume(for: app.id),
+            isMuted: currentMute
+        ).apply(
+            setVolume: { setVolume(for: app, to: $0) },
+            setMute: { setMute(for: app, to: $0) }
+        )
     }
 
     func currentVolume(for app: AudioApp) -> Float {

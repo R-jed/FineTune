@@ -1,11 +1,8 @@
 import SwiftUI
 
 /// Hover emphasis that preserves the control's current semantic symbol.
-/// The secondary symbol remains part of the call-site contract until callers are simplified,
-/// but hover itself only changes emphasis and never previews the opposite action.
 struct HoverMorphSymbol: View {
     let primarySymbol: String
-    let secondarySymbol: String
     let isHovered: Bool
     let primaryColor: Color
     let secondaryColor: Color

@@ -265,8 +265,7 @@ struct DeviceEditRow<ExpandedContent: View>: View {
         .onHover { isInfoButtonHovered = $0 }
         .help(inspectorHelpText)
         .accessibilityLabel(Text(inspectorAccessibilityLabel))
-        .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: isExpanded)
-        .animation(DesignTokens.Animation.hover, value: isInfoButtonHovered)
+        .animation(reduceMotion ? nil : DesignTokens.Animation.hover, value: isInfoButtonHovered)
     }
 }
 
@@ -347,7 +346,11 @@ private struct EditablePriority: View {
                     .fill(Color.primary.opacity(0.08))
             }
         }
-        .frame(width: 16, alignment: .center)
+        .frame(
+            minWidth: DesignTokens.Dimensions.minTouchTarget,
+            minHeight: DesignTokens.Dimensions.minTouchTarget,
+            alignment: .center
+        )
         .contentShape(Rectangle())
         .onHover { hovering in
             isHovered = hovering

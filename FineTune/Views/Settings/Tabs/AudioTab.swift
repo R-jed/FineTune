@@ -32,7 +32,7 @@ struct AudioTab: View {
             .padding(.vertical, 20)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .scrollIndicators(.never)
+        .scrollIndicators(.automatic)
         .onAppear { updateSortedDevices() }
         .onChange(of: audioEngine.outputDevices) { _, _ in updateSortedDevices() }
         .onChange(of: settings.appSettings.lockInputDevice) { oldValue, newValue in

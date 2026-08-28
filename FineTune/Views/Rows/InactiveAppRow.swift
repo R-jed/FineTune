@@ -32,8 +32,6 @@ struct InactiveAppRow: View {
     let isEQExpanded: Bool
     let onEQToggle: () -> Void
     let sliderWidth: CGFloat
-    let onTogglePin: () -> Void
-    let onHide: () -> Void
     let isDragging: Bool
     let dragOffset: CGFloat
     let onDragChanged: (CGFloat) -> Void
@@ -72,8 +70,6 @@ struct InactiveAppRow: View {
         isEQExpanded: Bool = false,
         onEQToggle: @escaping () -> Void = {},
         sliderWidth: CGFloat = DesignTokens.Dimensions.sliderWidth,
-        onTogglePin: @escaping () -> Void = {},
-        onHide: @escaping () -> Void = {},
         isDragging: Bool = false,
         dragOffset: CGFloat = 0,
         onDragChanged: @escaping (CGFloat) -> Void = { _ in },
@@ -109,8 +105,6 @@ struct InactiveAppRow: View {
         self.isEQExpanded = isEQExpanded
         self.onEQToggle = onEQToggle
         self.sliderWidth = sliderWidth
-        self.onTogglePin = onTogglePin
-        self.onHide = onHide
         self.isDragging = isDragging
         self.dragOffset = dragOffset
         self.onDragChanged = onDragChanged
@@ -121,7 +115,7 @@ struct InactiveAppRow: View {
 
     var body: some View {
         ExpandableGlassRow(isExpanded: isEQExpanded, isFocused: isFocused) {
-            HStack(spacing: DesignTokens.Spacing.sm) {
+            HStack(spacing: DesignTokens.Spacing.xs + DesignTokens.Spacing.xxs) {
                 ReorderDragHandle(
                     onChanged: onDragChanged,
                     onEnded: onDragEnded
@@ -156,7 +150,7 @@ struct InactiveAppRow: View {
                             .lineLimit(1)
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(minWidth: 96, maxWidth: .infinity, alignment: .leading)
                 .layoutPriority(1)
                 .contentShape(Rectangle())
                 .reorderDragTarget(
@@ -186,8 +180,6 @@ struct InactiveAppRow: View {
                     onDeviceModeChange: onDeviceModeChange,
                     onSelectFollowDefault: onSelectFollowDefault,
                     onEQToggle: onEQToggle,
-                    isPinned: true,
-                    onTogglePin: onTogglePin,
                     isRowFocused: isFocused
                 )
             }

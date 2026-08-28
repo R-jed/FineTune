@@ -6,6 +6,72 @@ struct VolumeAdjustmentPlan: Equatable {
     let shouldUnmute: Bool
 }
 
+/// Pure result for activating the visible mute control.
+struct VolumeMuteTogglePlan: Equatable {
+    let fraction: Double
+    let muted: Bool
+}
+
+/// Pure per-App command plan. App gain always uses the shared squared display
+/// mapping, and any unmute happens after the target gain is installed so the tap
+/// cannot briefly reopen at the previous gain.
+struct AppVolumeCommandPlan: Equatable {
+    let fraction: Double
+    let gain: Float
+    let muted: Bool
+    let shouldWriteVolume: Bool
+    let shouldWriteMute: Bool
+
+    static func adjustment(
+        currentFraction: Double,
+        isMuted: Bool,
+        requestedFraction: Double
+    ) -> Self {
+        let adjustment = VolumePresentationState(
+            storedFraction: currentFraction,
+            isMuted: isMuted,
+            sourceIsActive: false
+        ).planAdjustment(to: requestedFraction)
+        return Self(
+            fraction: adjustment.fraction,
+            gain: VolumeMapping.sliderToGain(adjustment.fraction),
+            muted: adjustment.shouldUnmute ? false : isMuted,
+            shouldWriteVolume: true,
+            shouldWriteMute: adjustment.shouldUnmute
+        )
+    }
+
+    static func step(currentGain: Float, isMuted: Bool, delta: Double) -> Self {
+        let currentFraction = VolumeMapping.gainToSlider(currentGain)
+        return adjustment(
+            currentFraction: currentFraction,
+            isMuted: isMuted,
+            requestedFraction: currentFraction + delta
+        )
+    }
+
+    static func muteToggle(currentGain: Float, isMuted: Bool) -> Self {
+        let currentFraction = VolumeMapping.gainToSlider(currentGain)
+        let toggle = VolumePresentationState(
+            storedFraction: currentFraction,
+            isMuted: isMuted,
+            sourceIsActive: false
+        ).planMuteToggle()
+        return Self(
+            fraction: toggle.fraction,
+            gain: VolumeMapping.sliderToGain(toggle.fraction),
+            muted: toggle.muted,
+            shouldWriteVolume: toggle.fraction != currentFraction,
+            shouldWriteMute: toggle.muted != isMuted
+        )
+    }
+
+    func apply(setVolume: (Float) -> Void, setMute: (Bool) -> Void) {
+        if shouldWriteVolume { setVolume(gain) }
+        if shouldWriteMute { setMute(muted) }
+    }
+}
+
 /// Pure user-visible volume state. The backend keeps owning the stored volume and mute flag;
 /// this type only derives what FineTune should present to the user.
 struct VolumePresentationState: Equatable {
@@ -74,6 +140,19 @@ struct VolumePresentationState: Equatable {
         }
 
         return Self.fallbackUnmuteFraction
+    }
+
+    /// Normalize one explicit mute-control activation. A muted-equivalent zero state
+    /// is treated as an unmute request and restores the shared fallback when needed.
+    func planMuteToggle(rememberedNonZeroFraction: Double? = nil) -> VolumeMuteTogglePlan {
+        if displaysMuted {
+            return VolumeMuteTogglePlan(
+                fraction: unmuteFraction(rememberedNonZeroFraction: rememberedNonZeroFraction),
+                muted: false
+            )
+        }
+
+        return VolumeMuteTogglePlan(fraction: storedFraction, muted: true)
     }
 
     private var storedPercent: Int {

@@ -46,7 +46,7 @@ struct HUDPresentationTests {
                 mute: true,
                 language: .english,
                 baseLocale: locale
-            ) == "Studio Display, muted, volume at 50 percent"
+            ) == "Studio Display, muted, volume at 0 percent"
         )
         #expect(
             HUDPresentation.classicAccessibilityLabel(
@@ -117,7 +117,7 @@ struct HUDPresentationTests {
                 mute: true,
                 language: .simplifiedChinese,
                 baseLocale: locale
-            ) == "Studio Display，已静音，音量 50%"
+            ) == "Studio Display，已静音，音量 0%"
         )
         #expect(
             HUDPresentation.classicAccessibilityLabel(
@@ -175,6 +175,22 @@ struct HUDPresentationTests {
                 language: .english,
                 baseLocale: locale
             ) == "App, volume 0 percent"
+        )
+        #expect(
+            HUDPresentation.perAppVolumeAnnouncement(
+                title: "App",
+                sliderFraction: 0.004,
+                language: .english,
+                baseLocale: locale
+            ) == "App, volume 0 percent"
+        )
+        #expect(
+            HUDPresentation.perAppVolumeAnnouncement(
+                title: "App",
+                sliderFraction: 0.006,
+                language: .english,
+                baseLocale: locale
+            ) == "App, volume 1 percent"
         )
     }
 }

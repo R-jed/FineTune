@@ -181,3 +181,49 @@ struct PopupKeyboardNavModelTests {
         #expect(!model.orderedRowIDs.contains(.app(persistenceID: "com.test.a")))
     }
 }
+
+@Suite("Popup device priority edit ownership")
+struct PopupDevicePriorityEditModeTests {
+    @Test("Output edit owns App management")
+    func outputIncludesAppManagement() {
+        let mode = PopupDevicePriorityEditMode(showingInputDevices: false)
+
+        #expect(mode == .output)
+        #expect(mode.includesAppManagement)
+        #expect(!mode.isInput)
+    }
+
+    @Test("Input edit remains input-priority only")
+    func inputExcludesAppManagement() {
+        let mode = PopupDevicePriorityEditMode(showingInputDevices: true)
+
+        #expect(mode == .input)
+        #expect(!mode.includesAppManagement)
+        #expect(mode.isInput)
+    }
+
+    @Test("Repeated Output/Input switches exit the current edit owner")
+    func repeatedTabSwitchesExitCurrentEditOwner() {
+        let outputToInput = PopupDeviceTabSelectionTransition.plan(
+            currentlyShowingInput: false,
+            requestedShowInput: true,
+            editMode: .output
+        )
+        #expect(outputToInput == .init(showInput: true, editModeToExit: .output))
+
+        let inputToOutput = PopupDeviceTabSelectionTransition.plan(
+            currentlyShowingInput: true,
+            requestedShowInput: false,
+            editMode: .input
+        )
+        #expect(inputToOutput == .init(showInput: false, editModeToExit: .input))
+
+        #expect(
+            PopupDeviceTabSelectionTransition.plan(
+                currentlyShowingInput: false,
+                requestedShowInput: false,
+                editMode: .output
+            ) == nil
+        )
+    }
+}

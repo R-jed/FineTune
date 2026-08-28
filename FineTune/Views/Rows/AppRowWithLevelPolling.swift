@@ -34,9 +34,6 @@ struct AppRowWithLevelPolling: View {
     let isEQExpanded: Bool
     let onEQToggle: () -> Void
     let sliderWidth: CGFloat
-    let isPinned: Bool
-    let onTogglePin: () -> Void
-    let onHide: () -> Void
     let isDragging: Bool
     let dragOffset: CGFloat
     let onDragChanged: (CGFloat) -> Void
@@ -78,9 +75,6 @@ struct AppRowWithLevelPolling: View {
         isEQExpanded: Bool = false,
         onEQToggle: @escaping () -> Void = {},
         sliderWidth: CGFloat = DesignTokens.Dimensions.sliderWidth,
-        isPinned: Bool = false,
-        onTogglePin: @escaping () -> Void = {},
-        onHide: @escaping () -> Void = {},
         isDragging: Bool = false,
         dragOffset: CGFloat = 0,
         onDragChanged: @escaping (CGFloat) -> Void = { _ in },
@@ -118,9 +112,6 @@ struct AppRowWithLevelPolling: View {
         self.isEQExpanded = isEQExpanded
         self.onEQToggle = onEQToggle
         self.sliderWidth = sliderWidth
-        self.isPinned = isPinned
-        self.onTogglePin = onTogglePin
-        self.onHide = onHide
         self.isDragging = isDragging
         self.dragOffset = dragOffset
         self.onDragChanged = onDragChanged
@@ -160,9 +151,6 @@ struct AppRowWithLevelPolling: View {
             isEQExpanded: isEQExpanded,
             onEQToggle: onEQToggle,
             sliderWidth: sliderWidth,
-            isPinned: isPinned,
-            onTogglePin: onTogglePin,
-            onHide: onHide,
             isDragging: isDragging,
             dragOffset: dragOffset,
             onDragChanged: onDragChanged,

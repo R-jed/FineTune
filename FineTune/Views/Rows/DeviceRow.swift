@@ -25,8 +25,8 @@ struct DeviceRow: View {
     /// The device's volume backend. Determines which slider ↔ value mapping to use.
     let volumeBackend: VolumeControlTier
     let onSetDefault: () -> Void
-    let onVolumeChange: (Float) -> Void
-    let onMuteToggle: () -> Void
+    /// Applies the complete normalized output command through the backend owner.
+    let onVolumeCommand: (OutputVolumeCommandPlan) -> Void
 
     // AutoEQ (all optional — existing call sites work without them)
     let autoEQProfileName: String?
@@ -68,7 +68,7 @@ struct DeviceRow: View {
         Binding(
             get: { presentationState.displayFraction },
             set: { newValue in
-                applyUserVolume(newValue, autoUnmute: true)
+                applyUserVolume(newValue)
             }
         )
     }
@@ -93,8 +93,7 @@ struct DeviceRow: View {
         isMuted: Bool,
         volumeBackend: VolumeControlTier = .hardware,
         onSetDefault: @escaping () -> Void,
-        onVolumeChange: @escaping (Float) -> Void,
-        onMuteToggle: @escaping () -> Void,
+        onVolumeCommand: @escaping (OutputVolumeCommandPlan) -> Void,
         autoEQProfileName: String? = nil,
         autoEQEnabled: Bool = false,
         onAutoEQToggle: ((Bool) -> Void)? = nil,
@@ -116,8 +115,7 @@ struct DeviceRow: View {
         self.isMuted = isMuted
         self.volumeBackend = volumeBackend
         self.onSetDefault = onSetDefault
-        self.onVolumeChange = onVolumeChange
-        self.onMuteToggle = onMuteToggle
+        self.onVolumeCommand = onVolumeCommand
         self.autoEQProfileName = autoEQProfileName
         self.autoEQEnabled = autoEQEnabled
         self.onAutoEQToggle = onAutoEQToggle
@@ -197,19 +195,16 @@ struct DeviceRow: View {
             .frame(maxWidth: .infinity, alignment: .leading)
 
             MuteButton(isMuted: showMutedIcon, levelFraction: presentationState.displayFraction) {
-                if showMutedIcon {
-                    let restoredFraction = presentationState.unmuteFraction()
-                    if restoredFraction != sliderValue {
-                        interactionOverrideValue = restoredFraction
-                        sliderValue = restoredFraction
-                        onVolumeChange(Self.sliderToVolume(restoredFraction, backend: volumeBackend))
-                    }
-                    if isMuted {
-                        onMuteToggle()
-                    }
-                } else {
-                    onMuteToggle()
+                let plan = OutputVolumeCommandPlan.muteToggle(
+                    currentFraction: presentationState.storedFraction,
+                    isMuted: isMuted,
+                    tier: volumeBackend
+                )
+                if plan.fraction != sliderValue {
+                    interactionOverrideValue = plan.fraction
+                    sliderValue = plan.fraction
                 }
+                onVolumeCommand(plan)
             }
 
             LiquidGlassSlider(
@@ -227,7 +222,7 @@ struct DeviceRow: View {
                 percentage: Binding(
                     get: { displayedPercentage },
                     set: { newPercentage in
-                        applyUserVolume(Double(newPercentage) / 100.0, autoUnmute: true)
+                        applyUserVolume(Double(newPercentage) / 100.0)
                     }
                 ),
                 range: 0...100,
@@ -250,14 +245,16 @@ struct DeviceRow: View {
         }
     }
 
-    private func applyUserVolume(_ requestedFraction: Double, autoUnmute: Bool) {
-        let plan = presentationState.planAdjustment(to: requestedFraction)
+    private func applyUserVolume(_ requestedFraction: Double) {
+        let plan = OutputVolumeCommandPlan.adjustment(
+            currentFraction: presentationState.storedFraction,
+            isMuted: isMuted,
+            tier: volumeBackend,
+            requestedFraction: requestedFraction
+        )
         interactionOverrideValue = plan.fraction
         sliderValue = plan.fraction
-        onVolumeChange(Self.sliderToVolume(plan.fraction, backend: volumeBackend))
-        if autoUnmute && plan.shouldUnmute {
-            onMuteToggle()
-        }
+        onVolumeCommand(plan)
     }
 
     private func autoEQSubtitle(profileName: String) -> Text {
@@ -270,10 +267,6 @@ extension DeviceRow {
     static func volumeToSlider(_ volume: Float, backend: VolumeControlTier) -> Double {
         VolumeMapping.sliderFraction(forSystemGain: volume, tier: backend)
     }
-
-    static func sliderToVolume(_ slider: Double, backend: VolumeControlTier) -> Float {
-        VolumeMapping.systemGain(forSliderFraction: slider, tier: backend)
-    }
 }
 
 #Preview("Device Row - Default") {
@@ -285,8 +278,7 @@ extension DeviceRow {
                 volume: 0.75,
                 isMuted: false,
                 onSetDefault: {},
-                onVolumeChange: { _ in },
-                onMuteToggle: {}
+                onVolumeCommand: { _ in }
             )
 
             DeviceRow(
@@ -295,8 +287,7 @@ extension DeviceRow {
                 volume: 1.0,
                 isMuted: false,
                 onSetDefault: {},
-                onVolumeChange: { _ in },
-                onMuteToggle: {}
+                onVolumeCommand: { _ in }
             )
 
             DeviceRow(
@@ -305,8 +296,7 @@ extension DeviceRow {
                 volume: 0.5,
                 isMuted: true,
                 onSetDefault: {},
-                onVolumeChange: { _ in },
-                onMuteToggle: {}
+                onVolumeCommand: { _ in }
             )
         }
     }

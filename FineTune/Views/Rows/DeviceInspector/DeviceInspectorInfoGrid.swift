@@ -137,7 +137,10 @@ private struct DeviceIDValueCell: View {
                     .font(.system(size: 10))
                     .foregroundStyle(copied ? DesignTokens.Colors.accentPrimary : DesignTokens.Colors.textTertiary)
                     .contentTransition(.symbolEffect(.replace))
-                    .frame(width: 14, height: 14)
+                    .frame(
+                        minWidth: DesignTokens.Dimensions.minTouchTarget,
+                        minHeight: DesignTokens.Dimensions.minTouchTarget
+                    )
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)

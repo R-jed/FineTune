@@ -45,6 +45,8 @@ struct AccessibilityPromptStrip: View {
                     }
                     .font(DesignTokens.Typography.pickerText)
                     .foregroundStyle(DesignTokens.Colors.accentPrimary)
+                    .frame(minHeight: DesignTokens.Dimensions.minTouchTarget)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityHint("Registers FineTune in the Accessibility list and opens System Settings.")
@@ -69,7 +71,7 @@ struct AccessibilityPromptStrip: View {
                 .fill(DesignTokens.Colors.vuGreen)
                 .frame(width: 5, height: 5)
             Text("Granted")
-                .font(.system(size: 9, weight: .semibold))
+                .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(DesignTokens.Colors.textSecondary)
         }
         .padding(.horizontal, 6)

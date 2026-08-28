@@ -43,8 +43,7 @@ struct U1CrossSurfacePresentationTests {
             volume: 0.75,
             isMuted: true,
             onSetDefault: {},
-            onVolumeChange: { _ in },
-            onMuteToggle: {}
+            onVolumeCommand: { _ in }
         )
 
         #expect(row.displayedPercentageForTest == 0)
@@ -59,8 +58,8 @@ struct U1CrossSurfacePresentationTests {
             volume: 0.75,
             isMuted: true,
             onSetDefault: {},
-            onVolumeChange: { _ in },
-            onMuteToggle: {}
+            onUserVolumeChange: { _ in },
+            onUserMuteToggle: {}
         )
 
         #expect(row.displayedPercentageForTest == 0)

@@ -144,6 +144,7 @@ final class MockDeviceVolumeProviding: DeviceVolumeProviding {
     var defaultInputDeviceUID: String?
     var volumes: [AudioDeviceID: Float] = [:]
     var muteStates: [AudioDeviceID: Bool] = [:]
+    var storedVolumes: [AudioDeviceID: Float] = [:]
 
     /// Records every `setVolume` call the MediaKeyMonitor makes. Tests inspect
     /// this to assert the full write path (protocol → mock) is exercised rather
@@ -161,6 +162,17 @@ final class MockDeviceVolumeProviding: DeviceVolumeProviding {
         setMuteCalls.append((deviceID, muted))
         muteStates[deviceID] = muted
         onMuteChanged?(deviceID, muted)
+    }
+
+    func applyOutputCommand(_ command: OutputVolumeCommandPlan, for deviceID: AudioDeviceID) {
+        command.apply(
+            setVolume: { self.setVolume(for: deviceID, to: $0) },
+            setMute: { self.setMute(for: deviceID, to: $0) }
+        )
+    }
+
+    func storedOutputVolume(for deviceID: AudioDeviceID) -> Float {
+        storedVolumes[deviceID] ?? volumes[deviceID] ?? 0
     }
 
     var onVolumeChanged: ((AudioDeviceID, Float) -> Void)?
@@ -248,6 +260,45 @@ struct MockDeviceVolumeProvidingContractTests {
 
         // Unknown device → falls back to default
         #expect(mock.outputVolumeBackend(for: 999) == .hardware)
+    }
+
+    @Test("User mute toggle continues from remembered software volume")
+    func userMuteToggleUsesStoredSoftwareVolume() {
+        let monitor = MockAudioDeviceMonitor()
+        let device = AudioDevice(id: 42, uid: "uid-software", name: "Software", icon: nil, supportsAutoEQ: false)
+        monitor.addOutputDevice(device)
+
+        let mock = MockDeviceVolumeProviding(deviceMonitor: monitor)
+        mock.autoDetectedTiersByID[42] = .software
+        mock.volumes[42] = 0
+        mock.storedVolumes[42] = 0.36
+        mock.muteStates[42] = true
+
+        mock.toggleUserOutputMute(for: 42)
+
+        #expect(mock.setVolumeCalls.isEmpty)
+        #expect(mock.setMuteCalls.count == 1)
+        #expect(mock.setMuteCalls.first?.muted == false)
+    }
+
+    @Test("User mute toggle maps software zero fallback from display domain")
+    func userMuteToggleMapsSoftwareFallback() {
+        let monitor = MockAudioDeviceMonitor()
+        let device = AudioDevice(id: 42, uid: "uid-software", name: "Software", icon: nil, supportsAutoEQ: false)
+        monitor.addOutputDevice(device)
+
+        let mock = MockDeviceVolumeProviding(deviceMonitor: monitor)
+        mock.autoDetectedTiersByID[42] = .software
+        mock.volumes[42] = 0
+        mock.storedVolumes[42] = 0
+        mock.muteStates[42] = true
+
+        mock.toggleUserOutputMute(for: 42)
+
+        #expect(mock.setVolumeCalls.count == 1)
+        #expect(mock.setVolumeCalls.first?.volume == 0.25)
+        #expect(mock.setMuteCalls.count == 1)
+        #expect(mock.setMuteCalls.first?.muted == false)
     }
 }
 
@@ -460,5 +511,52 @@ struct DeviceVolumeStoredVolumeTests {
 
         #expect(stored > 0, "\(step) software step-up stuck at silence — issue #295 regression")
     }
-}
 
+    @Test("Software mute exposes remembered pre-mute volume to presentation commands")
+    func softwareMuteUsesRememberedStoredVolume() {
+        #expect(
+            DeviceVolumeMonitor.storedOutputVolume(
+                visibleVolume: 0,
+                isMuted: true,
+                tier: .software,
+                rememberedNonZeroVolume: 0.36
+            ) == 0.36
+        )
+    }
+
+    @Test("Software zero without history stays zero so shared unmute fallback can apply")
+    func softwareMuteWithoutHistoryStaysZero() {
+        #expect(
+            DeviceVolumeMonitor.storedOutputVolume(
+                visibleVolume: 0,
+                isMuted: true,
+                tier: .software,
+                rememberedNonZeroVolume: nil
+            ) == 0
+        )
+    }
+
+    @Test("DDC mute exposes remembered pre-mute volume to presentation commands")
+    func ddcMuteUsesRememberedStoredVolume() {
+        #expect(
+            DeviceVolumeMonitor.storedOutputVolume(
+                visibleVolume: 0,
+                isMuted: true,
+                tier: .ddc,
+                rememberedNonZeroVolume: 0.8
+            ) == 0.8
+        )
+    }
+
+    @Test("Hardware mute keeps the backend-retained volume")
+    func hardwareMuteUsesVisibleStoredVolume() {
+        #expect(
+            DeviceVolumeMonitor.storedOutputVolume(
+                visibleVolume: 0.7,
+                isMuted: true,
+                tier: .hardware,
+                rememberedNonZeroVolume: 0.2
+            ) == 0.7
+        )
+    }
+}

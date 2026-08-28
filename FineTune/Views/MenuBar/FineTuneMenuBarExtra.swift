@@ -159,7 +159,10 @@ final class FineTuneMenuBarPopupWindow<Content: View>: FineTuneMenuBarPopupPanel
     private func reportContentSize(_ size: CGSize) {
         guard size.width > 0, size.height > 0 else { return }
         Task { @MainActor [weak self] in
-            self?.statusItem?.setWindowFrame(size: size, animate: true)
+            // SwiftUI structural transitions already produce intermediate geometry.
+            // Follow that geometry directly instead of adding a second AppKit
+            // interpolation owner for the same state change.
+            self?.statusItem?.setWindowFrame(size: size, animate: false)
         }
     }
 }

@@ -71,6 +71,65 @@ struct AudioPresentationStateTests {
         #expect(state.unmuteFraction(rememberedNonZeroFraction: 0.3) == 0.3)
     }
 
+    @Test("mute toggle preserves a non-zero stored value while unmuting")
+    func muteToggleRestoresStoredValue() {
+        let plan = VolumePresentationState(
+            storedFraction: 0.65,
+            isMuted: true,
+            sourceIsActive: false
+        ).planMuteToggle()
+
+        #expect(plan == VolumeMuteTogglePlan(fraction: 0.65, muted: false))
+    }
+
+    @Test("mute toggle from muted zero prefers remembered value then fallback")
+    func muteToggleFromZeroUsesSharedRestorePolicy() {
+        let state = VolumePresentationState(
+            storedFraction: 0,
+            isMuted: true,
+            sourceIsActive: false
+        )
+
+        #expect(
+            state.planMuteToggle(rememberedNonZeroFraction: 0.3)
+                == VolumeMuteTogglePlan(fraction: 0.3, muted: false)
+        )
+        #expect(
+            state.planMuteToggle()
+                == VolumeMuteTogglePlan(fraction: 0.5, muted: false)
+        )
+    }
+
+    @Test("mute-equivalent zero activates as explicit unmute")
+    func zeroUnmutedMuteControlUsesFallback() {
+        let plan = VolumePresentationState(
+            storedFraction: 0,
+            isMuted: false,
+            sourceIsActive: false
+        ).planMuteToggle()
+
+        #expect(plan == VolumeMuteTogglePlan(fraction: 0.5, muted: false))
+    }
+
+    @Test("visible zero threshold follows the rounded display percent")
+    func visibleZeroThresholdMatchesRoundedPercent() {
+        let belowHalfPercent = VolumePresentationState(
+            storedFraction: 0.004,
+            isMuted: true,
+            sourceIsActive: false
+        )
+        let aboveHalfPercent = VolumePresentationState(
+            storedFraction: 0.006,
+            isMuted: true,
+            sourceIsActive: false
+        )
+
+        #expect(belowHalfPercent.displayPercent == 0)
+        #expect(belowHalfPercent.displaysMuted == true)
+        #expect(belowHalfPercent.planAdjustment(to: 0.004).shouldUnmute == false)
+        #expect(aboveHalfPercent.planAdjustment(to: 0.006).shouldUnmute == true)
+    }
+
     @Test("presentation clamps invalid display fractions into the normalized range")
     func presentationClampsFractions() {
         let low = VolumePresentationState(storedFraction: -1, isMuted: false, sourceIsActive: false)
@@ -80,6 +139,163 @@ struct AudioPresentationStateTests {
         #expect(low.displayPercent == 0)
         #expect(high.displayFraction == 1)
         #expect(high.displayPercent == 100)
+    }
+
+    @Test("software adjustment while muted writes target volume before unmuting")
+    func softwareAdjustmentUsesVolumeThenMuteOrder() {
+        let plan = OutputVolumeCommandPlan.adjustment(
+            currentFraction: 0.6,
+            isMuted: true,
+            tier: .software,
+            requestedFraction: 0.7
+        )
+        var writes: [String] = []
+
+        plan.apply(
+            setVolume: { _ in writes.append("volume") },
+            setMute: { _ in writes.append("mute") }
+        )
+
+        #expect(plan.muted == false)
+        #expect(plan.writeOrder == .volumeThenMute)
+        #expect(writes == ["volume", "mute"])
+    }
+
+    @Test("DDC adjustment while muted unmutes before writing the requested target")
+    func ddcAdjustmentUsesMuteThenVolumeOrder() {
+        let plan = OutputVolumeCommandPlan.adjustment(
+            currentFraction: 0.8,
+            isMuted: true,
+            tier: .ddc,
+            requestedFraction: 0.9
+        )
+        var writes: [String] = []
+
+        plan.apply(
+            setVolume: { _ in writes.append("volume") },
+            setMute: { _ in writes.append("mute") }
+        )
+
+        #expect(plan.muted == false)
+        #expect(plan.writeOrder == .muteThenVolume)
+        #expect(writes == ["mute", "volume"])
+    }
+
+    @Test("Output step owns gain-to-slider mapping and backend unmute ordering")
+    func outputStepOwnsMappingAndOrder() {
+        let software = OutputVolumeCommandPlan.step(
+            currentGain: 0.36,
+            isMuted: true,
+            tier: .software,
+            delta: 1.0 / 16.0
+        )
+        #expect(abs(software.fraction - 0.6625) < 1e-6)
+        #expect(abs(Double(software.gain) - 0.43890625) < 1e-6)
+        #expect(software.muted == false)
+        #expect(software.writeOrder == .volumeThenMute)
+
+        let ddc = OutputVolumeCommandPlan.step(
+            currentGain: 0.8,
+            isMuted: true,
+            tier: .ddc,
+            delta: 1.0 / 16.0
+        )
+        #expect(abs(ddc.fraction - 0.8625) < 1e-6)
+        #expect(ddc.muted == false)
+        #expect(ddc.writeOrder == .muteThenVolume)
+    }
+
+    @Test("DDC zero-history unmute writes fallback after backend restore")
+    func ddcMuteToggleFallbackUsesMuteThenVolumeOrder() {
+        let plan = OutputVolumeCommandPlan.muteToggle(
+            currentFraction: 0,
+            isMuted: true,
+            tier: .ddc
+        )
+        var writes: [String] = []
+
+        plan.apply(
+            setVolume: { value in writes.append("volume:\(value)") },
+            setMute: { value in writes.append("mute:\(value)") }
+        )
+
+        #expect(plan.fraction == 0.5)
+        #expect(plan.gain == 0.5)
+        #expect(plan.writeOrder == .muteThenVolume)
+        #expect(writes == ["mute:false", "volume:0.5"])
+    }
+
+    @Test("software zero-history unmute installs mapped fallback before backend restore")
+    func softwareMuteToggleFallbackUsesVolumeThenMuteOrder() {
+        let plan = OutputVolumeCommandPlan.muteToggle(
+            currentFraction: 0,
+            isMuted: true,
+            tier: .software
+        )
+        var writes: [String] = []
+
+        plan.apply(
+            setVolume: { value in writes.append("volume:\(value)") },
+            setMute: { value in writes.append("mute:\(value)") }
+        )
+
+        #expect(plan.fraction == 0.5)
+        #expect(plan.gain == 0.25)
+        #expect(plan.writeOrder == .volumeThenMute)
+        #expect(writes == ["volume:0.25", "mute:false"])
+    }
+
+    @Test("zero adjustment preserves explicit mute state across output surfaces")
+    func zeroAdjustmentKeepsMutedEquivalentState() {
+        let plan = OutputVolumeCommandPlan.adjustment(
+            currentFraction: 0.1,
+            isMuted: false,
+            tier: .software,
+            requestedFraction: 0
+        )
+
+        #expect(plan.muted == false)
+        #expect(plan.shouldWriteMute == false)
+    }
+
+    @Test("App adjustment installs gain before unmuting and keeps zero mute-equivalent")
+    func appAdjustmentOwnsSharedOrderAndZeroPolicy() {
+        let audible = AppVolumeCommandPlan.adjustment(
+            currentFraction: 0.6,
+            isMuted: true,
+            requestedFraction: 0.7
+        )
+        var writes: [String] = []
+        audible.apply(
+            setVolume: { _ in writes.append("volume") },
+            setMute: { _ in writes.append("mute") }
+        )
+
+        #expect(audible.muted == false)
+        #expect(writes == ["volume", "mute"])
+
+        let zero = AppVolumeCommandPlan.adjustment(
+            currentFraction: 0.1,
+            isMuted: false,
+            requestedFraction: 0
+        )
+        #expect(zero.gain == 0)
+        #expect(zero.muted == false)
+        #expect(zero.shouldWriteMute == false)
+    }
+
+    @Test("App explicit unmute from zero maps shared fifty-percent fallback before opening tap")
+    func appMuteToggleZeroFallbackUsesVolumeThenMuteOrder() {
+        let plan = AppVolumeCommandPlan.muteToggle(currentGain: 0, isMuted: true)
+        var writes: [String] = []
+        plan.apply(
+            setVolume: { value in writes.append("volume:\(value)") },
+            setMute: { value in writes.append("mute:\(value)") }
+        )
+
+        #expect(plan.fraction == 0.5)
+        #expect(plan.gain == 0.25)
+        #expect(writes == ["volume:0.25", "mute:false"])
     }
 }
 

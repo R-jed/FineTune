@@ -18,6 +18,17 @@ final class StubMediaKeyDecoder: MediaKeyEventDecoding, @unchecked Sendable {
     func decode(data1: Int) -> MediaKeyEvent? { nextEvent }
 }
 
+@MainActor
+final class RecordingMediaKeyHUD: MediaKeyHUDPresenting {
+    private(set) var shows: [(sliderFraction: Double, mute: Bool, deviceName: String)] = []
+
+    func show(sliderFraction: Double, mute: Bool, deviceName: String) {
+        shows.append((sliderFraction, mute, deviceName))
+    }
+
+    func swallowObserved() {}
+}
+
 // MARK: - Test suite
 
 @Suite("MediaKeyMonitor — handleCore() volume/mute logic")
@@ -348,8 +359,8 @@ struct MediaKeyMonitorHandlerTests {
         #expect(writtenMute == false)
     }
 
-    @Test("volumeDown to 0 while unmuted auto-mutes (macOS native parity)")
-    func volumeDownToZeroAutoMutes() {
+    @Test("volumeDown to 0 keeps zero as mute-equivalent without changing explicit mute")
+    func volumeDownToZeroKeepsMuteState() {
         let (monitor, _, _, _) = makeMonitor()
         let deviceID: AudioDeviceID = 1
         var writtenMute: Bool?
@@ -365,7 +376,7 @@ struct MediaKeyMonitorHandlerTests {
             setMute: { _, m in writtenMute = m }
         )
         #expect(writtenVolume == 0)
-        #expect(writtenMute == true)
+        #expect(writtenMute == nil)
     }
 
     @Test("volumeDown already at 0 while muted is a no-op for mute")
@@ -422,6 +433,92 @@ struct MediaKeyMonitorHandlerTests {
             setMute: { _, m in writtenMute = m }
         )
         #expect(writtenMute == false)
+    }
+
+    @Test("muteToggle from muted software stored volume restores that volume without fallback write")
+    func muteToggleSoftwareStoredVolume() {
+        let (monitor, _, _, _) = makeMonitor()
+        var writtenMute: Bool?
+        var setVolumeCalls = 0
+        monitor.handleCore(
+            event: .muteToggle,
+            deviceID: 1,
+            tier: .software,
+            deviceName: "Software Device",
+            currentVolume: 0.36,
+            currentMute: true,
+            setVolume: { _, _ in setVolumeCalls += 1 },
+            setMute: { _, mute in writtenMute = mute }
+        )
+
+        #expect(writtenMute == false)
+        #expect(setVolumeCalls == 0)
+    }
+
+    @Test("muteToggle from muted software zero uses shared fifty-percent fallback")
+    func muteToggleSoftwareZeroFallback() {
+        let (monitor, _, _, _) = makeMonitor()
+        var writtenMute: Bool?
+        var writtenVolume: Float?
+        monitor.handleCore(
+            event: .muteToggle,
+            deviceID: 1,
+            tier: .software,
+            deviceName: "Software Device",
+            currentVolume: 0,
+            currentMute: true,
+            setVolume: { _, volume in writtenVolume = volume },
+            setMute: { _, mute in writtenMute = mute }
+        )
+
+        #expect(writtenMute == false)
+        #expect(writtenVolume == VolumeMapping.systemGain(forSliderFraction: 0.5, tier: .software))
+    }
+
+    @Test("outer media-key path uses remembered output volume instead of visible muted zero")
+    func outerHandleUsesStoredOutputVolume() {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+        let settings = SettingsManager(directory: tempDir)
+        let deviceMonitor = MockAudioDeviceMonitor()
+        let device = AudioDevice(id: 42, uid: "uid-software", name: "Software Device", icon: nil, supportsAutoEQ: false)
+        deviceMonitor.addOutputDevice(device)
+
+        let mockVolume = MockDeviceVolumeProviding(deviceMonitor: deviceMonitor)
+        mockVolume.defaultDeviceID = 42
+        mockVolume.autoDetectedTiersByID[42] = .software
+        mockVolume.volumes[42] = 0
+        mockVolume.storedVolumes[42] = 0.36
+        mockVolume.muteStates[42] = true
+
+        let engine = AudioEngine(
+            permission: AudioRecordingPermission(),
+            settingsManager: settings,
+            autoEQProfileManager: AutoEQProfileManager(),
+            deviceProvider: deviceMonitor,
+            deviceVolumeMonitor: mockVolume,
+            startMonitorsAutomatically: false
+        )
+        let popup = PopupVisibilityService()
+        let hud = RecordingMediaKeyHUD()
+        let monitor = MediaKeyMonitor(
+            decoder: StubMediaKeyDecoder(),
+            audioEngine: engine,
+            settingsManager: settings,
+            accessibility: MockAccessibilityTrustProviding(isTrusted: true),
+            hudController: hud,
+            popupVisibility: popup,
+            mediaKeyStatus: MediaKeyStatus()
+        )
+
+        monitor.handle(.muteToggle)
+
+        #expect(mockVolume.setVolumeCalls.isEmpty)
+        #expect(mockVolume.setMuteCalls.count == 1)
+        #expect(mockVolume.setMuteCalls.first?.muted == false)
+        #expect(hud.shows.count == 1)
+        #expect(abs((hud.shows.first?.sliderFraction ?? 0) - 0.6) < 1e-6)
+        #expect(hud.shows.first?.mute == false)
     }
 
     // MARK: - HUD show count
@@ -576,7 +673,7 @@ struct MediaKeyMonitorHandlerTests {
         #expect(feedbackCalls == setVolumeCalls)  // pop count mirrors actual volume writes
     }
 
-    @Test("volumeDown reaching 0 auto-mutes AND still pops (spec behavior-table row)")
+    @Test("volumeDown reaching 0 preserves mute state and still pops")
     func feedbackOnVolumeDownToZero() {
         let (monitor, _, _, settings) = makeMonitor()
         var appSettings = settings.appSettings
@@ -590,7 +687,7 @@ struct MediaKeyMonitorHandlerTests {
             setVolume: { _, _ in }, setMute: { _, m in writtenMute = m },
             playFeedback: { _ in feedbackCalls += 1 }
         )
-        #expect(writtenMute == true)
+        #expect(writtenMute == nil)
         #expect(feedbackCalls == 1)
     }
 }

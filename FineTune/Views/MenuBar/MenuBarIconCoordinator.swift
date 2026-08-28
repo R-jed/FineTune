@@ -72,7 +72,7 @@ final class MenuBarIconCoordinator: MediaKeyIconFlashing {
             return .deviceFlash(symbol: symbol)
         }
         let id = deviceVolumeMonitor.defaultDeviceID
-        let storedVolume = deviceVolumeMonitor.volumes[id] ?? 0
+        let storedVolume = deviceVolumeMonitor.storedOutputVolume(for: id)
         let tier = deviceVolumeMonitor.outputVolumeBackend(for: id)
         let displayFraction = Float(
             VolumeMapping.sliderFraction(forSystemGain: storedVolume, tier: tier)

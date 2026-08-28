@@ -132,26 +132,28 @@ struct FineTuneApp: App {
         let feedbackPlayer = VolumeFeedbackPlayer()
 
         // Wire the interactive Tahoe slider back to the device volume monitor.
-        // Mirrors the mute semantics applied for media-key drags (auto-unmute
-        // when ramping above 0 from muted; auto-mute when dragging down to 0)
-        // so the HUD slider and F11/F12 behave identically.
+        // Uses the same output command semantics as popup rows and media keys:
+        // values above 0 unmute, while 0 remains a mute-equivalent volume state.
         hud.volumeWriter = { [weak engine] sliderFraction in
             guard let engine else { return }
             let volumeMonitor = engine.deviceVolumeMonitor
             let deviceID = volumeMonitor.defaultDeviceID
             guard deviceID.isValid else { return }
             let tier = volumeMonitor.outputVolumeBackend(for: deviceID)
+            let currentSlider = VolumeMapping.sliderFraction(
+                forSystemGain: volumeMonitor.storedOutputVolume(for: deviceID),
+                tier: tier
+            )
             let currentMute = volumeMonitor.muteStates[deviceID] ?? false
-            let willBeSilent = sliderFraction <= 0.001
-            if currentMute && !willBeSilent {
-                volumeMonitor.setMute(for: deviceID, to: false)
-            } else if !currentMute && willBeSilent {
-                volumeMonitor.setMute(for: deviceID, to: true)
-            }
-            let gain = VolumeMapping.systemGain(forSliderFraction: sliderFraction, tier: tier)
-            volumeMonitor.setVolume(for: deviceID, to: gain)
+            let plan = OutputVolumeCommandPlan.adjustment(
+                currentFraction: currentSlider,
+                isMuted: currentMute,
+                tier: tier,
+                requestedFraction: sliderFraction
+            )
+            volumeMonitor.applyOutputCommand(plan, for: deviceID)
             feedbackPlayer.requestFeedback(
-                gain: VolumeFeedback.gain(tier: tier, sliderFraction: sliderFraction)
+                gain: VolumeFeedback.gain(tier: tier, sliderFraction: plan.fraction)
             )
         }
 

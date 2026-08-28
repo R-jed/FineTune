@@ -204,7 +204,7 @@ struct AutoEQSearchPanel: View {
                 .foregroundStyle(DesignTokens.Colors.textTertiary)
 
             Text("Search or pick a favorite below")
-                .font(.system(size: 9))
+                .font(.system(size: 10))
                 .foregroundStyle(DesignTokens.Colors.textQuaternary)
         }
         .frame(maxWidth: .infinity)
@@ -357,7 +357,6 @@ struct AutoEQSearchPanel: View {
             }
             .toggleStyle(.switch)
             .controlSize(.mini)
-            .scaleEffect(0.65)
             .labelsHidden()
         }
         .accessibilityElement(children: .combine)
@@ -388,6 +387,11 @@ struct AutoEQSearchPanel: View {
                 .buttonStyle(.plain)
                 .font(.system(size: 11))
                 .foregroundStyle(DesignTokens.Colors.textTertiary)
+                .frame(
+                    minWidth: DesignTokens.Dimensions.minTouchTarget,
+                    minHeight: DesignTokens.Dimensions.minTouchTarget
+                )
+                .contentShape(Rectangle())
             }
         }
         .padding(.horizontal, DesignTokens.Spacing.sm)
@@ -419,7 +423,7 @@ struct AutoEQSearchPanel: View {
                     ScrollView {
                         LazyVStack(spacing: 2) {
                             Text("FAVORITES")
-                                .font(.system(size: 9, weight: .bold))
+                                .font(.system(size: 10, weight: .bold))
                                 .foregroundStyle(DesignTokens.Colors.textTertiary)
                                 .tracking(1.0)
                                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -434,6 +438,7 @@ struct AutoEQSearchPanel: View {
                         .padding(.horizontal, DesignTokens.Spacing.xs)
                         .padding(.vertical, DesignTokens.Spacing.xs)
                     }
+                    .contentMargins(.trailing, DesignTokens.Spacing.sm, for: .scrollContent)
                     .frame(height: listHeight)
                     .onChange(of: highlightedIndex) { _, _ in
                         scrollToHighlighted(proxy: proxy)
@@ -463,6 +468,7 @@ struct AutoEQSearchPanel: View {
                     .padding(.horizontal, DesignTokens.Spacing.xs)
                     .padding(.vertical, DesignTokens.Spacing.xs)
                 }
+                .contentMargins(.trailing, DesignTokens.Spacing.sm, for: .scrollContent)
                 .frame(height: listHeight)
                 .onChange(of: highlightedIndex) { _, _ in
                     scrollToHighlighted(proxy: proxy)
@@ -541,6 +547,8 @@ struct AutoEQSearchPanel: View {
                 .buttonStyle(.plain)
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(DesignTokens.Colors.interactiveDefault)
+                .frame(minHeight: DesignTokens.Dimensions.minTouchTarget)
+                .contentShape(Rectangle())
                 .disabled(loadingProfileID != nil)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -570,13 +578,13 @@ struct AutoEQSearchPanel: View {
                 + Text("of")
                 + Text(verbatim: " \(total) ")
                 + Text("results"))
-                .font(.system(size: 9))
+                .font(.system(size: 10))
                 .foregroundStyle(DesignTokens.Colors.textTertiary)
                 .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.vertical, DesignTokens.Spacing.xxs)
         } else if total > 0 {
             (Text(verbatim: "\(total) ") + Text("results"))
-                .font(.system(size: 9))
+                .font(.system(size: 10))
                 .foregroundStyle(DesignTokens.Colors.textTertiary)
                 .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.vertical, DesignTokens.Spacing.xxs)
@@ -608,7 +616,7 @@ struct AutoEQSearchPanel: View {
                             .lineLimit(1)
 
                         sourceText(for: entry)
-                            .font(.system(size: 9))
+                            .font(.system(size: 10))
                             .foregroundStyle(DesignTokens.Colors.textTertiary)
                     }
 
@@ -741,10 +749,10 @@ struct AutoEQSearchPanel: View {
         guard let index = highlightedIndex, index < items.count else { return }
         let profileID = items[index].profileID
         if reduceMotion {
-            proxy.scrollTo(profileID, anchor: .center)
+            proxy.scrollTo(profileID)
         } else {
             withAnimation(.easeOut(duration: 0.1)) {
-                proxy.scrollTo(profileID, anchor: .center)
+                proxy.scrollTo(profileID)
             }
         }
     }
