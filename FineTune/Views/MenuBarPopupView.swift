@@ -629,10 +629,6 @@ struct MenuBarPopupView: View {
         }
     }
 
-    private func applyOutputCommand(_ command: OutputVolumeCommandPlan, for deviceID: AudioDeviceID) {
-        deviceVolumeMonitor.applyOutputCommand(command, for: deviceID)
-    }
-
     @ViewBuilder
     private func standardInputDeviceRow(_ device: AudioDevice) -> some View {
         InputDeviceRow(
@@ -667,7 +663,7 @@ struct MenuBarPopupView: View {
             volumeBackend: audioEngine.outputVolumeBackend(for: device.id),
             onSetDefault: { audioEngine.setDefaultOutputDevice(device.id) },
             onVolumeCommand: { command in
-                applyOutputCommand(command, for: device.id)
+                deviceVolumeMonitor.applyOutputCommand(command, for: device.id)
             },
             autoEQProfileName: profileName,
             autoEQEnabled: selection?.isEnabled ?? false,
