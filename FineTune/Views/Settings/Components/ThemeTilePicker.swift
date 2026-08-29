@@ -48,7 +48,7 @@ private struct ThemeTile: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: isSelected)
+        .animation(reduceMotion ? nil : DesignTokens.Animation.selection, value: isSelected)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
         .accessibilityLabel(Text(preference.displayName))
     }
@@ -156,7 +156,7 @@ private struct PopupSizeTile: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: isSelected)
+        .animation(reduceMotion ? nil : DesignTokens.Animation.selection, value: isSelected)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
         .accessibilityLabel(Text(size.displayName))
     }

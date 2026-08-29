@@ -21,7 +21,7 @@ struct ModeToggle: View {
         }
         .background(
             RoundedRectangle(cornerRadius: DesignTokens.Dimensions.buttonRadius)
-                .fill(.regularMaterial)
+                .fill(DesignTokens.Surface.raised)
         )
         .overlay {
             RoundedRectangle(cornerRadius: DesignTokens.Dimensions.buttonRadius)
@@ -35,7 +35,7 @@ struct ModeToggle: View {
         let isHovered = hoveredOption == optionMode
 
         Button {
-            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.12)) {
+            withAnimation(reduceMotion ? nil : DesignTokens.Animation.micro) {
                 mode = optionMode
             }
         } label: {
@@ -53,7 +53,7 @@ struct ModeToggle: View {
             .frame(maxWidth: .infinity)
             .background(
                 RoundedRectangle(cornerRadius: DesignTokens.Dimensions.buttonRadius - 1)
-                    .fill(isSelected ? Color.accentColor.opacity(0.15) : (isHovered ? DesignTokens.Colors.hoverSurface : Color.clear))
+                    .fill(isSelected ? Color.accentColor.opacity(0.15) : (isHovered ? DesignTokens.Surface.hover : Color.clear))
             )
             .contentShape(Rectangle())
         }

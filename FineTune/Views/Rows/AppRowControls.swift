@@ -1,8 +1,8 @@
 // FineTune/Views/Rows/AppRowControls.swift
 import SwiftUI
 
-/// Shared trailing controls for app rows: mute, volume, boost, routing, and EQ.
-/// Used by both AppRow (active apps) and InactiveAppRow (pinned inactive apps).
+/// Shared volume/routing control cluster for app rows. EQ and pin actions live
+/// outside this cluster so the parent row can enforce their visual order.
 struct AppRowControls: View {
     let volume: Float
     let isMuted: Bool
@@ -14,7 +14,6 @@ struct AppRowControls: View {
     let defaultDeviceUID: String?
     let deviceSelectionMode: DeviceSelectionMode
     let boost: BoostLevel
-    let isEQExpanded: Bool
     var sliderWidth: CGFloat = DesignTokens.Dimensions.sliderWidth
     var volumeAccessibilityLabel: Text = Text("App volume")
     let onVolumeChange: (Float) -> Void
@@ -24,13 +23,10 @@ struct AppRowControls: View {
     let onDevicesSelected: (Set<String>) -> Void
     let onDeviceModeChange: (DeviceSelectionMode) -> Void
     let onSelectFollowDefault: () -> Void
-    let onEQToggle: () -> Void
     var isRowFocused: Bool = false
 
     @State private var interactionOverrideValue: Double?
     @State private var isEditing = false
-    @State private var isEQButtonHovered = false
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var storedSliderFraction: Double {
         VolumeMapping.gainToSlider(volume)
@@ -73,16 +69,6 @@ struct AppRowControls: View {
 
     private var showMutedIcon: Bool {
         presentationState.displaysMuted
-    }
-
-    private var eqButtonColor: Color {
-        if isEQExpanded {
-            return DesignTokens.Colors.interactiveActive
-        } else if isEQButtonHovered {
-            return DesignTokens.Colors.interactiveHover
-        } else {
-            return DesignTokens.Colors.interactiveDefault
-        }
     }
 
     var body: some View {
@@ -148,30 +134,6 @@ struct AppRowControls: View {
                 triggerStyle: .iconOnly
             )
 
-            Button {
-                onEQToggle()
-            } label: {
-                ZStack {
-                    Image(systemName: "slider.vertical.3")
-                        .opacity(isEQExpanded ? 0 : 1)
-
-                    Image(systemName: "xmark")
-                        .opacity(isEQExpanded ? 1 : 0)
-                }
-                .font(.system(size: 12))
-                .symbolRenderingMode(.hierarchical)
-                .foregroundStyle(eqButtonColor)
-                .frame(
-                    minWidth: DesignTokens.Dimensions.minTouchTarget,
-                    minHeight: DesignTokens.Dimensions.minTouchTarget
-                )
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(isEQExpanded ? "Close Equalizer" : "Equalizer")
-            .onHover { isEQButtonHovered = $0 }
-            .help(isEQExpanded ? "Close Equalizer" : "Equalizer")
-            .animation(reduceMotion ? nil : DesignTokens.Animation.hover, value: isEQButtonHovered)
         }
         .onChange(of: volume) { _, _ in
             // Direct slider manipulation may keep a local optimistic value until
@@ -187,8 +149,47 @@ struct AppRowControls: View {
     }
 }
 
-/// Direct Pin/Unpin action occupying the management slot freed when normal-row
-/// pointer reordering moved to Output management.
+
+/// Dedicated EQ action so row layout can place it independently from the
+/// volume/routing control cluster.
+struct AppEQButton: View {
+    let isExpanded: Bool
+    let action: () -> Void
+
+    @State private var isHovered = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var foregroundColor: Color {
+        if isExpanded { return DesignTokens.Colors.interactiveActive }
+        if isHovered { return DesignTokens.Colors.interactiveHover }
+        return DesignTokens.Colors.interactiveDefault
+    }
+
+    var body: some View {
+        Button(action: action) {
+            ZStack {
+                Image(systemName: "slider.vertical.3")
+                    .opacity(isExpanded ? 0 : 1)
+                Image(systemName: "xmark")
+                    .opacity(isExpanded ? 1 : 0)
+            }
+            .font(.system(size: 12))
+            .symbolRenderingMode(.hierarchical)
+            .foregroundStyle(foregroundColor)
+            .frame(
+                minWidth: DesignTokens.Dimensions.minTouchTarget,
+                minHeight: DesignTokens.Dimensions.minTouchTarget
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(isExpanded ? "Close Equalizer" : "Equalizer")
+        .onHover { isHovered = $0 }
+        .help(isExpanded ? "Close Equalizer" : "Equalizer")
+        .animation(reduceMotion ? nil : DesignTokens.Animation.hover, value: isHovered)
+    }
+}
+
 struct AppPinButton: View {
     let isPinned: Bool
     let action: () -> Void

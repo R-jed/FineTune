@@ -114,11 +114,11 @@ struct LocalizedPresentationTests {
         #expect(chinese.localized("Done managing") == "完成管理")
         #expect(chinese.localized("Output Devices") == "输出设备")
         #expect(chinese.localized("Pinned") == "已置顶")
-        #expect(chinese.localized("Running") == "运行中")
+        #expect(chinese.localized("Applications") == "应用程序")
+        #expect(chinese.localized("Add Applications") == "添加应用程序")
+        #expect(chinese.localized("Choose one or more applications to add.") == "选择一个或多个要添加的应用程序。")
         #expect(chinese.localized("Pin app") == "置顶应用")
         #expect(chinese.localized("Unpin app") == "取消置顶")
-        #expect(chinese.localized("Move app up") == "向上移动应用")
-        #expect(chinese.localized("Move app down") == "向下移动应用")
         #expect(chinese.localized("Move device up") == "向上移动设备")
         #expect(chinese.localized("Move device down") == "向下移动设备")
         #expect(chinese.localized("Move Up") == "向上移动")
@@ -227,11 +227,8 @@ struct LocalizedPresentationTests {
             ("Unmute microphone", "取消麦克风静音"),
             ("Default device", "默认设备"),
             ("Set as default", "设为默认设备"),
-            ("Pin app", "置顶应用"),
-            ("Unpin app", "取消置顶"),
             ("Hide app", "隐藏应用"),
             ("Hidden apps", "隐藏的应用"),
-            ("Add Applications", "添加应用程序"),
             ("Close Equalizer", "关闭均衡器"),
             ("Connect", "连接"),
             ("Couldn't connect", "无法连接"),

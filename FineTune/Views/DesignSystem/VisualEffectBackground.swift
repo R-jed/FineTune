@@ -33,11 +33,11 @@ struct LiftedCardBackgroundModifier: ViewModifier {
         content
             .background {
                 RoundedRectangle(cornerRadius: DesignTokens.Dimensions.rowRadius)
-                    .fill(DesignTokens.Colors.eqCardBackground)
+                    .fill(DesignTokens.Surface.raised)
             }
             .overlay {
                 RoundedRectangle(cornerRadius: DesignTokens.Dimensions.rowRadius)
-                    .strokeBorder(DesignTokens.Colors.eqCardBorder, lineWidth: 0.5)
+                    .strokeBorder(DesignTokens.Stroke.raised, lineWidth: 0.5)
             }
             .shadow(
                 color: Color.black.opacity(0.06),

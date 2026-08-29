@@ -146,7 +146,7 @@ struct EditablePercentage: View {
             }
             te.buffer = nil
         }
-        .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: isEditing)
+        .animation(reduceMotion ? nil : DesignTokens.Animation.selection, value: isEditing)
         .animation(reduceMotion ? nil : .easeOut(duration: 0.1), value: isHovered)
         .animation(reduceMotion ? nil : .easeOut(duration: 0.1), value: isActivationFocused)
     }

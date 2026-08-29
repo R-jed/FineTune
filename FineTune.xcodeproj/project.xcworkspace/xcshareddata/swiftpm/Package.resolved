@@ -2,6 +2,15 @@
   "originHash" : "199509b1eef15a6a7afd32d41619eeaad8618a86199a7bb64822537142f27d9f",
   "pins" : [
     {
+      "identity" : "fluidmenubarextra",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/wadetregaskis/FluidMenuBarExtra",
+      "state" : {
+        "revision" : "3ce81bd0e5ab0ae5b027076482f4bd86be30162c",
+        "version" : "1.5.1"
+      }
+    },
+    {
       "identity" : "keyboardshortcuts",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/sindresorhus/KeyboardShortcuts",

@@ -15,6 +15,12 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加应用程序" } }
       }
     },
+    "Applications" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "应用程序" } }
+      }
+    },
     "App Mute" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1625,12 +1631,6 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已置顶" } }
       }
     },
-    "Running" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "运行中" } }
-      }
-    },
     "Drag to reorder" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1647,18 +1647,6 @@
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "向下移动" } }
-      }
-    },
-    "Move app up" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "向上移动应用" } }
-      }
-    },
-    "Move app down" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "向下移动应用" } }
       }
     },
     "Move device up" : {

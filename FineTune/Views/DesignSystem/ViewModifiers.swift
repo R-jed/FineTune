@@ -14,7 +14,7 @@ struct HoverableRowModifier: ViewModifier {
             // Flat at rest; hover or keyboard focus reveals hoverSurface only.
             .background(
                 RoundedRectangle(cornerRadius: DesignTokens.Dimensions.buttonRadius)
-                    .fill(isHovered || isFocused ? DesignTokens.Colors.hoverSurface : Color.clear)
+                    .fill(isHovered || isFocused ? DesignTokens.Surface.hover : Color.clear)
                     .allowsHitTesting(false)
             )
             .onHover { hovering in
@@ -33,7 +33,6 @@ struct SectionHeaderStyleModifier: ViewModifier {
             .font(DesignTokens.Typography.sectionHeader)
             .foregroundStyle(.secondary)
             .tracking(DesignTokens.Typography.sectionHeaderTracking)
-            .textCase(.uppercase)
     }
 }
 

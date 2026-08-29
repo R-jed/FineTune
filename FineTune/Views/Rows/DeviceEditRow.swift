@@ -15,8 +15,10 @@ struct DeviceEditRow<ExpandedContent: View>: View {
     let deviceCount: Int
     let isExpanded: Bool
     let isHidden: Bool
-    let reorderDragPayload: String
-    let onReorderDrop: ([String]) -> Bool
+    let isReordering: Bool
+    let reorderOffset: CGFloat
+    let onReorderChanged: (CGFloat) -> Void
+    let onReorderEnded: () -> Void
     let onReorder: (Int) -> Void
     var onToggleExpand: (() -> Void)? = nil
     var onToggleHidden: (() -> Void)? = nil
@@ -68,9 +70,12 @@ struct DeviceEditRow<ExpandedContent: View>: View {
                 expandedContent()
             }
         )
+        .continuousReorderAppearance(
+            isDragging: isReordering,
+            offset: reorderOffset
+        )
     }
 
-    @ViewBuilder
     private func accessibleReorderActions<Content: View>(_ content: Content) -> some View {
         let moveUpTarget = DeviceReorderAccessibility.targetIndex(
             currentIndex: priorityIndex,
@@ -83,26 +88,13 @@ struct DeviceEditRow<ExpandedContent: View>: View {
             count: deviceCount
         )
 
-        if let moveUpTarget, let moveDownTarget {
-            content
-                .accessibilityAction(named: Text("Move Up")) {
-                    onReorder(moveUpTarget)
-                }
-                .accessibilityAction(named: Text("Move Down")) {
-                    onReorder(moveDownTarget)
-                }
-        } else if let moveUpTarget {
-            content
-                .accessibilityAction(named: Text("Move Up")) {
-                    onReorder(moveUpTarget)
-                }
-        } else if let moveDownTarget {
-            content
-                .accessibilityAction(named: Text("Move Down")) {
-                    onReorder(moveDownTarget)
-                }
-        } else {
-            content
+        return content.accessibilityActions {
+            if let moveUpTarget {
+                Button("Move Up") { onReorder(moveUpTarget) }
+            }
+            if let moveDownTarget {
+                Button("Move Down") { onReorder(moveDownTarget) }
+            }
         }
     }
 
@@ -118,13 +110,14 @@ struct DeviceEditRow<ExpandedContent: View>: View {
 
     private var headerRow: some View {
         HStack(spacing: DesignTokens.Spacing.sm) {
-            ReorderDragHandle(payload: reorderDragPayload)
+            ReorderDragHandle(
+                onChanged: onReorderChanged,
+                onEnded: onReorderEnded
+            )
 
             iconControl
 
             deviceIdentity
-
-            reorderButtons
 
             if onToggleHidden != nil {
                 hideToggleButton
@@ -135,9 +128,6 @@ struct DeviceEditRow<ExpandedContent: View>: View {
             }
         }
         .frame(height: DesignTokens.Dimensions.rowContentHeight)
-        .dropDestination(for: String.self) { items, _ in
-            onReorderDrop(items)
-        }
     }
 
     private var deviceIdentityContent: some View {
@@ -155,7 +145,7 @@ struct DeviceEditRow<ExpandedContent: View>: View {
                         .padding(.vertical, 2)
                         .background(
                             Capsule()
-                                .fill(DesignTokens.Colors.glassFillStrong)
+                                .fill(DesignTokens.Surface.emphasized)
                         )
                 }
 
@@ -182,48 +172,6 @@ struct DeviceEditRow<ExpandedContent: View>: View {
             iconButton
         } else {
             deviceIcon
-        }
-    }
-
-    private var reorderButtons: some View {
-        HStack(spacing: DesignTokens.Spacing.xxs) {
-            if let target = DeviceReorderAccessibility.targetIndex(
-                currentIndex: priorityIndex,
-                direction: -1,
-                count: deviceCount
-            ) {
-                Button { onReorder(target) } label: {
-                    Image(systemName: "chevron.up")
-                        .font(.system(size: 10, weight: .semibold))
-                        .frame(
-                            minWidth: DesignTokens.Dimensions.minTouchTarget,
-                            minHeight: DesignTokens.Dimensions.minTouchTarget
-                        )
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .help("Move device up")
-                .accessibilityLabel("Move device up")
-            }
-
-            if let target = DeviceReorderAccessibility.targetIndex(
-                currentIndex: priorityIndex,
-                direction: 1,
-                count: deviceCount
-            ) {
-                Button { onReorder(target) } label: {
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 10, weight: .semibold))
-                        .frame(
-                            minWidth: DesignTokens.Dimensions.minTouchTarget,
-                            minHeight: DesignTokens.Dimensions.minTouchTarget
-                        )
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .help("Move device down")
-                .accessibilityLabel("Move device down")
-            }
         }
     }
 
@@ -383,8 +331,10 @@ struct DeviceEditRowTapCarveoutPreview: View {
                     deviceCount: 3,
                     isExpanded: expandedUID == MockData.sampleDevices[0].uid,
                     isHidden: false,
-                    reorderDragPayload: "preview-device",
-                    onReorderDrop: { _ in false },
+                    isReordering: false,
+                    reorderOffset: 0,
+                    onReorderChanged: { _ in },
+                    onReorderEnded: {},
                     onReorder: { newIndex in
                         lastEvent = "Reorder to \(newIndex + 1)"
                     },

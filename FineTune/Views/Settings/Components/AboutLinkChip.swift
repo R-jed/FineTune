@@ -71,7 +71,7 @@ struct AboutLinkChip: View {
         }
         .buttonStyle(.plain)
         .onHover { hovering in
-            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.12)) {
+            withAnimation(reduceMotion ? nil : DesignTokens.Animation.micro) {
                 isHovered = hovering
             }
         }

@@ -7,6 +7,8 @@ struct AppRow: View {
     let app: AudioApp
     let volume: Float  // Linear gain 0-1 (boost applied separately)
     let audioLevel: Float
+    let getAudioLevel: (() -> Float)?
+    let isMeterActive: Bool
     let devices: [AudioDevice]
     let deviceIconOverrides: [String: String]
     let selectedDeviceUID: String  // For single mode
@@ -33,9 +35,13 @@ struct AppRow: View {
     let onRenameUserPreset: (UUID, String) -> Void
     let isEQExpanded: Bool
     let onEQToggle: () -> Void
-    let sliderWidth: CGFloat
     let isPinned: Bool
     let onTogglePin: () -> Void
+    let sliderWidth: CGFloat
+    let isReordering: Bool
+    let reorderOffset: CGFloat
+    let onReorderChanged: (CGFloat) -> Void
+    let onReorderEnded: () -> Void
     let isFocused: Bool
 
     @State private var isIconHovered = false
@@ -45,6 +51,8 @@ struct AppRow: View {
         app: AudioApp,
         volume: Float,
         audioLevel: Float = 0,
+        getAudioLevel: (() -> Float)? = nil,
+        isMeterActive: Bool = true,
         devices: [AudioDevice],
         deviceIconOverrides: [String: String] = [:],
         selectedDeviceUID: String,
@@ -71,14 +79,20 @@ struct AppRow: View {
         onRenameUserPreset: @escaping (UUID, String) -> Void = { _, _ in },
         isEQExpanded: Bool = false,
         onEQToggle: @escaping () -> Void = {},
+        isPinned: Bool = false,
+        onTogglePin: @escaping () -> Void = {},
         sliderWidth: CGFloat = DesignTokens.Dimensions.sliderWidth,
-        isPinned: Bool,
-        onTogglePin: @escaping () -> Void,
+        isReordering: Bool,
+        reorderOffset: CGFloat,
+        onReorderChanged: @escaping (CGFloat) -> Void,
+        onReorderEnded: @escaping () -> Void,
         isFocused: Bool = false
     ) {
         self.app = app
         self.volume = volume
         self.audioLevel = audioLevel
+        self.getAudioLevel = getAudioLevel
+        self.isMeterActive = isMeterActive
         self.devices = devices
         self.deviceIconOverrides = deviceIconOverrides
         self.selectedDeviceUID = selectedDeviceUID
@@ -105,9 +119,13 @@ struct AppRow: View {
         self.onRenameUserPreset = onRenameUserPreset
         self.isEQExpanded = isEQExpanded
         self.onEQToggle = onEQToggle
-        self.sliderWidth = sliderWidth
         self.isPinned = isPinned
         self.onTogglePin = onTogglePin
+        self.sliderWidth = sliderWidth
+        self.isReordering = isReordering
+        self.reorderOffset = reorderOffset
+        self.onReorderChanged = onReorderChanged
+        self.onReorderEnded = onReorderEnded
         self.isFocused = isFocused
         self._localEQSettings = State(initialValue: eqSettings)
     }
@@ -115,9 +133,20 @@ struct AppRow: View {
     var body: some View {
         ExpandableGlassRow(isExpanded: isEQExpanded, isFocused: isFocused) {
             HStack(spacing: DesignTokens.Spacing.xs + DesignTokens.Spacing.xxs) {
-                AppPinButton(isPinned: isPinned, action: onTogglePin)
+                ReorderDragHandle(
+                    onChanged: onReorderChanged,
+                    onEnded: onReorderEnded
+                )
 
-                VUMeter(level: audioLevel, isMuted: isMutedExternal || volume == 0)
+                if let getAudioLevel {
+                    LiveVUMeter(
+                        isMuted: isMutedExternal || volume == 0,
+                        isActive: isMeterActive,
+                        readLevel: getAudioLevel
+                    )
+                } else {
+                    VUMeter(level: audioLevel, isMuted: isMutedExternal || volume == 0)
+                }
 
                 Button(action: onAppActivate) {
                     Image(nsImage: app.icon)
@@ -158,7 +187,7 @@ struct AppRow: View {
                             .lineLimit(1)
                     }
                 }
-                .frame(minWidth: 96, maxWidth: .infinity, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .layoutPriority(1)
 
                 AppRowControls(
@@ -172,7 +201,6 @@ struct AppRow: View {
                     defaultDeviceUID: defaultDeviceUID,
                     deviceSelectionMode: deviceSelectionMode,
                     boost: boost,
-                    isEQExpanded: isEQExpanded,
                     sliderWidth: sliderWidth,
                     onVolumeChange: onVolumeChange,
                     onMuteChange: onMuteChange,
@@ -181,9 +209,12 @@ struct AppRow: View {
                     onDevicesSelected: onDevicesSelected,
                     onDeviceModeChange: onDeviceModeChange,
                     onSelectFollowDefault: onSelectFollowDefault,
-                    onEQToggle: onEQToggle,
                     isRowFocused: isFocused
                 )
+
+                AppEQButton(isExpanded: isEQExpanded, action: onEQToggle)
+
+                AppPinButton(isPinned: isPinned, action: onTogglePin)
             }
             .frame(height: DesignTokens.Dimensions.rowContentHeight)
             .contentShape(Rectangle())
@@ -211,6 +242,10 @@ struct AppRow: View {
         .onChange(of: eqSettings) { _, newValue in
             localEQSettings = newValue
         }
+        .continuousReorderAppearance(
+            isDragging: isReordering,
+            offset: reorderOffset
+        )
     }
 }
 
@@ -226,8 +261,10 @@ struct AppRow: View {
                 onVolumeChange: { _ in },
                 onMuteChange: { _ in },
                 onDeviceSelected: { _ in },
-                isPinned: false,
-                onTogglePin: {}
+                isReordering: false,
+                reorderOffset: 0,
+                onReorderChanged: { _ in },
+                onReorderEnded: {}
             )
 
             AppRow(
@@ -239,8 +276,10 @@ struct AppRow: View {
                 onVolumeChange: { _ in },
                 onMuteChange: { _ in },
                 onDeviceSelected: { _ in },
-                isPinned: false,
-                onTogglePin: {}
+                isReordering: false,
+                reorderOffset: 0,
+                onReorderChanged: { _ in },
+                onReorderEnded: {}
             )
 
             AppRow(
@@ -252,8 +291,10 @@ struct AppRow: View {
                 onVolumeChange: { _ in },
                 onMuteChange: { _ in },
                 onDeviceSelected: { _ in },
-                isPinned: false,
-                onTogglePin: {}
+                isReordering: false,
+                reorderOffset: 0,
+                onReorderChanged: { _ in },
+                onReorderEnded: {}
             )
         }
     }
@@ -272,8 +313,10 @@ struct AppRow: View {
                     onVolumeChange: { _ in },
                     onMuteChange: { _ in },
                     onDeviceSelected: { _ in },
-                    isPinned: false,
-                    onTogglePin: {}
+                    isReordering: false,
+                    reorderOffset: 0,
+                    onReorderChanged: { _ in },
+                    onReorderEnded: {}
                 )
             }
         }

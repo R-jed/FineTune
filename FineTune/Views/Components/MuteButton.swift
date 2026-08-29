@@ -71,7 +71,7 @@ private struct BaseMuteButton: View {
                     .font(.system(size: 14))
                     .foregroundStyle(symbolColor)
                     .contentTransition(.symbolEffect(.replace))
-                    .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: isMuted)
+                    .animation(reduceMotion ? nil : DesignTokens.Animation.micro, value: isMuted)
             }
             .frame(
                 minWidth: DesignTokens.Dimensions.minTouchTarget,

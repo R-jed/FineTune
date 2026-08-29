@@ -10,7 +10,6 @@ import Foundation
 
 @Suite("PinnedAppInfo — app bundle selection")
 struct PinnedAppInfoSelectionTests {
-
     @Test("Valid app bundle produces stable pinned metadata")
     func validAppBundle() throws {
         let appURL = try makeAppBundle(
@@ -19,56 +18,44 @@ struct PinnedAppInfoSelectionTests {
         )
         defer { try? FileManager.default.removeItem(at: appURL.deletingLastPathComponent()) }
 
-        let info = try #require(
-            PinnedAppInfo(
-                appURL: appURL,
-                excludingBundleIdentifier: "com.finetuneapp.FineTune"
-            )
-        )
+        let info = try #require(PinnedAppInfo(
+            appURL: appURL,
+            excludingBundleIdentifier: "com.finetuneapp.FineTune"
+        ))
 
         #expect(info.persistenceIdentifier == "com.example.player")
         #expect(info.displayName == "Example Player")
         #expect(info.bundleID == "com.example.player")
     }
 
-    @Test("Own app bundle and missing app bundle are rejected")
-    func rejectsOwnAndMissingApps() throws {
-        let appURL = try makeAppBundle(
+    @Test("Own, missing, and damaged app bundles are rejected")
+    func rejectsInvalidBundles() throws {
+        let ownAppURL = try makeAppBundle(
             displayName: "FineTune",
             bundleIdentifier: "com.finetuneapp.FineTune"
         )
-        let root = appURL.deletingLastPathComponent()
+        let root = ownAppURL.deletingLastPathComponent()
         defer { try? FileManager.default.removeItem(at: root) }
 
-        #expect(
-            PinnedAppInfo(
-                appURL: appURL,
-                excludingBundleIdentifier: "com.finetuneapp.FineTune"
-            ) == nil
-        )
-        #expect(
-            PinnedAppInfo(
-                appURL: root.appendingPathComponent("Missing.app"),
-                excludingBundleIdentifier: "com.finetuneapp.FineTune"
-            ) == nil
-        )
-    }
+        #expect(PinnedAppInfo(
+            appURL: ownAppURL,
+            excludingBundleIdentifier: "com.finetuneapp.FineTune"
+        ) == nil)
+        #expect(PinnedAppInfo(
+            appURL: root.appendingPathComponent("Missing.app"),
+            excludingBundleIdentifier: "com.finetuneapp.FineTune"
+        ) == nil)
 
-    @Test("App bundle without an executable is rejected")
-    func rejectsDamagedAppBundle() throws {
-        let appURL = try makeAppBundle(
-            displayName: "Broken Player",
+        let damagedURL = try makeAppBundle(
+            displayName: "Broken",
             bundleIdentifier: "com.example.broken",
             includeExecutable: false
         )
-        defer { try? FileManager.default.removeItem(at: appURL.deletingLastPathComponent()) }
-
-        #expect(
-            PinnedAppInfo(
-                appURL: appURL,
-                excludingBundleIdentifier: "com.finetuneapp.FineTune"
-            ) == nil
-        )
+        defer { try? FileManager.default.removeItem(at: damagedURL.deletingLastPathComponent()) }
+        #expect(PinnedAppInfo(
+            appURL: damagedURL,
+            excludingBundleIdentifier: "com.finetuneapp.FineTune"
+        ) == nil)
     }
 
     private func makeAppBundle(
@@ -113,133 +100,159 @@ struct PinnedAppInfoSelectionTests {
     }
 }
 
-@Suite("SettingsManager — selected app pinning")
+@Suite("SettingsManager — pin persistence and placement")
 @MainActor
-struct SelectedAppPinningTests {
-
-    @Test("Selected app is pinned once and initially follows the system output")
-    func pinningIsIdempotentAndFollowsDefault() {
-        let manager = SettingsManager(
+struct AppPinSettingsTests {
+    private func makeManager() -> SettingsManager {
+        SettingsManager(
             directory: FileManager.default.temporaryDirectory
                 .appendingPathComponent(UUID().uuidString)
         )
-        let info = PinnedAppInfo(
-            persistenceIdentifier: "com.example.player",
-            displayName: "Example Player",
-            bundleID: "com.example.player"
-        )
-
-        manager.pinApp(info.persistenceIdentifier, info: info)
-        manager.pinApp(info.persistenceIdentifier, info: info)
-
-        #expect(manager.getPinnedAppInfo() == [info])
-        #expect(manager.isFollowingDefault(for: info.persistenceIdentifier))
     }
 
-    @Test("Explicitly adding an ignored app makes it visible and pinned")
-    func addingIgnoredAppRestoresVisibility() {
-        let manager = SettingsManager(
-            directory: FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString)
-        )
-        let info = PinnedAppInfo(
-            persistenceIdentifier: "com.example.player",
+    private func info(_ id: String = "com.example.player") -> PinnedAppInfo {
+        PinnedAppInfo(
+            persistenceIdentifier: id,
             displayName: "Example Player",
-            bundleID: "com.example.player"
+            bundleID: id
         )
-        let ignored = IgnoredAppInfo(
-            persistenceIdentifier: info.persistenceIdentifier,
-            displayName: info.displayName,
-            bundleID: info.bundleID
-        )
-        manager.ignoreApp(info.persistenceIdentifier, info: ignored)
-
-        manager.pinApp(info.persistenceIdentifier, info: info)
-
-        #expect(manager.isPinned(info.persistenceIdentifier))
-        #expect(!manager.isIgnored(info.persistenceIdentifier))
     }
 
-    @Test("Hiding preserves pin and per-app settings so restore is reversible")
-    func hidingPreservesPinnedStateAndSettings() {
-        let manager = SettingsManager(
-            directory: FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString)
-        )
-        let info = PinnedAppInfo(
-            persistenceIdentifier: "com.example.hidden",
-            displayName: "Hidden Player",
-            bundleID: "com.example.hidden"
-        )
-        manager.pinApp(info.persistenceIdentifier, info: info)
-        manager.setVolume(for: info.persistenceIdentifier, to: 0.42)
-        manager.setMute(for: info.persistenceIdentifier, to: true)
-        manager.setBoost(for: info.persistenceIdentifier, to: .x2)
-        manager.setDeviceRouting(for: info.persistenceIdentifier, deviceUID: "uid-hidden")
+    @Test("Pinning is idempotent and preserves raw latent order")
+    func pinningIsIdempotent() {
+        let manager = makeManager()
+        manager.ensureAppsInOrder(["normal", "com.example.player"])
+        let pinned = info()
 
+        manager.pinApp(pinned.persistenceIdentifier, info: pinned)
+        manager.pinApp(pinned.persistenceIdentifier, info: pinned)
+
+        #expect(manager.isPinned(pinned.persistenceIdentifier))
+        #expect(manager.getPinnedAppInfo() == [pinned])
+        #expect(manager.appOrder == ["normal", "com.example.player"])
+    }
+
+    @Test("Low-level pinning does not implicitly unhide")
+    func pinDoesNotUnhide() {
+        let manager = makeManager()
+        let pinned = info()
         manager.ignoreApp(
-            info.persistenceIdentifier,
+            pinned.persistenceIdentifier,
             info: IgnoredAppInfo(
-                persistenceIdentifier: info.persistenceIdentifier,
-                displayName: info.displayName,
-                bundleID: info.bundleID
+                persistenceIdentifier: pinned.persistenceIdentifier,
+                displayName: pinned.displayName,
+                bundleID: pinned.bundleID
             )
         )
 
-        #expect(manager.isPinned(info.persistenceIdentifier))
-        #expect(manager.getVolume(for: info.persistenceIdentifier) == 0.42)
-        #expect(manager.getMute(for: info.persistenceIdentifier) == true)
-        #expect(manager.getBoost(for: info.persistenceIdentifier) == .x2)
-        #expect(manager.getDeviceRouting(for: info.persistenceIdentifier) == "uid-hidden")
+        manager.pinApp(pinned.persistenceIdentifier, info: pinned)
 
-        manager.unignoreApp(info.persistenceIdentifier)
-        #expect(manager.isPinned(info.persistenceIdentifier))
-        #expect(!manager.isIgnored(info.persistenceIdentifier))
+        #expect(manager.isPinned(pinned.persistenceIdentifier))
+        #expect(manager.isIgnored(pinned.persistenceIdentifier))
     }
 
-    @Test("Pinned apps keep the order chosen by the user")
-    func pinnedAppOrderCanBeChanged() {
-        let manager = SettingsManager(
-            directory: FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString)
-        )
-        let first = PinnedAppInfo(
-            persistenceIdentifier: "com.example.first",
-            displayName: "First",
-            bundleID: "com.example.first"
-        )
-        let second = PinnedAppInfo(
-            persistenceIdentifier: "com.example.second",
-            displayName: "Second",
-            bundleID: "com.example.second"
-        )
-        let third = PinnedAppInfo(
-            persistenceIdentifier: "com.example.third",
-            displayName: "Third",
-            bundleID: "com.example.third"
-        )
-        manager.pinApp(first.persistenceIdentifier, info: first)
-        manager.pinApp(second.persistenceIdentifier, info: second)
-        manager.pinApp(third.persistenceIdentifier, info: third)
-
-        manager.moveApp(
-            third.persistenceIdentifier,
-            to: first.persistenceIdentifier,
-            currentOrder: [first, second, third].map(\.persistenceIdentifier)
+    @Test("Explicit Add Applications intent unhides and pins atomically")
+    func selectedAddUnhidesAndPins() {
+        let manager = makeManager()
+        let pinned = info()
+        manager.ignoreApp(
+            pinned.persistenceIdentifier,
+            info: IgnoredAppInfo(
+                persistenceIdentifier: pinned.persistenceIdentifier,
+                displayName: pinned.displayName,
+                bundleID: pinned.bundleID
+            )
         )
 
-        #expect(manager.getPinnedAppInfo() == [third, first, second])
-
-        manager.moveApp(
-            third.persistenceIdentifier,
-            to: second.persistenceIdentifier,
-            currentOrder: [third, first, second].map(\.persistenceIdentifier)
+        manager.addSelectedPinnedApp(
+            pinned,
+            visibleOrder: [pinned.persistenceIdentifier]
         )
 
-        #expect(manager.getPinnedAppInfo() == [first, second, third])
+        #expect(manager.isPinned(pinned.persistenceIdentifier))
+        #expect(!manager.isIgnored(pinned.persistenceIdentifier))
+        #expect(manager.appOrder == [pinned.persistenceIdentifier])
     }
 
-    @Test("Visible app reorder seeds identifiers not yet in persisted order")
+    @Test("Placement commits membership without rewriting unrelated latent history")
+    func placementCommitsOrderAndMembership() {
+        let manager = makeManager()
+        manager.ensureAppsInOrder(["A", "B", "C"])
+
+        let changed = manager.placeApp(
+            "C",
+            visibleOrder: ["C", "A", "B"],
+            pinned: true,
+            info: info("C")
+        )
+
+        #expect(changed)
+        #expect(manager.appOrder == ["A", "B", "C"])
+        #expect(manager.isPinned("C"))
+    }
+
+    @Test("Cross-section placement preserves hidden latent anchors")
+    func placementPreservesHiddenLatentAnchors() {
+        let manager = makeManager()
+        manager.ensureAppsInOrder(["P", "A", "B", "C", "hidden"])
+        manager.pinApp("P", info: info("P"))
+
+        _ = manager.placeApp(
+            "C",
+            visibleOrder: ["C", "P", "A", "B"],
+            pinned: true,
+            info: info("C")
+        )
+
+        #expect(manager.appOrder == ["C", "hidden", "P", "A", "B"])
+        #expect(manager.isPinned("C"))
+    }
+
+    @Test("Cross-section placement does not flatten unrelated interleaved latent history")
+    func placementPreservesInterleavedRawOrder() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        var stored = SettingsManager.Settings()
+        stored.appOrder = ["P1", "A", "P2", "B"]
+        stored.pinnedApps = ["P1", "P2"]
+        stored.pinnedAppInfo = [
+            "P1": info("P1"),
+            "P2": info("P2"),
+        ]
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try JSONEncoder().encode(stored)
+            .write(to: directory.appendingPathComponent("settings.json"))
+        let manager = SettingsManager(directory: directory)
+
+        _ = manager.placeApp(
+            "B",
+            visibleOrder: ["P1", "B", "P2", "A"],
+            pinned: true,
+            info: info("B")
+        )
+
+        #expect(manager.appOrder == ["P1", "A", "B", "P2"])
+    }
+}
+
+@Suite("SettingsManager — global app order")
+@MainActor
+struct GlobalAppOrderSettingsTests {
+    private func temporaryDirectory() throws -> URL {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }
+
+    private func writeSettings(_ settings: SettingsManager.Settings, to directory: URL) throws {
+        let data = try JSONEncoder().encode(settings)
+        try data.write(to: directory.appendingPathComponent("settings.json"), options: .atomic)
+    }
+
+    @Test("visible app reorder seeds identifiers not yet in persisted order")
     func visibleAppOrderSeedsUnseenIdentifiers() {
         let manager = SettingsManager(
             directory: FileManager.default.temporaryDirectory
@@ -252,27 +265,145 @@ struct SelectedAppPinningTests {
         manager.moveApp(third, to: first, currentOrder: [first, second, third])
         #expect(manager.appOrder == [third, first, second])
 
-        manager.moveApp(third, to: second, currentOrder: manager.appOrder)
+        manager.moveApp(third, to: second, currentOrder: [third, first, second])
         #expect(manager.appOrder == [first, second, third])
     }
 
-    @Test("Resetting all settings clears the custom app order")
+    @Test("reordering visible apps preserves hidden and absent latent anchors")
+    func visibleReorderPreservesLatentAnchors() throws {
+        let directory = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        var stored = SettingsManager.Settings()
+        stored.appOrder = ["A", "hidden", "B", "C"]
+        stored.ignoredApps = ["hidden"]
+        try writeSettings(stored, to: directory)
+
+        let manager = SettingsManager(directory: directory)
+        manager.moveApp("A", to: "C", currentOrder: ["A", "B", "C"])
+
+        #expect(manager.appOrder == ["B", "C", "A", "hidden"])
+    }
+
+    @Test("app order survives a real disk flush and manager recreation")
+    func appOrderDiskRoundTrip() throws {
+        let directory = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let first = SettingsManager(directory: directory)
+        first.moveApp("C", to: "A", currentOrder: ["A", "B", "C"])
+        #expect(first.appOrder == ["C", "A", "B"])
+        first.flushSync()
+
+        let reloaded = SettingsManager(directory: directory)
+        #expect(reloaded.appOrder == ["C", "A", "B"])
+    }
+
+    @Test("hidden apps retain default-valued persisted settings during pruning")
+    func hiddenAppsSurvivePruning() {
+        let manager = SettingsManager(
+            directory: FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+        )
+        let identifier = "com.example.hidden"
+        manager.setVolume(for: identifier, to: 1.0)
+        manager.ignoreApp(
+            identifier,
+            info: IgnoredAppInfo(
+                persistenceIdentifier: identifier,
+                displayName: "Hidden",
+                bundleID: identifier
+            )
+        )
+
+        manager.pruneStaleSettings(keeping: [])
+
+        #expect(manager.getVolume(for: identifier) == 1.0)
+        #expect(manager.isIgnored(identifier))
+    }
+
+    @Test("v12 pin fields decode as current pin state and seed order when absent")
+    func v12PinFieldsDecode() throws {
+        let directory = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let json = """
+        {
+          "version": 12,
+          "pinnedApps": ["com.example.z", "com.example.a"],
+          "pinnedAppInfo": {}
+        }
+        """
+        try Data(json.utf8).write(to: directory.appendingPathComponent("settings.json"))
+
+        let manager = SettingsManager(directory: directory)
+        let decoded = try JSONDecoder().decode(
+            SettingsManager.Settings.self,
+            from: Data(contentsOf: directory.appendingPathComponent("settings.json"))
+        )
+
+        #expect(manager.appOrder == ["com.example.a", "com.example.z"])
+        #expect(manager.isPinned("com.example.a"))
+        #expect(manager.isPinned("com.example.z"))
+        #expect(decoded.version == 14)
+    }
+
+    @Test("v12 pin metadata cannot override an existing raw appOrder")
+    func existingAppOrderWinsOverPins() throws {
+        let directory = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let json = """
+        {
+          "version": 12,
+          "pinnedApps": ["legacy-z", "legacy-a"],
+          "pinnedAppInfo": {},
+          "appOrder": ["C", "A", "B"]
+        }
+        """
+        try Data(json.utf8).write(to: directory.appendingPathComponent("settings.json"))
+
+        let manager = SettingsManager(directory: directory)
+
+        #expect(manager.appOrder == ["C", "A", "B"])
+    }
+
+    @Test("duplicate appOrder entries are normalized on decode")
+    func duplicateAppOrderEntriesAreNormalized() throws {
+        let directory = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let json = """
+        {
+          "version": 12,
+          "appOrder": ["B", "B", "A", "B"]
+        }
+        """
+        try Data(json.utf8).write(to: directory.appendingPathComponent("settings.json"))
+
+        let manager = SettingsManager(directory: directory)
+
+        #expect(manager.appOrder == ["B", "A"])
+    }
+
+    @Test("resetting all settings clears the global app order")
     func resetClearsAppOrder() {
         let manager = SettingsManager(
             directory: FileManager.default.temporaryDirectory
                 .appendingPathComponent(UUID().uuidString)
         )
-        let info = PinnedAppInfo(
-            persistenceIdentifier: "com.example.player",
-            displayName: "Example Player",
-            bundleID: "com.example.player"
+        let pinned = PinnedAppInfo(
+            persistenceIdentifier: "C",
+            displayName: "Charlie",
+            bundleID: "C"
         )
-        manager.pinApp(info.persistenceIdentifier, info: info)
-        #expect(manager.appOrder == [info.persistenceIdentifier])
+        manager.moveApp("C", to: "A", currentOrder: ["A", "B", "C"])
+        manager.pinApp("C", info: pinned)
+        #expect(!manager.appOrder.isEmpty)
+        #expect(manager.isPinned("C"))
 
         manager.resetAllSettings()
 
         #expect(manager.appOrder.isEmpty)
+        #expect(!manager.isPinned("C"))
+        #expect(manager.getPinnedAppInfo().isEmpty)
     }
 }
 
@@ -300,8 +431,15 @@ struct SettingsJSONTests {
         original.appMutes = ["com.test.app": true]
         original.appBoosts = ["com.test.app": 2.0]
         original.appDeviceRouting = ["com.test.app": "device-uid-123"]
-        original.pinnedApps = Set(["com.test.second", "com.test.app"])
         original.appOrder = ["com.test.second", "com.test.app"]
+        original.pinnedApps = ["com.test.second"]
+        original.pinnedAppInfo = [
+            "com.test.second": PinnedAppInfo(
+                persistenceIdentifier: "com.test.second",
+                displayName: "Second",
+                bundleID: "com.test.second"
+            )
+        ]
         original.outputDevicePriority = ["uid-a", "uid-b", "uid-c"]
         original.ddcVolumes = ["monitor-1": 75]
         original.ddcMuteStates = ["monitor-1": false]
@@ -316,8 +454,9 @@ struct SettingsJSONTests {
         #expect(decoded.appMutes == original.appMutes)
         #expect(decoded.appBoosts == original.appBoosts)
         #expect(decoded.appDeviceRouting == original.appDeviceRouting)
-        #expect(decoded.pinnedApps == original.pinnedApps)
         #expect(decoded.appOrder == original.appOrder)
+        #expect(decoded.pinnedApps == original.pinnedApps)
+        #expect(decoded.pinnedAppInfo == original.pinnedAppInfo)
         #expect(decoded.outputDevicePriority == original.outputDevicePriority)
         #expect(decoded.ddcVolumes == original.ddcVolumes)
         #expect(decoded.ddcMuteStates == original.ddcMuteStates)
@@ -326,12 +465,46 @@ struct SettingsJSONTests {
         #expect(decoded.deviceIconOverrides == original.deviceIconOverrides)
     }
 
+
+    @Test("v14 encoding persists current pin fields")
+    func v14EncodingPersistsPinFields() throws {
+        var settings = SettingsManager.Settings()
+        settings.appOrder = ["B", "A"]
+        settings.pinnedApps = ["B"]
+        settings.pinnedAppInfo = [
+            "B": PinnedAppInfo(
+                persistenceIdentifier: "B",
+                displayName: "Bravo",
+                bundleID: "B"
+            )
+        ]
+
+        let data = try JSONEncoder().encode(settings)
+        let object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+
+        #expect(object["version"] as? Int == 14)
+        #expect(object["appOrder"] as? [String] == ["B", "A"])
+        #expect((object["pinnedApps"] as? [String]) == ["B"])
+        #expect(object["pinnedAppInfo"] != nil)
+    }
+
+    @Test("v13 settings without pin fields decode to empty current pin state")
+    func v13WithoutPinsDefaultsEmpty() throws {
+        let json = #"{"version":13,"appOrder":["B","A"]}"#
+        let decoded = try JSONDecoder().decode(SettingsManager.Settings.self, from: Data(json.utf8))
+
+        #expect(decoded.version == 14)
+        #expect(decoded.appOrder == ["B", "A"])
+        #expect(decoded.pinnedApps.isEmpty)
+        #expect(decoded.pinnedAppInfo.isEmpty)
+    }
+
     @Test("Decoding empty JSON produces valid defaults")
     func emptyJSONDefaults() throws {
         let json = "{}"
         let data = Data(json.utf8)
         let decoded = try JSONDecoder().decode(SettingsManager.Settings.self, from: data)
-        #expect(decoded.version == 9)
+        #expect(decoded.version == 14)
         #expect(decoded.appVolumes.isEmpty)
         #expect(decoded.appMutes.isEmpty)
         #expect(decoded.systemSoundsFollowsDefault == true)
@@ -347,7 +520,7 @@ struct SettingsJSONTests {
         """
         let data = Data(json.utf8)
         let decoded = try JSONDecoder().decode(SettingsManager.Settings.self, from: data)
-        #expect(decoded.version == 9)
+        #expect(decoded.version == 14)
     }
 
     @Test("Volume values above 1.0 are clamped to 1.0 on decode")

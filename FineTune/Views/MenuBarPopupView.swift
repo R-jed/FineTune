@@ -1,53 +1,8 @@
 // FineTune/Views/MenuBarPopupView.swift
-import AudioToolbox
+import AppKit
 import Foundation
 import SwiftUI
 import UniformTypeIdentifiers
-
-enum PopupDevicePriorityEditMode: Equatable {
-    case output
-    case input
-
-    init(showingInputDevices: Bool) {
-        self = showingInputDevices ? .input : .output
-    }
-
-    var includesAppManagement: Bool { self == .output }
-    var isInput: Bool { self == .input }
-}
-
-struct PopupDeviceTabSelectionTransition: Equatable {
-    let showInput: Bool
-    let editModeToExit: PopupDevicePriorityEditMode?
-}
-
-struct PopupDevicePriorityEditSession: Equatable {
-    private(set) var mode: PopupDevicePriorityEditMode?
-
-    init(mode: PopupDevicePriorityEditMode? = nil) {
-        self.mode = mode
-    }
-
-    mutating func begin(showingInputDevices: Bool) {
-        mode = PopupDevicePriorityEditMode(showingInputDevices: showingInputDevices)
-    }
-
-    mutating func exit() -> PopupDevicePriorityEditMode? {
-        defer { mode = nil }
-        return mode
-    }
-
-    mutating func selectTab(
-        currentlyShowingInput: Bool,
-        requestedShowInput: Bool
-    ) -> PopupDeviceTabSelectionTransition? {
-        guard currentlyShowingInput != requestedShowInput else { return nil }
-        return PopupDeviceTabSelectionTransition(
-            showInput: requestedShowInput,
-            editModeToExit: exit()
-        )
-    }
-}
 
 struct MenuBarPopupView: View {
     @Bindable var audioEngine: AudioEngine
@@ -82,8 +37,8 @@ struct MenuBarPopupView: View {
     /// Memoized sorted input devices
     @State private var sortedInputDevices: [AudioDevice] = []
 
-    /// Which device tab is selected (false = output, true = input)
-    @State private var showingInputDevices = false
+    /// Single source of truth for popup page depth and audio direction.
+    @State private var popupPage: PopupPage = .main(.output)
 
     /// Owns the currently expanded structural surface. App EQ and output-device
     /// detail are mutually exclusive and can retarget without a timing lock.
@@ -106,15 +61,21 @@ struct MenuBarPopupView: View {
     /// Whether Bluetooth hardware is powered on
     @State private var isBluetoothOn = false
 
-    /// Captures which pane owns the active priority edit session. Keeping the pane
-    /// in the edit state avoids invalid combinations of separate editing/tab flags.
-    @State private var devicePriorityEditSession = PopupDevicePriorityEditSession()
-
     /// Editable copy of device order for drag-and-drop reordering
     @State private var editableDeviceOrder: [AudioDevice] = []
 
-    /// Hover state for support link heart animation
-    @State private var isSupportHovered = false
+    /// Continuous pointer-reorder state for device priority rows. Device order
+    /// is already local while management is open, so crossings mutate only
+    /// `editableDeviceOrder` and persistence remains deferred to edit exit.
+    @State private var deviceReorderDragState = ContinuousReorderDragState()
+
+    /// Continuous pointer-reorder state for primary App rows. Unlike the old
+    /// implementation, crossings mutate only a transient presentation order;
+    /// the final App order is committed once when the gesture ends.
+    @State private var appReorderDragState = ContinuousReorderDragState()
+    @State private var appReorderInitialOrder: [String]? = nil
+    @State private var transientAppOrder: [String]? = nil
+    @State private var transientPinnedAppIDs: Set<String>? = nil
 
     @State private var navModel = PopupKeyboardNavModel()
     /// Logical keyboard-nav selection. Plain @State (not @FocusState) so reads
@@ -143,53 +104,56 @@ struct MenuBarPopupView: View {
         audioEngine.settingsManager.appSettings.popupSize.dimensions
     }
 
-    private var appSliderWidth: CGFloat {
-        switch audioEngine.settingsManager.appSettings.popupSize {
-        case .compact: 100
-        case .comfortable: 120
-        case .spacious: DesignTokens.Dimensions.sliderWidth
-        }
+    private var structuralExpansionAnimation: Animation? {
+        accessibilityReduceMotion ? nil : DesignTokens.Animation.structural
     }
 
-    private var structuralExpansionAnimation: Animation? {
-        accessibilityReduceMotion ? nil : .easeOut(duration: 0.18)
+    /// Overlay scroll bars live inside the ScrollView bounds on macOS. Reserve
+    /// a real content gutter so trailing row controls never sit underneath the
+    /// thumb in compact or comfortable layouts.
+    private static let scrollbarContentGutter = DesignTokens.Spacing.xl
+
+    private var showingInputDevices: Bool {
+        popupPage.direction.isInput
     }
 
     private var isEditingDevicePriority: Bool {
-        devicePriorityEditSession.mode != nil
+        popupPage.isManagement
     }
 
-    private var devicePriorityEditMode: PopupDevicePriorityEditMode? {
-        devicePriorityEditSession.mode
+    private var devicePriorityEditMode: PopupAudioDirection? {
+        popupPage.isManagement ? popupPage.direction : nil
     }
 
     private var popupLayout: some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
-            HStack {
-                deviceTabsHeader
-                Spacer()
-                editPriorityButton
-                settingsButton
-            }
-            .padding(.bottom, DesignTokens.Spacing.xs)
-
-            ScrollViewReader { proxy in
-                mainContent(scrollProxy: proxy)
+        ScrollViewReader { proxy in
+            PopupShell(
+                direction: popupPage.direction,
+                isManaging: isEditingDevicePriority,
+                width: popupDimensions.width,
+                contentPadding: popupDimensions.contentPadding,
+                onSelectDirection: { direction in
+                    selectDeviceTab(showInput: direction.isInput)
+                },
+                onToggleManagement: toggleDevicePriorityEdit,
+                onOpenSettings: openSettingsWindow
+            ) {
+                // Match the original FineTune/FluidMenuBarExtra sizing model:
+                // one bounded content scroll view, with Output/Input swapping in
+                // place rather than creating a second page-transition geometry owner.
+                ScrollView {
+                    mainContent
+                }
+                .scrollIndicators(.never)
+                .frame(maxHeight: popupDimensions.maxContentHeight)
                 .onChange(of: selectedRow) { _, newFocus in
                     guard let newFocus else { return }
                     withAnimation(accessibilityReduceMotion ? nil : DesignTokens.Animation.hover) {
-                        proxy.scrollTo(newFocus)
+                        proxy.scrollTo(newFocus, anchor: .center)
                     }
                 }
             }
-
-            Divider()
-                .padding(.top, DesignTokens.Spacing.xs)
-
-            footer
         }
-        .padding(popupDimensions.contentPadding)
-        .frame(width: popupDimensions.width)
     }
 
     private var stateObservedPopup: some View {
@@ -212,6 +176,7 @@ struct MenuBarPopupView: View {
         }
         .onChange(of: audioEngine.outputDevices) { _, _ in
             if devicePriorityEditMode == .output {
+                deviceReorderDragState.reset()
                 mergeDeviceChanges(from: audioEngine.outputDevices)
             }
             updateSortedDevices()
@@ -219,18 +184,22 @@ struct MenuBarPopupView: View {
         }
         .onChange(of: audioEngine.inputDevices) { _, _ in
             if devicePriorityEditMode == .input {
+                deviceReorderDragState.reset()
                 mergeDeviceChanges(from: audioEngine.inputDevices)
             }
             updateSortedInputDevices()
             syncNavOrder()
         }
-        .onChange(of: showingInputDevices) { _, _ in
+        .onChange(of: popupPage.direction) { _, _ in
             syncNavOrder()
             if hasKeyboardEngaged {
                 selectedRow = navModel.defaultFocus(defaultOutputUID: currentDefaultDeviceUID())
             }
         }
-        .onChange(of: audioEngine.apps) { _, _ in syncNavOrder() }
+        .onChange(of: audioEngine.apps) { _, _ in
+            cancelAppReorderIfNeeded()
+            syncNavOrder()
+        }
         .onChange(of: isEditingDevicePriority) { _, editing in
             if editing {
                 selectedRow = nil
@@ -255,7 +224,9 @@ struct MenuBarPopupView: View {
             // Global notification — fires for every window in the process. Filter to
             // FineTune's own popup so unrelated windows (the HID-tap primer,
             // NSAlert panels, etc.) don't mark the popup as visible and suppress the HUD.
-            guard notification.object is FineTuneMenuBarPopupPanel else { return }
+            guard let window = notification.object as? NSWindow,
+                  String(describing: type(of: window)).contains("FluidMenuBarExtra")
+            else { return }
             isPopupVisible = true
             popupVisibility.isVisible = true
             audioEngine.bluetoothDeviceMonitor.refresh()
@@ -266,7 +237,9 @@ struct MenuBarPopupView: View {
             textEntry.buffer = nil
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didResignKeyNotification)) { notification in
-            guard let window = notification.object as? FineTuneMenuBarPopupPanel else { return }
+            guard let window = notification.object as? NSWindow,
+                  String(describing: type(of: window)).contains("FluidMenuBarExtra")
+            else { return }
             hasKeyboardEngaged = false
             selectedRow = nil
             Task { @MainActor in
@@ -309,60 +282,6 @@ struct MenuBarPopupView: View {
         }
     }
 
-    // MARK: - Edit Priority Button
-
-    private var editPriorityTitle: LocalizedStringResource {
-        if isEditingDevicePriority { return "Done managing" }
-        return showingInputDevices ? "Manage Input" : "Manage Output"
-    }
-
-    /// Edit priority button — pencil ↔ checkmark, styled to match settingsButton
-    private var editPriorityButton: some View {
-        Button {
-            toggleDevicePriorityEdit()
-        } label: {
-            Label(
-                editPriorityTitle,
-                systemImage: isEditingDevicePriority ? "checkmark" : "pencil"
-            )
-        }
-        .labelStyle(.iconOnly)
-        .buttonStyle(.plain)
-        .font(.system(size: 12, weight: isEditingDevicePriority ? .bold : .regular))
-        .symbolRenderingMode(.hierarchical)
-        .foregroundStyle(DesignTokens.Colors.interactiveDefault)
-        .frame(
-            minWidth: DesignTokens.Dimensions.minTouchTarget,
-            minHeight: DesignTokens.Dimensions.minTouchTarget
-        )
-        .contentShape(Rectangle())
-        .animation(
-            accessibilityReduceMotion ? nil : .easeOut(duration: 0.12),
-            value: isEditingDevicePriority
-        )
-        .help(editPriorityTitle)
-    }
-
-    // MARK: - Settings Button
-
-    private var settingsButton: some View {
-        Button(action: openSettingsWindow) {
-            Image(systemName: "gearshape.fill")
-        }
-        .buttonStyle(.plain)
-        .font(.system(size: 12))
-        .symbolRenderingMode(.hierarchical)
-        .foregroundStyle(DesignTokens.Colors.interactiveDefault)
-        .frame(
-            minWidth: DesignTokens.Dimensions.minTouchTarget,
-            minHeight: DesignTokens.Dimensions.minTouchTarget
-        )
-        .contentShape(Rectangle())
-        .accessibilityLabel("Settings")
-        .help("Settings")
-    }
-
-
     /// Handles Escape key: collapses the current structural expansion before
     /// dismissing the popup. Device detail remains ahead of edit-mode teardown.
     private func handleEscape() {
@@ -397,481 +316,303 @@ struct MenuBarPopupView: View {
     // MARK: - Main Content
 
     @ViewBuilder
-    private func mainContent(scrollProxy: ScrollViewProxy) -> some View {
-        if let editMode = devicePriorityEditMode {
-            ScrollView {
-                VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
-                    devicesSection
+    private var mainContent: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+            devicesSection
 
-                    if editMode.includesAppManagement {
-                        Divider()
-                            .padding(.vertical, DesignTokens.Spacing.xs)
+            if let editMode = devicePriorityEditMode {
+                if editMode == .output {
+                    Divider()
+                        .padding(.vertical, DesignTokens.Spacing.xs)
 
-                        appVisibilitySection
-                    }
+                    PopupAppVisibilityPane(audioEngine: audioEngine)
                 }
-            }
-            .scrollIndicators(.automatic)
-            .contentMargins(.trailing, DesignTokens.Spacing.sm, for: .scrollContent)
-            .frame(maxHeight: popupDimensions.maxContentHeight)
-        } else {
-            VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
-                devicesSection
-
+            } else {
                 Divider()
                     .padding(.vertical, DesignTokens.Spacing.xs)
 
-                appsSection(scrollProxy: scrollProxy)
+                appsSection
             }
         }
-    }
-
-    private var footer: some View {
-        HStack {
-                Button {
-                    NSWorkspace.shared.open(DesignTokens.Links.support)
-                } label: {
-                    Label("Donate", systemImage: isSupportHovered ? "heart.fill" : "heart")
-                }
-                .buttonStyle(.plain)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(isSupportHovered ? Color(nsColor: .systemPink) : DesignTokens.Colors.textTertiary)
-                .frame(minHeight: DesignTokens.Dimensions.minTouchTarget)
-                .contentShape(Rectangle())
-                .onHover { hovering in
-                    isSupportHovered = hovering
-                }
-                .accessibilityLabel("Donate to FineTune")
-                .help("Donate to FineTune")
-
-                Spacer()
-
-                Button {
-                    NSApplication.shared.terminate(nil)
-                } label: {
-                    HStack(spacing: 6) {
-                        Text("Quit")
-                        Text("⌘Q")
-                            .foregroundStyle(DesignTokens.Colors.textTertiary)
-                    }
-                }
-                .buttonStyle(.plain)
-                .font(DesignTokens.Typography.caption)
-                .foregroundStyle(DesignTokens.Colors.textSecondary)
-                .accessibilityLabel("Quit FineTune")
-                .help("Quit FineTune (⌘Q)")
-        }
-    }
-
-    // MARK: - Device Toggle
-
-    /// Native segmented control keeps switching behavior, focus, and pressed
-    /// treatment aligned with the surrounding macOS controls.
-    private var deviceTabsHeader: some View {
-        Picker(
-            "Audio direction",
-            selection: Binding(
-                get: { showingInputDevices },
-                set: { selectDeviceTab(showInput: $0) }
-            )
-        ) {
-            Label("Output", systemImage: "speaker.wave.2.fill")
-                .tag(false)
-            Label("Input", systemImage: "mic.fill")
-                .tag(true)
-        }
-        .pickerStyle(.segmented)
-        .labelsHidden()
-        .controlSize(.small)
-        .frame(width: 142)
     }
 
     // MARK: - Subviews
 
-    @ViewBuilder
     private var devicesSection: some View {
-        devicesContent
-    }
-
-    private var devicesContent: some View {
-        VStack(spacing: 0) {
-            if isEditingDevicePriority {
-                // Edit mode: drag-and-drop reordering (works for both output and input)
-                let defaultDeviceID = showingInputDevices
-                    ? deviceVolumeMonitor.defaultInputDeviceID
-                    : deviceVolumeMonitor.defaultDeviceID
-                ForEach(Array(editableDeviceOrder.enumerated()), id: \.element.uid) { index, device in
-                    editableDeviceRow(device: device, index: index, defaultDeviceID: defaultDeviceID)
-                }
-
-                // Paired Bluetooth devices (output tab only)
-                if !showingInputDevices {
-                    if !isBluetoothOn {
-                        Text("Turn on Bluetooth to connect devices")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .padding(.top, DesignTokens.Spacing.xs)
-                    } else {
-                        // Filter out any device already in the output list (handles
-                        // IOBluetooth/CoreAudio timing desync where both report the device).
-                        let connectedNames = Set(editableDeviceOrder.map(\.name))
-                        let filteredPaired = pairedDevices.filter { !connectedNames.contains($0.name) }
-                        if !filteredPaired.isEmpty {
-                            SectionHeader(title: "Paired")
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.top, DesignTokens.Spacing.xs)
-
-                            ForEach(filteredPaired) { device in
-                                PairedDeviceRow(
-                                    device: device,
-                                    isConnecting: audioEngine.bluetoothDeviceMonitor.connectingIDs.contains(device.id),
-                                    errorMessage: audioEngine.bluetoothDeviceMonitor.connectionErrors[device.id],
-                                    onConnect: {
-                                        audioEngine.bluetoothDeviceMonitor.connect(device: device)
-                                    }
-                                )
-                            }
-                        }
-                    }
-                }
-            } else if showingInputDevices {
-                ForEach(sortedInputDevices) { device in
-                    standardInputDeviceRow(device)
-                }
-            } else {
-                ForEach(sortedDevices) { device in
-                    standardOutputDeviceRow(device)
-                }
-
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func standardInputDeviceRow(_ device: AudioDevice) -> some View {
-        InputDeviceRow(
-            device: device,
-            isDefault: device.id == deviceVolumeMonitor.defaultInputDeviceID,
-            volume: deviceVolumeMonitor.inputVolumes[device.id] ?? 1.0,
-            isMuted: deviceVolumeMonitor.inputMuteStates[device.id] ?? false,
-            onSetDefault: { audioEngine.setLockedInputDevice(device) },
-            onUserVolumeChange: { volume in
-                deviceVolumeMonitor.applyUserInputVolume(for: device.id, to: volume)
-            },
-            onUserMuteToggle: { deviceVolumeMonitor.toggleUserInputMute(for: device.id) },
-            isFocused: hasKeyboardEngaged && selectedRow == .device(uid: device.uid),
-            iconOverrideSymbol: audioEngine.settingsManager.getDeviceIconOverride(for: device.uid)
-        )
-        .id(PopupKeyboardNavModel.RowID.device(uid: device.uid))
-    }
-
-    @ViewBuilder
-    private func standardOutputDeviceRow(_ device: AudioDevice) -> some View {
-        let selection = audioEngine.getAutoEQSelection(for: device.uid)
-        let profileName = selection.flatMap { selection in
-            audioEngine.autoEQProfileManager.profile(for: selection.profileID)?.name
-                ?? audioEngine.autoEQProfileManager.catalogEntry(for: selection.profileID)?.name
-        }
-
-        DeviceRow(
-            device: device,
-            isDefault: device.id == deviceVolumeMonitor.defaultDeviceID,
-            volume: deviceVolumeMonitor.storedOutputVolume(for: device.id),
-            isMuted: deviceVolumeMonitor.muteStates[device.id] ?? false,
-            volumeBackend: audioEngine.outputVolumeBackend(for: device.id),
-            onSetDefault: { audioEngine.setDefaultOutputDevice(device.id) },
-            onVolumeCommand: { command in
-                deviceVolumeMonitor.applyOutputCommand(command, for: device.id)
-            },
-            autoEQProfileName: profileName,
-            autoEQEnabled: selection?.isEnabled ?? false,
-            onAutoEQToggle: { enabled in
-                audioEngine.setAutoEQEnabled(for: device.uid, enabled: enabled)
-            },
-            autoEQProfileManager: audioEngine.autoEQProfileManager,
-            autoEQSelection: selection,
-            autoEQFavoriteIDs: audioEngine.settingsManager.favoriteAutoEQProfileIDs,
-            onAutoEQSelect: { profile in
-                audioEngine.setAutoEQProfile(for: device.uid, profileID: profile?.id)
-            },
-            onAutoEQImport: { importAutoEQFile(for: device.uid) },
-            onAutoEQToggleFavorite: { id in
-                if audioEngine.settingsManager.isAutoEQFavorite(id: id) {
-                    audioEngine.settingsManager.unfavoriteAutoEQProfile(id: id)
-                } else {
-                    audioEngine.settingsManager.favoriteAutoEQProfile(id: id)
-                }
-            },
+        PopupDevicePane(
+            audioEngine: audioEngine,
+            deviceVolumeMonitor: deviceVolumeMonitor,
+            direction: popupPage.direction,
+            isManaging: isEditingDevicePriority,
+            sortedOutputDevices: sortedDevices,
+            sortedInputDevices: sortedInputDevices,
+            editableDeviceOrder: editableDeviceOrder,
+            pairedDevices: pairedDevices,
+            isBluetoothOn: isBluetoothOn,
+            expansionState: expansionState,
+            reorderDragState: deviceReorderDragState,
             autoEQImportError: autoEQImportError,
-            autoEQPreampEnabled: audioEngine.autoEQPreampEnabled,
-            onAutoEQPreampToggle: {
-                audioEngine.setAutoEQPreampEnabled(!audioEngine.autoEQPreampEnabled)
+            focusedRow: hasKeyboardEngaged ? selectedRow : nil,
+            onImportAutoEQ: { deviceUID in
+                importAutoEQFile(for: deviceUID)
             },
-            isFocused: hasKeyboardEngaged && selectedRow == .device(uid: device.uid),
-            iconOverrideSymbol: audioEngine.settingsManager.getDeviceIconOverride(for: device.uid)
-        )
-        .id(PopupKeyboardNavModel.RowID.device(uid: device.uid))
-    }
-
-    /// Builds a single row for the priority-edit list. Extracted from
-    /// `devicesContent` because the inline expression exceeded Swift's
-    /// type-check budget once hide + expand + drop-destination were combined.
-    @ViewBuilder
-    private func editableDeviceRow(
-        device: AudioDevice,
-        index: Int,
-        defaultDeviceID: AudioDeviceID
-    ) -> some View {
-        let isDeviceHidden = !showingInputDevices
-            && audioEngine.settingsManager.isOutputDeviceHidden(device.uid)
-
-        DeviceEditRow(
-            device: device,
-            iconOverrideSymbol: audioEngine.settingsManager.getDeviceIconOverride(for: device.uid),
-            priorityIndex: index,
-            isDefault: device.id == defaultDeviceID,
-            isInputDevice: showingInputDevices,
-            deviceCount: editableDeviceOrder.count,
-            isExpanded: expansionState.deviceUID == device.uid,
-            isHidden: isDeviceHidden,
-            reorderDragPayload: Self.deviceReorderPayload(device.uid),
-            onReorderDrop: { items in
-                guard let sourceUID = Self.reorderIdentifier(
-                    from: items,
-                    prefix: Self.deviceReorderDragPrefix
-                ), sourceUID != device.uid,
-                      let targetIndex = editableDeviceOrder.firstIndex(where: { $0.uid == device.uid }) else {
-                    return false
-                }
-                return reorderEditableDevice(deviceUID: sourceUID, to: targetIndex)
-            },
-            onReorder: { newIndex in
-                _ = reorderEditableDevice(deviceUID: device.uid, to: newIndex)
-            },
-            onToggleExpand: showingInputDevices ? nil : {
+            onToggleDeviceExpansion: { deviceUID in
                 withAnimation(structuralExpansionAnimation) {
-                    _ = expansionState.toggleDevice(device.uid)
+                    _ = expansionState.toggleDevice(deviceUID)
                 }
             },
-            onToggleHidden: showingInputDevices ? nil : {
-                audioEngine.settingsManager.toggleOutputDeviceHidden(uid: device.uid)
-            },
-            onIconSelect: showingInputDevices ? nil : { symbol in
-                audioEngine.settingsManager.setDeviceIconOverride(for: device.uid, to: symbol)
-            },
-            expandedContent: {
-                // Only render when actually expanded. Input devices skip
-                // the expand, so this is never hit for them.
-                if !showingInputDevices && expansionState.deviceUID == device.uid {
-                    DeviceDetailSheet(
-                        device: device,
-                        transportType: device.id.readTransportType(),
-                        autoDetectedTier: deviceVolumeMonitor.autoDetectedOutputVolumeBackend(for: device.id),
-                        currentOverride: audioEngine.settingsManager.getDeviceVolumeTierOverride(for: device.uid),
-                        onOverrideChange: { newTier in
-                            audioEngine.settingsManager.setDeviceVolumeTierOverride(for: device.uid, to: newTier)
-                            deviceVolumeMonitor.applyTierOverrideChange(for: device.id)
-                        },
-                        onDismiss: {}
-                    )
-                }
-            }
-        )
-    }
-
-    @ViewBuilder
-    private var emptyStateView: some View {
-        HStack {
-            Spacer()
-            VStack(spacing: DesignTokens.Spacing.sm) {
-                Image(systemName: "speaker.slash")
-                    .font(.title)
-                    .foregroundStyle(DesignTokens.Colors.textTertiary)
-                Text("No audio apps running")
-                    .font(.callout)
-                    .foregroundStyle(DesignTokens.Colors.textSecondary)
-
-                let ignoredCount = audioEngine.settingsManager.getIgnoredAppInfo().count
-                if ignoredCount > 0 {
-                    (Text(verbatim: "\(ignoredCount) ") + Text("hidden"))
-                        .font(DesignTokens.Typography.caption)
-                        .foregroundStyle(DesignTokens.Colors.textTertiary)
-                }
-            }
-            Spacer()
-        }
-        .padding(.vertical, DesignTokens.Spacing.xl)
-    }
-
-    @ViewBuilder
-    private func appsSection(scrollProxy: ScrollViewProxy) -> some View {
-        HStack {
-    SectionHeader(title: "Apps")
-    Spacer()
-    AddApplicationsButton(action: selectApplications)
-}
-        .padding(.bottom, DesignTokens.Spacing.xs)
-
-        if let appSelectionError {
-            Label {
-                Text(appSelectionError)
-            } icon: {
-                Image(systemName: "exclamationmark.triangle.fill")
-            }
-            .font(DesignTokens.Typography.caption)
-            .foregroundStyle(.orange)
-            .padding(.bottom, DesignTokens.Spacing.xs)
-        }
-
-        if permission.status != .authorized {
-            PermissionBannerView(permission: permission)
-        } else if audioEngine.displayableApps.isEmpty {
-            emptyStateView
-        } else {
-            ScrollView {
-                appsContent(scrollProxy: scrollProxy)
-            }
-            .scrollIndicators(.visible)
-            .contentMargins(.trailing, DesignTokens.Spacing.sm, for: .scrollContent)
-            .frame(height: appViewportHeight)
-        }
-    }
-
-    private let appVisibilityColumns = [
-        GridItem(.flexible(), spacing: DesignTokens.Spacing.xs),
-        GridItem(.flexible(), spacing: DesignTokens.Spacing.xs)
-    ]
-
-    private var appVisibilitySection: some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
-            SectionHeader(title: "Apps")
-
-            let visibleApps = audioEngine.displayableApps
-            if !visibleApps.isEmpty {
-                let orderedIdentifiers = visibleApps.map(\.id)
-                let pinnedIdentifiers = Set(
-                    orderedIdentifiers.filter { audioEngine.isPinned(identifier: $0) }
+            onReorderChanged: { deviceUID, rawTranslation in
+                updateDeviceReorder(
+                    deviceUID: deviceUID,
+                    rawTranslation: rawTranslation
                 )
-                LazyVStack(spacing: DesignTokens.Spacing.xs) {
-                    ForEach(visibleApps) { displayableApp in
-                        appManagementRow(
-                            displayableApp,
-                            orderedIdentifiers: orderedIdentifiers,
-                            pinnedIdentifiers: pinnedIdentifiers
-                        )
-                    }
-                }
+            },
+            onReorderEnded: { deviceUID in
+                endDeviceReorder(deviceUID: deviceUID)
+            },
+            onReorder: { deviceUID, newIndex in
+                reorderEditableDevice(deviceUID: deviceUID, to: newIndex)
             }
-
-            let ignoredApps = audioEngine.settingsManager.getIgnoredAppInfo()
-                .sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
-            if !ignoredApps.isEmpty {
-                Divider()
-                    .padding(.vertical, DesignTokens.Spacing.xs)
-
-                Text("Hidden apps")
-                    .sectionHeaderStyle()
-                    .padding(.bottom, DesignTokens.Spacing.xs)
-
-                LazyVGrid(columns: appVisibilityColumns, spacing: DesignTokens.Spacing.xs) {
-                    ForEach(ignoredApps, id: \.persistenceIdentifier) { info in
-                        AppManagementRow(
-                            icon: DisplayableApp.loadIcon(bundleID: info.bundleID),
-                            name: info.displayName,
-                            isIgnored: true,
-                            onToggleVisibility: { audioEngine.unignoreApp(info.persistenceIdentifier) }
-                        )
-                    }
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        )
     }
 
-    @ViewBuilder
-    private func appManagementRow(
-        _ displayableApp: DisplayableApp,
-        orderedIdentifiers: [String],
-        pinnedIdentifiers: Set<String>
-    ) -> some View {
-        let identifier = displayableApp.id
-        let isPinned = pinnedIdentifiers.contains(identifier)
-        let moveUpTarget = AppListPresentationOrder.reorderTarget(
-            for: identifier,
-            direction: -1,
-            orderedIdentifiers: orderedIdentifiers,
-            pinnedIdentifiers: pinnedIdentifiers
-        )
-        let moveDownTarget = AppListPresentationOrder.reorderTarget(
-            for: identifier,
-            direction: 1,
-            orderedIdentifiers: orderedIdentifiers,
-            pinnedIdentifiers: pinnedIdentifiers
-        )
-
-        AppManagementRow(
-            icon: displayableApp.icon,
-            name: displayableApp.displayName,
-            isIgnored: false,
-            isPinned: isPinned,
-            reorderDragPayload: Self.appReorderPayload(identifier),
-            onToggleVisibility: {
-                switch displayableApp {
-                case .active(let app): audioEngine.ignoreApp(app)
-                case .pinnedInactive(let info): audioEngine.ignoreApp(info)
-                }
+    private var appsSection: some View {
+        PopupAppPane(
+            audioEngine: audioEngine,
+            deviceVolumeMonitor: deviceVolumeMonitor,
+            permission: permission,
+            apps: presentedDisplayableApps,
+            pinnedIdentifiers: presentedPinnedAppIDs,
+            outputDevices: sortedDevices,
+            isPopupVisible: isPopupVisible,
+            expandedAppID: expansionState.appID,
+            sliderWidth: popupDimensions.appSliderWidth,
+            draggedAppID: appReorderDragState.draggedID,
+            draggedAppOffset: appReorderDragState.effectiveTranslation,
+            focusedRow: hasKeyboardEngaged ? selectedRow : nil,
+            contentGutter: Self.scrollbarContentGutter,
+            appSelectionError: appSelectionError,
+            onEQToggle: { appID in
+                toggleEQ(for: appID)
             },
-            onTogglePin: {
-                switch displayableApp {
-                case .active(let app):
-                    if isPinned {
-                        audioEngine.unpinApp(identifier)
-                    } else {
-                        audioEngine.pinApp(app)
-                    }
-                case .pinnedInactive(let info):
-                    if isPinned {
-                        audioEngine.unpinApp(identifier)
-                    } else {
-                        audioEngine.pinApp(info)
-                    }
-                }
+            onTogglePin: { appID in
+                audioEngine.setPinned(
+                    appID,
+                    pinned: !audioEngine.isPinned(identifier: appID)
+                )
+                syncNavOrder()
             },
-            onMoveUp: moveUpTarget.map { target in
-                { audioEngine.moveApp(identifier, to: target) }
+            onAddApplications: {
+                selectApplications()
             },
-            onMoveDown: moveDownTarget.map { target in
-                { audioEngine.moveApp(identifier, to: target) }
+            onReorderChanged: { appID, rawTranslation in
+                updateAppReorder(
+                    appID: appID,
+                    rawTranslation: rawTranslation
+                )
+            },
+            onReorderEnded: { appID in
+                endAppReorder(appID: appID)
+            },
+            canReorder: { appID, direction in
+                appReorderStep(for: appID, direction: direction) != nil
+            },
+            onAccessibleReorder: { appID, direction in
+                reorderAppFromAccessibility(appID: appID, direction: direction)
             }
         )
-        .dropDestination(for: String.self) { items, _ in
-            guard let sourceIdentifier = Self.reorderIdentifier(
-                from: items,
-                prefix: Self.appReorderDragPrefix
-            ), let targetIdentifier = AppListPresentationOrder.dropTarget(
-                for: sourceIdentifier,
-                onto: identifier,
-                orderedIdentifiers: orderedIdentifiers,
-                pinnedIdentifiers: pinnedIdentifiers
-            ) else {
-                return false
-            }
+    }
 
-            audioEngine.moveApp(sourceIdentifier, to: targetIdentifier)
-            syncNavOrder()
-            return true
+    /// Toggles App EQ through one structural action for pointer and keyboard.
+    /// `PopupAppPane` owns semantic scroll anchoring after the expanded layout exists.
+    private func toggleEQ(for appID: String) {
+        withAnimation(structuralExpansionAnimation) {
+            _ = expansionState.toggleApp(appID)
         }
     }
 
-    private var appViewportHeight: CGFloat {
-        let collapsedRowHeight = DesignTokens.Dimensions.rowContentHeight + 12
-        if expansionState.appID != nil {
-            return collapsedRowHeight * 6
+    private static let continuousReorderGlide =
+        DesignTokens.Animation.reorder
+
+    private static let reorderRowExtent = DesignTokens.Dimensions.rowContentHeight + 12
+
+    private var presentedDisplayableApps: [DisplayableApp] {
+        let liveApps = audioEngine.displayableApps
+        guard let transientAppOrder else { return liveApps }
+
+        let byIdentifier = Dictionary(
+            uniqueKeysWithValues: liveApps.map { ($0.id, $0) }
+        )
+        let reordered = transientAppOrder.compactMap { byIdentifier[$0] }
+        guard reordered.count == liveApps.count else { return liveApps }
+        return reordered
+    }
+
+    private var presentedPinnedAppIDs: Set<String> {
+        if let transientPinnedAppIDs {
+            return transientPinnedAppIDs
         }
-        return collapsedRowHeight * CGFloat(min(audioEngine.displayableApps.count, 6))
+        return Set(
+            audioEngine.displayableApps.lazy
+                .filter { audioEngine.isPinned(identifier: $0.id) }
+                .map(\.id)
+        )
+    }
+
+    private func appReorderStep(for appID: String, direction: Int) -> AppListPresentationOrder.ReorderStep? {
+        let apps = audioEngine.displayableApps
+        return AppListPresentationOrder.reorderStep(
+            for: appID,
+            direction: direction,
+            orderedIdentifiers: apps.map(\.id),
+            pinnedIdentifiers: Set(
+                apps.lazy
+                    .filter { audioEngine.isPinned(identifier: $0.id) }
+                    .map(\.id)
+            )
+        )
+    }
+
+    private func reorderAppFromAccessibility(appID: String, direction: Int) {
+        guard let step = appReorderStep(for: appID, direction: direction) else { return }
+        _ = audioEngine.placeApp(
+            appID,
+            visibleOrder: step.orderedIdentifiers,
+            pinned: step.pinned
+        )
+        syncNavOrder()
+    }
+
+    private func updateDeviceReorder(deviceUID: String, rawTranslation: CGFloat) {
+        if deviceReorderDragState.draggedID != deviceUID {
+            expansionState.collapseDevice()
+        }
+
+        deviceReorderDragState.update(id: deviceUID, rawTranslation: rawTranslation)
+        guard var index = editableDeviceOrder.firstIndex(where: { $0.uid == deviceUID }) else {
+            deviceReorderDragState.reset()
+            return
+        }
+
+        while let direction = deviceReorderDragState.consumeCrossingIfNeeded(
+            rowExtent: Self.reorderRowExtent,
+            index: index,
+            count: editableDeviceOrder.count
+        ) {
+            let adjacentIndex = index + direction
+            withAnimation(accessibilityReduceMotion ? nil : Self.continuousReorderGlide) {
+                editableDeviceOrder.swapAt(index, adjacentIndex)
+            }
+            index = adjacentIndex
+        }
+    }
+
+    private func endDeviceReorder(deviceUID: String) {
+        guard deviceReorderDragState.draggedID == deviceUID else { return }
+        withAnimation(accessibilityReduceMotion ? nil : Self.continuousReorderGlide) {
+            deviceReorderDragState.reset()
+        }
+    }
+
+    private func updateAppReorder(appID: String, rawTranslation: CGFloat) {
+        if appReorderDragState.draggedID != appID {
+            expansionState.collapseApp()
+            let displayableApps = audioEngine.displayableApps
+            let initialOrder = displayableApps.map(\.id)
+            appReorderInitialOrder = initialOrder
+            transientAppOrder = initialOrder
+            transientPinnedAppIDs = Set(
+                displayableApps.lazy
+                    .filter { audioEngine.isPinned(identifier: $0.id) }
+                    .map(\.id)
+            )
+        }
+
+        appReorderDragState.update(id: appID, rawTranslation: rawTranslation)
+        guard var order = transientAppOrder,
+              var pinnedIDs = transientPinnedAppIDs,
+              order.contains(appID) else {
+            cancelAppReorderIfNeeded()
+            return
+        }
+
+        while true {
+            let direction: Int
+            if appReorderDragState.effectiveTranslation > 0 {
+                direction = 1
+            } else if appReorderDragState.effectiveTranslation < 0 {
+                direction = -1
+            } else {
+                break
+            }
+
+            guard let step = AppListPresentationOrder.reorderStep(
+                for: appID,
+                direction: direction,
+                orderedIdentifiers: order,
+                pinnedIdentifiers: pinnedIDs
+            ) else { break }
+
+            let extent = step.crossesSectionBoundary
+                ? PopupAppPane.groupHeaderExtent
+                : Self.reorderRowExtent
+            guard appReorderDragState.consumeCrossingIfNeeded(
+                extent: extent,
+                direction: direction
+            ) else { break }
+
+            order = step.orderedIdentifiers
+            if step.pinned {
+                pinnedIDs.insert(appID)
+            } else {
+                pinnedIDs.remove(appID)
+            }
+            withAnimation(accessibilityReduceMotion ? nil : Self.continuousReorderGlide) {
+                transientAppOrder = order
+                transientPinnedAppIDs = pinnedIDs
+            }
+        }
+    }
+
+    private func endAppReorder(appID: String) {
+        guard appReorderDragState.draggedID == appID else { return }
+
+        if let initialOrder = appReorderInitialOrder,
+           let finalOrder = transientAppOrder,
+           let finalPinnedIDs = transientPinnedAppIDs,
+           initialOrder.count == finalOrder.count,
+           Set(initialOrder) == Set(finalOrder) {
+            _ = audioEngine.placeApp(
+                appID,
+                visibleOrder: finalOrder,
+                pinned: finalPinnedIDs.contains(appID)
+            )
+        }
+
+        withAnimation(accessibilityReduceMotion ? nil : Self.continuousReorderGlide) {
+            appReorderDragState.reset()
+            transientAppOrder = nil
+            transientPinnedAppIDs = nil
+        }
+        appReorderInitialOrder = nil
+        syncNavOrder()
+    }
+
+    private func cancelAppReorderIfNeeded() {
+        guard appReorderDragState.draggedID != nil
+                || transientAppOrder != nil
+                || appReorderInitialOrder != nil
+                || transientPinnedAppIDs != nil else {
+            return
+        }
+        appReorderDragState.reset()
+        transientAppOrder = nil
+        appReorderInitialOrder = nil
+        transientPinnedAppIDs = nil
     }
 
     private func selectApplications() {
+        appSelectionError = nil
         NSApp.keyWindow?.resignKey()
 
         let panel = NSOpenPanel()
@@ -893,289 +634,37 @@ struct MenuBarPopupView: View {
             let selected = panel.urls.compactMap { PinnedAppInfo(appURL: $0) }
             Task { @MainActor in
                 for info in selected {
-                    audioEngine.pinApp(info)
+                    audioEngine.addSelectedApplication(info)
                 }
                 appSelectionError = selected.count == panel.urls.count
                     ? nil
                     : LocalizedStringResource(
                         "Some applications could not be added because they were invalid, missing a bundle identifier, or were FineTune."
                     )
+                syncNavOrder()
             }
         }
     }
 
-    private func appsContent(scrollProxy: ScrollViewProxy) -> some View {
-        let presets = audioEngine.settingsManager.getUserPresets()
-        let displayableApps = audioEngine.displayableApps
-        let pinnedApps = displayableApps.filter { audioEngine.isPinned(identifier: $0.id) }
-        let runningApps = displayableApps.filter { !audioEngine.isPinned(identifier: $0.id) }
-
-        return LazyVStack(alignment: .leading, spacing: 0) {
-            if !pinnedApps.isEmpty {
-                appGroupLabel("Pinned")
-                ForEach(pinnedApps) { displayableApp in
-                    appRow(
-                        displayableApp,
-                        userPresets: presets,
-                        scrollProxy: scrollProxy
-                    )
-                }
-            }
-
-            if !runningApps.isEmpty {
-                if !pinnedApps.isEmpty {
-                    appGroupLabel("Running")
-                        .padding(.top, DesignTokens.Spacing.xs)
-                }
-                ForEach(runningApps) { displayableApp in
-                    appRow(
-                        displayableApp,
-                        userPresets: presets,
-                        scrollProxy: scrollProxy
-                    )
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private func appGroupLabel(_ title: LocalizedStringResource) -> some View {
-        Text(title)
-            .font(.system(size: 10, weight: .semibold))
-            .foregroundStyle(DesignTokens.Colors.textSecondary)
-            .padding(.leading, DesignTokens.Spacing.sm)
-            .padding(.bottom, DesignTokens.Spacing.xxs)
-    }
-
-    @ViewBuilder
-    private func appRow(
-        _ displayableApp: DisplayableApp,
-        userPresets: [UserEQPreset],
-        scrollProxy: ScrollViewProxy
-    ) -> some View {
-        switch displayableApp {
-        case .active(let app):
-            activeAppRow(
-                app: app,
-                displayableApp: displayableApp,
-                userPresets: userPresets,
-                scrollProxy: scrollProxy
-            )
-        case .pinnedInactive(let info):
-            inactiveAppRow(
-                info: info,
-                displayableApp: displayableApp,
-                userPresets: userPresets,
-                scrollProxy: scrollProxy
-            )
-        }
-    }
-
-    /// Row for an active app (currently producing audio)
-    @ViewBuilder
-    private func activeAppRow(app: AudioApp, displayableApp: DisplayableApp, userPresets: [UserEQPreset], scrollProxy: ScrollViewProxy) -> some View {
-        if let deviceUID = audioEngine.getDeviceUID(for: app) {
-            let isPinned = audioEngine.isPinned(identifier: app.persistenceIdentifier)
-            AppRowWithLevelPolling(
-                app: app,
-                volume: audioEngine.getVolume(for: app),
-                isMuted: audioEngine.getMute(for: app),
-                devices: sortedDevices,
-                deviceIconOverrides: audioEngine.settingsManager.deviceIconOverrides,
-                selectedDeviceUID: deviceUID,
-                selectedDeviceUIDs: audioEngine.getSelectedDeviceUIDs(for: app),
-                isFollowingDefault: audioEngine.isFollowingDefault(for: app),
-                defaultDeviceUID: deviceVolumeMonitor.defaultDeviceUID,
-                deviceSelectionMode: audioEngine.getDeviceSelectionMode(for: app),
-                boost: audioEngine.getBoost(for: app),
-                onBoostChange: { boost in
-                    audioEngine.setBoost(for: app, to: boost)
-                },
-                getAudioLevel: { audioEngine.getAudioLevel(for: app) },
-                isPopupVisible: isPopupVisible,
-                onVolumeChange: { volume in
-                    audioEngine.setVolume(for: app, to: volume)
-                },
-                onMuteChange: { muted in
-                    audioEngine.setMute(for: app, to: muted)
-                },
-                onDeviceSelected: { newDeviceUID in
-                    audioEngine.setDevice(for: app, deviceUID: newDeviceUID)
-                },
-                onDevicesSelected: { uids in
-                    audioEngine.setSelectedDeviceUIDs(for: app, to: uids)
-                },
-                onDeviceModeChange: { mode in
-                    audioEngine.setDeviceSelectionMode(for: app, to: mode)
-                },
-                onSelectFollowDefault: {
-                    audioEngine.setDevice(for: app, deviceUID: nil)
-                },
-                onAppActivate: {
-                    activateApp(pid: app.id, bundleID: app.bundleID)
-                },
-                eqSettings: audioEngine.getEQSettings(for: app),
-                userPresets: userPresets,
-                onEQChange: { settings in
-                    audioEngine.setEQSettings(settings, for: app)
-                },
-                onUserPresetSelected: { userPreset in
-                    // Apply only bandGains — preserve app's current isEnabled state
-                    var current = audioEngine.getEQSettings(for: app)
-                    current.bandGains = userPreset.settings.bandGains
-                    audioEngine.setEQSettings(current, for: app)
-                },
-                onSavePreset: { name, settings in
-                    audioEngine.settingsManager.createUserPreset(name: name, settings: settings)
-                },
-                onDeleteUserPreset: { id in
-                    audioEngine.settingsManager.deleteUserPreset(id: id)
-                },
-                onRenameUserPreset: { id, newName in
-                    audioEngine.settingsManager.updateUserPreset(id: id, name: newName)
-                },
-                isEQExpanded: expansionState.appID == displayableApp.id,
-                onEQToggle: {
-                    toggleEQ(for: displayableApp.id, scrollProxy: scrollProxy)
-                },
-                sliderWidth: appSliderWidth,
-                isPinned: isPinned,
-                onTogglePin: {
-                    if isPinned {
-                        audioEngine.unpinApp(app.persistenceIdentifier)
-                    } else {
-                        audioEngine.pinApp(app)
-                    }
-                },
-                isFocused: hasKeyboardEngaged && selectedRow == .app(persistenceID: displayableApp.id)
-            )
-            .id(PopupKeyboardNavModel.RowID.app(persistenceID: displayableApp.id))
-        }
-    }
-
-    /// Row for a pinned inactive app (not currently producing audio)
-    @ViewBuilder
-    private func inactiveAppRow(info: PinnedAppInfo, displayableApp: DisplayableApp, userPresets: [UserEQPreset], scrollProxy: ScrollViewProxy) -> some View {
-        let identifier = info.persistenceIdentifier
-        InactiveAppRow(
-            appInfo: info,
-            icon: displayableApp.icon,
-            volume: audioEngine.getVolumeForInactive(identifier: identifier),
-            devices: sortedDevices,
-            deviceIconOverrides: audioEngine.settingsManager.deviceIconOverrides,
-            selectedDeviceUID: audioEngine.getDeviceRoutingForInactive(identifier: identifier),
-            selectedDeviceUIDs: audioEngine.getSelectedDeviceUIDsForInactive(identifier: identifier),
-            isFollowingDefault: audioEngine.isFollowingDefaultForInactive(identifier: identifier),
-            defaultDeviceUID: deviceVolumeMonitor.defaultDeviceUID,
-            deviceSelectionMode: audioEngine.getDeviceSelectionModeForInactive(identifier: identifier),
-            isMuted: audioEngine.getMuteForInactive(identifier: identifier),
-            boost: audioEngine.getBoostForInactive(identifier: identifier),
-            onBoostChange: { boost in
-                audioEngine.setBoostForInactive(identifier: identifier, to: boost)
-            },
-            onVolumeChange: { volume in
-                audioEngine.setVolumeForInactive(identifier: identifier, to: volume)
-            },
-            onMuteChange: { muted in
-                audioEngine.setMuteForInactive(identifier: identifier, to: muted)
-            },
-            onDeviceSelected: { newDeviceUID in
-                audioEngine.setDeviceRoutingForInactive(identifier: identifier, deviceUID: newDeviceUID)
-            },
-            onDevicesSelected: { uids in
-                audioEngine.setSelectedDeviceUIDsForInactive(identifier: identifier, to: uids)
-            },
-            onDeviceModeChange: { mode in
-                audioEngine.setDeviceSelectionModeForInactive(identifier: identifier, to: mode)
-            },
-            onSelectFollowDefault: {
-                audioEngine.setDeviceRoutingForInactive(identifier: identifier, deviceUID: nil)
-            },
-            eqSettings: audioEngine.getEQSettingsForInactive(identifier: identifier),
-            userPresets: userPresets,
-            onEQChange: { settings in
-                audioEngine.setEQSettingsForInactive(settings, identifier: identifier)
-            },
-            onUserPresetSelected: { userPreset in
-                // Apply only bandGains — preserve app's current isEnabled state
-                var current = audioEngine.getEQSettingsForInactive(identifier: identifier)
-                current.bandGains = userPreset.settings.bandGains
-                audioEngine.setEQSettingsForInactive(current, identifier: identifier)
-            },
-            onSavePreset: { name, settings in
-                audioEngine.settingsManager.createUserPreset(name: name, settings: settings)
-            },
-            onDeleteUserPreset: { id in
-                audioEngine.settingsManager.deleteUserPreset(id: id)
-            },
-            onRenameUserPreset: { id, newName in
-                audioEngine.settingsManager.updateUserPreset(id: id, name: newName)
-            },
-            isEQExpanded: expansionState.appID == displayableApp.id,
-            onEQToggle: {
-                toggleEQ(for: displayableApp.id, scrollProxy: scrollProxy)
-            },
-            sliderWidth: appSliderWidth,
-            onTogglePin: {
-                audioEngine.unpinApp(identifier)
-            },
-            isFocused: hasKeyboardEngaged && selectedRow == .app(persistenceID: displayableApp.id)
-        )
-        .id(PopupKeyboardNavModel.RowID.app(persistenceID: displayableApp.id))
-    }
-
-    /// Toggle EQ panel for an app (shared between active and inactive rows).
-    /// SwiftUI owns interruption and reversal; there is no timing-based input lock.
-    private func toggleEQ(for appID: String, scrollProxy: ScrollViewProxy) {
-        withAnimation(structuralExpansionAnimation) {
-            let isExpanding = expansionState.toggleApp(appID)
-            if isExpanding {
-                scrollProxy.scrollTo(PopupKeyboardNavModel.RowID.app(persistenceID: appID), anchor: .top)
-            }
-        }
-    }
-
-    private static let rowReorderGlide =
-        Animation.timingCurve(0.16, 1, 0.3, 1, duration: 0.32)
-
-    private static let deviceReorderDragPrefix = "finetune-device:"
-    private static let appReorderDragPrefix = "finetune-app:"
-
-    private static func deviceReorderPayload(_ uid: String) -> String {
-        deviceReorderDragPrefix + uid
-    }
-
-    private static func appReorderPayload(_ identifier: String) -> String {
-        appReorderDragPrefix + identifier
-    }
-
-    private static func reorderIdentifier(from items: [String], prefix: String) -> String? {
-        guard let payload = items.first(where: { $0.hasPrefix(prefix) }) else { return nil }
-        let identifier = String(payload.dropFirst(prefix.count))
-        return identifier.isEmpty ? nil : identifier
-    }
-
-    @discardableResult
-    private func reorderEditableDevice(deviceUID: String, to targetIndex: Int) -> Bool {
+    private func reorderEditableDevice(deviceUID: String, to targetIndex: Int) {
         let currentIdentifiers = editableDeviceOrder.map(\.uid)
         guard let reorderedIdentifiers = DeviceReorderAccessibility.reorderedIdentifiers(
             currentIdentifiers,
             moving: deviceUID,
             to: targetIndex
         ) else {
-            return false
+            return
         }
 
         let devicesByUID = Dictionary(
             uniqueKeysWithValues: editableDeviceOrder.map { ($0.uid, $0) }
         )
         let reorderedDevices = reorderedIdentifiers.compactMap { devicesByUID[$0] }
-        guard reorderedDevices.count == editableDeviceOrder.count else { return false }
+        guard reorderedDevices.count == editableDeviceOrder.count else { return }
 
-        withAnimation(accessibilityReduceMotion ? nil : Self.rowReorderGlide) {
+        withAnimation(accessibilityReduceMotion ? nil : Self.continuousReorderGlide) {
             editableDeviceOrder = reorderedDevices
         }
-        return true
     }
 
     // MARK: - Device Priority Edit
@@ -1185,26 +674,26 @@ struct MenuBarPopupView: View {
             // Exiting edit mode: persist to the correct priority list and
             // collapse any expanded device detail (the inline body only lives
             // inside edit mode, so it must collapse when the mode does).
-            let editMode = exitEditModeSaving()
-            if editMode == .input {
+            let direction = exitEditModeSaving()
+            if direction == .input {
                 updateSortedInputDevices()
             } else {
                 updateSortedDevices()
             }
         } else {
             // Entering edit mode: use the full (unfiltered) device list so hidden devices are also shown.
-            let editMode = PopupDevicePriorityEditMode(showingInputDevices: showingInputDevices)
-            editableDeviceOrder = editMode.isInput
+            let direction = popupPage.direction
+            editableDeviceOrder = direction.isInput
                 ? audioEngine.prioritySortedInputDevices
                 : audioEngine.prioritySortedOutputDevices
-            devicePriorityEditSession.begin(showingInputDevices: showingInputDevices)
+            popupPage = popupPage.enteringManagement()
         }
     }
 
     /// Persists the editable order to the correct priority list, preserving disconnected device positions.
-    private func persistEditableOrder(for editMode: PopupDevicePriorityEditMode) {
+    private func persistEditableOrder(for direction: PopupAudioDirection) {
         let connectedOrder = editableDeviceOrder.map(\.uid)
-        if editMode.isInput {
+        if direction.isInput {
             audioEngine.settingsManager.mergeInputDevicePriorityOrder(
                 oldPriority: audioEngine.settingsManager.inputDevicePriorityOrder,
                 connectedOrder: connectedOrder
@@ -1219,17 +708,20 @@ struct MenuBarPopupView: View {
 
     /// Exits edit mode, saving the current order. Called on edge cases like device changes.
     @discardableResult
-    private func exitEditModeSaving() -> PopupDevicePriorityEditMode? {
-        guard let editMode = devicePriorityEditSession.exit() else { return nil }
-        persistEditableOrder(for: editMode)
+    private func exitEditModeSaving() -> PopupAudioDirection? {
+        guard case .management(let direction) = popupPage else { return nil }
+        deviceReorderDragState.reset()
+        persistEditableOrder(for: direction)
         expansionState.collapseDevice()
-        return editMode
+        popupPage = .main(direction)
+        return direction
     }
 
     private func resetToRootPage() {
         exitEditModeSaving()
+        cancelAppReorderIfNeeded()
         expansionState.reset()
-        showingInputDevices = false
+        popupPage = .main(.output)
     }
 
     /// Merges device list changes into `editableDeviceOrder` while preserving the user's reordering.
@@ -1241,7 +733,7 @@ struct MenuBarPopupView: View {
             ? audioEngine.settingsManager.inputDevicePriorityOrder
             : audioEngine.settingsManager.devicePriorityOrder
 
-        withAnimation(accessibilityReduceMotion ? nil : .easeOut(duration: 0.15)) {
+        withAnimation(accessibilityReduceMotion ? nil : DesignTokens.Animation.selection) {
             // Remove devices that disappeared
             editableDeviceOrder.removeAll { latestByUID[$0.uid] == nil }
 
@@ -1359,7 +851,7 @@ struct MenuBarPopupView: View {
         let activeDevices = showingInputDevices ? sortedInputDevices : sortedDevices
         navModel.syncOrder(
             activeDevices: activeDevices,
-            appPersistenceIDs: audioEngine.displayableApps.map(\.id),
+            appPersistenceIDs: presentedDisplayableApps.map(\.id),
             isEditingPriority: isEditingDevicePriority
         )
     }
@@ -1489,14 +981,7 @@ struct MenuBarPopupView: View {
                 )
                 return .handled
             }
-            applyAppVolumeStep(
-                currentGain: audioEngine.getVolumeForInactive(identifier: persistenceID),
-                currentMute: audioEngine.getMuteForInactive(identifier: persistenceID),
-                delta: delta,
-                setGain: { audioEngine.setVolumeForInactive(identifier: persistenceID, to: $0) },
-                setMute: { audioEngine.setMuteForInactive(identifier: persistenceID, to: $0) }
-            )
-            return .handled
+            return .ignored
         case .device(let uid):
             if showingInputDevices {
                 guard let device = sortedInputDevices.first(where: { $0.uid == uid }) else {
@@ -1549,15 +1034,7 @@ struct MenuBarPopupView: View {
                 audioEngine.toggleMute(for: app)
                 return .handled
             }
-            let current = audioEngine.getMuteForInactive(identifier: persistenceID)
-            AppVolumeCommandPlan.muteToggle(
-                currentGain: audioEngine.getVolumeForInactive(identifier: persistenceID),
-                isMuted: current
-            ).apply(
-                setVolume: { audioEngine.setVolumeForInactive(identifier: persistenceID, to: $0) },
-                setMute: { audioEngine.setMuteForInactive(identifier: persistenceID, to: $0) }
-            )
-            return .handled
+            return .ignored
         case .device(let uid):
             if showingInputDevices {
                 guard let device = sortedInputDevices.first(where: { $0.uid == uid }) else {
@@ -1591,26 +1068,26 @@ struct MenuBarPopupView: View {
             }
             return .handled
         case .app(let persistenceID):
-            withAnimation(structuralExpansionAnimation) {
-                _ = expansionState.toggleApp(persistenceID)
-            }
+            toggleEQ(for: persistenceID)
             return .handled
         }
     }
 
     private func selectDeviceTab(showInput: Bool) {
-        guard let transition = devicePriorityEditSession.selectTab(
-            currentlyShowingInput: showingInputDevices,
-            requestedShowInput: showInput
-        ) else { return }
+        let requestedDirection = PopupAudioDirection(showInput: showInput)
+        guard let transition = popupPage.selecting(requestedDirection) else { return }
 
-        if let editModeToExit = transition.editModeToExit {
-            persistEditableOrder(for: editModeToExit)
+        if let directionToPersist = transition.managementDirectionToPersist {
+            persistEditableOrder(for: directionToPersist)
             expansionState.collapseDevice()
+            deviceReorderDragState.reset()
+            editableDeviceOrder = requestedDirection.isInput
+                ? audioEngine.prioritySortedInputDevices
+                : audioEngine.prioritySortedOutputDevices
         }
 
-        withAnimation(accessibilityReduceMotion ? nil : .easeOut(duration: 0.15)) {
-            showingInputDevices = transition.showInput
+        withAnimation(structuralExpansionAnimation) {
+            popupPage = transition.page
         }
     }
 
@@ -1619,91 +1096,7 @@ struct MenuBarPopupView: View {
     }
 
     /// Activates an app, bringing it to foreground and restoring minimized windows
-    private func activateApp(pid: pid_t, bundleID: String?) {
-        // Step 1: Always activate via NSRunningApplication (reliable for non-minimized)
-        let runningApp = NSWorkspace.shared.runningApplications.first { $0.processIdentifier == pid }
-        runningApp?.activate()
 
-        // Step 2: Try to restore minimized windows via AppleScript
-        if let bundleID = bundleID {
-            // reopen + activate restores minimized windows for most apps
-            let script = NSAppleScript(source: """
-                tell application id "\(bundleID)"
-                    reopen
-                    activate
-                end tell
-                """)
-            script?.executeAndReturnError(nil)
-        }
-    }
-}
-
-private struct AddApplicationsButton: View {
-    let action: () -> Void
-
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var isHovered = false
-    @State private var isTooltipVisible = false
-    @State private var tooltipTask: Task<Void, Never>?
-
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: "plus")
-                .font(.system(size: 12, weight: .semibold))
-                .frame(
-                    minWidth: DesignTokens.Dimensions.minTouchTarget,
-                    minHeight: DesignTokens.Dimensions.minTouchTarget
-                )
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Add Applications")
-        .onHover(perform: updateHover)
-        .overlay(alignment: .bottomTrailing) {
-            Text("Add Applications")
-                .font(DesignTokens.Typography.caption)
-                .foregroundStyle(DesignTokens.Colors.textPrimary)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 5)
-                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 6))
-                .fixedSize()
-                .opacity(isTooltipVisible ? 1 : 0)
-                .scaleEffect(isTooltipVisible ? 1 : 0.96, anchor: .topTrailing)
-                .blur(radius: isTooltipVisible || reduceMotion ? 0 : 4)
-                .offset(y: 30)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
-        }
-        .zIndex(10)
-        .onDisappear {
-            tooltipTask?.cancel()
-        }
-    }
-
-    private func updateHover(_ hovering: Bool) {
-        isHovered = hovering
-        tooltipTask?.cancel()
-
-        if hovering {
-            tooltipTask = Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(450))
-                guard !Task.isCancelled, isHovered else { return }
-                if reduceMotion {
-                    isTooltipVisible = true
-                } else {
-                    withAnimation(.easeOut(duration: 0.15)) {
-                        isTooltipVisible = true
-                    }
-                }
-            }
-        } else {
-            var transaction = Transaction()
-            transaction.disablesAnimations = true
-            withTransaction(transaction) {
-                isTooltipVisible = false
-            }
-        }
-    }
 }
 
 // MARK: - Previews
@@ -1744,8 +1137,10 @@ private struct AddApplicationsButton: View {
                     onVolumeChange: { _ in },
                     onMuteChange: { _ in },
                     onDeviceSelected: { _ in },
-                    isPinned: false,
-                    onTogglePin: {}
+                    isReordering: false,
+                    reorderOffset: 0,
+                    onReorderChanged: { _ in },
+                    onReorderEnded: {}
                 )
             }
 

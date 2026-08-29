@@ -1,6 +1,7 @@
 // FineTune/FineTuneApp.swift
 import SwiftUI
 import UserNotifications
+import FluidMenuBarExtra
 import AppKit
 import os
 
@@ -74,13 +75,7 @@ struct FineTuneApp: App {
             )
             .fineTuneLocale(localizationContext.overrideLocale)
         }
-        FineTuneMenuBarExtra(
-            "FineTune",
-            image: launchIconImage,
-            isInserted: $showMenuBarExtra,
-            popupController: menuBarPopupController,
-            iconCoordinator: iconCoordinator
-        ) {
+        FluidMenuBarExtra("FineTune", image: launchIconImage, isInserted: $showMenuBarExtra) {
             menuBarContent
                 .fineTuneLocale(localizationContext.overrideLocale)
         }
@@ -176,7 +171,9 @@ struct FineTuneApp: App {
             settings: settings
         )
         monitor.iconCoordinator = coordinator
-        coordinator.start()
+        // Match the original FluidMenuBarExtra lifecycle: NSApplication is not fully
+        // bootstrapped during App.init(), so status-item discovery must begin later.
+        DispatchQueue.main.async { [coordinator] in coordinator.start() }
         _iconCoordinator = State(initialValue: coordinator)
 
         // Render the scene's first frame with the user's chosen style instead of a generic
@@ -216,8 +213,8 @@ struct FineTuneApp: App {
         monitor.reconcile()
 
         // Global hotkeys (KeyboardShortcuts SPM, Carbon-backed; no Accessibility
-        // permission required for the hotkey itself). FineTune's Scene attaches
-        // the direct popup toggle before the popup content task starts the registry.
+        // permission required for the hotkey itself). Registry start() is deferred
+        // to the popup content task so FluidMenuBarExtra has materialized its status item.
         let popupController = MenuBarPopupController()
         let resolver = TargetAppResolver(
             ownBundleID: Bundle.main.bundleIdentifier ?? "com.finetuneapp.FineTune"

@@ -41,7 +41,7 @@ struct DropdownMenu<Item: Identifiable, Label: View, ItemContent: View>: View wh
 
     private func setExpanded(_ expanded: Bool) {
         guard isExpanded != expanded else { return }
-        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.15)) {
+        withAnimation(reduceMotion ? nil : DesignTokens.Animation.selection) {
             isExpanded = expanded
         }
     }
@@ -71,12 +71,12 @@ struct DropdownMenu<Item: Identifiable, Label: View, ItemContent: View>: View wh
         .buttonStyle(.plain)
         .background {
             RoundedRectangle(cornerRadius: DesignTokens.Dimensions.buttonRadius)
-                .fill(.regularMaterial)
+                .fill(DesignTokens.Surface.raised)
         }
         .overlay {
             RoundedRectangle(cornerRadius: DesignTokens.Dimensions.buttonRadius)
                 .strokeBorder(
-                    isButtonHovered ? DesignTokens.Colors.glassRowBorderHover : DesignTokens.Colors.glassRowBorder,
+                    isButtonHovered ? DesignTokens.Stroke.hover : DesignTokens.Stroke.resting,
                     lineWidth: 0.5
                 )
         }
@@ -227,7 +227,7 @@ struct GroupedDropdownMenu<Section: Identifiable & Hashable, Item: Identifiable,
 
     private func setExpanded(_ expanded: Bool) {
         guard isExpanded != expanded else { return }
-        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.15)) {
+        withAnimation(reduceMotion ? nil : DesignTokens.Animation.selection) {
             isExpanded = expanded
         }
     }
@@ -257,12 +257,12 @@ struct GroupedDropdownMenu<Section: Identifiable & Hashable, Item: Identifiable,
         .buttonStyle(.plain)
         .background {
             RoundedRectangle(cornerRadius: DesignTokens.Dimensions.buttonRadius)
-                .fill(.regularMaterial)
+                .fill(DesignTokens.Surface.raised)
         }
         .overlay {
             RoundedRectangle(cornerRadius: DesignTokens.Dimensions.buttonRadius)
                 .strokeBorder(
-                    isButtonHovered ? DesignTokens.Colors.glassRowBorderHover : DesignTokens.Colors.glassRowBorder,
+                    isButtonHovered ? DesignTokens.Stroke.hover : DesignTokens.Stroke.resting,
                     lineWidth: 0.5
                 )
         }

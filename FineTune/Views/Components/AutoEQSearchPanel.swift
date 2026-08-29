@@ -141,7 +141,7 @@ struct AutoEQSearchPanel: View {
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: importErrorMessage != nil)
         .background {
             RoundedRectangle(cornerRadius: 10)
-                .fill(DesignTokens.Colors.recessedBackground)
+                .fill(DesignTokens.Surface.recessed)
         }
         .onKeyPress(.downArrow) {
             moveHighlight(direction: 1)
@@ -516,7 +516,7 @@ struct AutoEQSearchPanel: View {
             .frame(height: itemHeight)
             .background(
                 RoundedRectangle(cornerRadius: 5)
-                    .fill(hoveredID == "_import" ? DesignTokens.Colors.hoverSurface : Color.clear)
+                    .fill(hoveredID == "_import" ? DesignTokens.Surface.hover : Color.clear)
             )
         }
         .buttonStyle(.plain)

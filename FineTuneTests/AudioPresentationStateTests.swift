@@ -298,28 +298,3 @@ struct AudioPresentationStateTests {
         #expect(writes == ["volume:0.25", "mute:false"])
     }
 }
-
-@Suite("U1 app presence grouping")
-struct AppPresenceGroupTests {
-    @Test("running unpinned app belongs to the normal group")
-    func runningNormalApp() {
-        #expect(AppPresenceGroup.resolve(isRunning: true, isPinned: false, isHidden: false) == .normal)
-    }
-
-    @Test("pinned app belongs to the pinned group whether running or inactive")
-    func pinnedAppStaysPinned() {
-        #expect(AppPresenceGroup.resolve(isRunning: true, isPinned: true, isHidden: false) == .pinned)
-        #expect(AppPresenceGroup.resolve(isRunning: false, isPinned: true, isHidden: false) == .pinned)
-    }
-
-    @Test("hidden state wins over running and pinned state")
-    func hiddenStateWins() {
-        #expect(AppPresenceGroup.resolve(isRunning: true, isPinned: true, isHidden: true) == .hidden)
-        #expect(AppPresenceGroup.resolve(isRunning: true, isPinned: false, isHidden: true) == .hidden)
-    }
-
-    @Test("inactive unpinned visible app is absent")
-    func inactiveUnpinnedAppIsAbsent() {
-        #expect(AppPresenceGroup.resolve(isRunning: false, isPinned: false, isHidden: false) == .absent)
-    }
-}

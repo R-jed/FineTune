@@ -167,18 +167,3 @@ struct VolumePresentationState: Equatable {
         Int((clamp(fraction) * 100).rounded())
     }
 }
-
-/// Pure grouping semantics for whether an app belongs in the primary list.
-enum AppPresenceGroup: Equatable {
-    case pinned
-    case normal
-    case hidden
-    case absent
-
-    static func resolve(isRunning: Bool, isPinned: Bool, isHidden: Bool) -> Self {
-        if isHidden { return .hidden }
-        if isPinned { return .pinned }
-        if isRunning { return .normal }
-        return .absent
-    }
-}

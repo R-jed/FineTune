@@ -1,14 +1,16 @@
 import AppKit
 import AudioToolbox
 import Observation
+import os
 
 @MainActor
 final class MenuBarIconCoordinator: MediaKeyIconFlashing {
     private let deviceVolumeMonitor: DeviceVolumeMonitor
     private let deviceProvider: any AudioDeviceProviding
     private let settings: SettingsManager
+    private let logger = Logger(subsystem: "com.finetuneapp.FineTune", category: "MenuBarIconCoordinator")
 
-    private weak var statusButton: NSStatusBarButton?
+    private weak var cachedButton: NSStatusBarButton?
     private var flashWorkItem: DispatchWorkItem?
     private var flashActiveSymbol: String?
     private var lastObservedDeviceID: AudioDeviceID?
@@ -24,21 +26,11 @@ final class MenuBarIconCoordinator: MediaKeyIconFlashing {
         self.settings = settings
     }
 
-    /// Attaches the real status-bar button owned by FineTune's menu-bar Scene.
-    /// Safe before or after start; attaching after start immediately renders state.
-    func attach(statusButton: NSStatusBarButton) {
-        self.statusButton = statusButton
-        statusButton.wantsLayer = true
-        if started {
-            apply()
-        }
-    }
-
     func start() {
         guard !started else { return }
         started = true
         lastObservedDeviceID = deviceVolumeMonitor.defaultDeviceID
-        apply()
+        attemptInitialApply(retriesLeft: 20)
         scheduleApplyTracking()
         scheduleDeviceChangeTracking()
     }
@@ -46,7 +38,7 @@ final class MenuBarIconCoordinator: MediaKeyIconFlashing {
     func stop() {
         flashWorkItem?.cancel()
         flashWorkItem = nil
-        statusButton = nil
+        cachedButton = nil
     }
 
     func flashDevice() {
@@ -96,11 +88,50 @@ final class MenuBarIconCoordinator: MediaKeyIconFlashing {
     }
 
     private func apply() {
-        guard let statusButton else { return }
+        guard let button = resolveButton() else { return }
         let state = computeState()
         guard let image = state.image.nsImage() else { return }
-        addFadeTransition(to: statusButton)
-        statusButton.image = image
+        addFadeTransition(to: button)
+        button.image = image
+    }
+
+    private func attemptInitialApply(retriesLeft: Int) {
+        if resolveButton() != nil {
+            apply()
+            return
+        }
+        guard retriesLeft > 0 else {
+            logger.error("Menu bar button not found after 20 tries; keeping the launch icon until the next state change")
+            return
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+            self?.attemptInitialApply(retriesLeft: retriesLeft - 1)
+        }
+    }
+
+    private func resolveButton() -> NSStatusBarButton? {
+        if let cachedButton { return cachedButton }
+        for window in NSApp.windows {
+            guard let contentView = window.contentView else { continue }
+            if let button = findStatusBarButton(in: contentView, matching: "FineTune") {
+                button.wantsLayer = true
+                cachedButton = button
+                return button
+            }
+        }
+        return nil
+    }
+
+    private func findStatusBarButton(in view: NSView, matching title: String) -> NSStatusBarButton? {
+        if let button = view as? NSStatusBarButton, button.accessibilityTitle() == title {
+            return button
+        }
+        for subview in view.subviews {
+            if let match = findStatusBarButton(in: subview, matching: title) {
+                return match
+            }
+        }
+        return nil
     }
 
     private func scheduleApplyTracking() {
