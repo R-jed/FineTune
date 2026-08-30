@@ -101,28 +101,16 @@ final class ShortcutsRegistry {
     private func adjustTargetVolume(direction: Int) {
         guard let app = resolveTargetAudioApp() else { return }
         let sliderDelta = settings.appSettings.volumeHotkeyStep.sliderDelta * Double(direction)
-
-        let currentGain = audioEngine.currentVolume(for: app)
-        let currentSlider = VolumeMapping.gainToSlider(currentGain)
-        let nextSlider = max(0.0, min(1.0, currentSlider + sliderDelta))
-        let nextGain = VolumeMapping.sliderToGain(nextSlider)
-
-        let currentMute = audioEngine.isMuted(for: app)
-        let willBeSilent = nextSlider <= 0.001
-
-        if direction > 0 {
-            if currentMute {
-                audioEngine.setMute(for: app, to: false)
-            }
-        } else {
-            if currentMute && !willBeSilent {
-                audioEngine.setMute(for: app, to: false)
-            } else if !currentMute && willBeSilent {
-                audioEngine.setMute(for: app, to: true)
-            }
-        }
-        audioEngine.setVolume(for: app, to: nextGain)
-        hud.showPerAppVolumeHUD(app: app, sliderFraction: nextSlider)
+        let plan = AppVolumeCommandPlan.step(
+            currentGain: audioEngine.currentVolume(for: app),
+            isMuted: audioEngine.isMuted(for: app),
+            delta: sliderDelta
+        )
+        plan.apply(
+            setVolume: { audioEngine.setVolume(for: app, to: $0) },
+            setMute: { audioEngine.setMute(for: app, to: $0) }
+        )
+        hud.showPerAppVolumeHUD(app: app, sliderFraction: plan.fraction)
     }
 
     private func toggleTargetMute() {

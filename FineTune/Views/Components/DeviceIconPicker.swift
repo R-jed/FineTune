@@ -1,6 +1,7 @@
 // FineTune/Views/Components/DeviceIconPicker.swift
 import SwiftUI
 import AppKit
+import Foundation
 
 /// Popover content for choosing a device's icon override. Selection applies
 /// immediately via `onSelect` and the popover stays open for further browsing;
@@ -11,6 +12,7 @@ struct DeviceIconPicker: View {
     let currentOverride: String?
     let onSelect: (String?) -> Void
 
+    @Environment(\.locale) private var locale
     @State private var query = ""
     @State private var driverIconPresent = false
 
@@ -30,13 +32,26 @@ struct DeviceIconPicker: View {
                     if trimmedQuery.isEmpty {
                         gridSection(title: "Suggested", symbols: suggestedSymbols, highlighted: highlighted)
                         ForEach(DeviceIconCatalog.categories) { category in
-                            gridSection(title: category.name, symbols: category.entries.map(\.symbol), highlighted: highlighted)
+                            if let title = Self.localizedCategoryTitle(for: category.name) {
+                                gridSection(
+                                    title: title,
+                                    symbols: category.entries.map(\.symbol),
+                                    highlighted: highlighted
+                                )
+                            } else {
+                                gridSection(
+                                    verbatimTitle: category.name,
+                                    symbols: category.entries.map(\.symbol),
+                                    highlighted: highlighted
+                                )
+                            }
                         }
                     } else {
                         searchResults(highlighted: highlighted)
                     }
                 }
             }
+            .contentMargins(.trailing, DesignTokens.Spacing.sm, for: .scrollContent)
             .frame(height: 300)
             .scrollIndicators(.never)
 
@@ -50,10 +65,6 @@ struct DeviceIconPicker: View {
         .padding(DesignTokens.Spacing.md)
         .frame(width: 300)
         .task(id: device.uid) {
-            // Driver-vs-symbol is decided the way AudioDeviceMonitor decides it:
-            // does the driver provide an icon? Probed once per device — the cache
-            // stores only non-nil results, so probing per render would hit
-            // CoreAudio (and disk) for every device without a driver icon.
             driverIconPresent = DeviceIconCache.shared.icon(for: device.uid) {
                 device.id.readDeviceIcon()
             } != nil
@@ -66,9 +77,50 @@ struct DeviceIconPicker: View {
         query.trimmingCharacters(in: .whitespaces)
     }
 
+    static func localizedCategoryTitle(for name: String) -> LocalizedStringResource? {
+        switch name {
+        case "Headphones & Earbuds": return "Headphones & Earbuds"
+        case "Speakers": return "Speakers"
+        case "Computers & Displays": return "Computers & Displays"
+        case "Microphones": return "Microphones"
+        case "Connectors & Other": return "Connectors & Other"
+        default: return nil
+        }
+    }
+
+    static func localizedCategoryTitle(forSymbol symbol: String) -> LocalizedStringResource? {
+        guard let category = DeviceIconCatalog.categories.first(where: { category in
+            category.entries.contains(where: { $0.symbol == symbol })
+        }) else { return nil }
+        return localizedCategoryTitle(for: category.name)
+    }
+
+    static func matchingEntries(query: String, locale: Locale) -> [DeviceIconCatalog.Entry] {
+        let trimmed = query.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return DeviceIconCatalog.allEntries }
+
+        var matches = DeviceIconCatalog.matching(trimmed)
+        var seen = Set(matches.map(\.symbol))
+
+        for category in DeviceIconCatalog.categories {
+            guard let title = localizedCategoryTitle(for: category.name) else { continue }
+            var localizedTitleResource = title
+            localizedTitleResource.locale = locale
+            let localizedTitle = String(localized: localizedTitleResource)
+            guard localizedTitle.localizedCaseInsensitiveContains(trimmed)
+                    || category.name.localizedCaseInsensitiveContains(trimmed) else { continue }
+
+            for entry in category.entries where seen.insert(entry.symbol).inserted {
+                matches.append(entry)
+            }
+        }
+
+        return matches
+    }
+
     @ViewBuilder
     private func searchResults(highlighted: String?) -> some View {
-        let hits = DeviceIconCatalog.matching(trimmedQuery).map(\.symbol)
+        let hits = Self.matchingEntries(query: trimmedQuery, locale: locale).map(\.symbol)
         if hits.isEmpty {
             Text("No matching icons")
                 .font(DesignTokens.Typography.caption)
@@ -81,8 +133,23 @@ struct DeviceIconPicker: View {
     }
 
     @ViewBuilder
-    private func gridSection(title: String, symbols: [String], highlighted: String?) -> some View {
+    private func gridSection(
+        title: LocalizedStringResource,
+        symbols: [String],
+        highlighted: String?
+    ) -> some View {
         SectionHeader(title: title)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        grid(symbols: symbols, highlighted: highlighted)
+    }
+
+    @ViewBuilder
+    private func gridSection(
+        verbatimTitle: String,
+        symbols: [String],
+        highlighted: String?
+    ) -> some View {
+        SectionHeader(verbatimTitle: verbatimTitle)
             .frame(maxWidth: .infinity, alignment: .leading)
         grid(symbols: symbols, highlighted: highlighted)
     }
@@ -112,7 +179,7 @@ struct DeviceIconPicker: View {
         .padding(.vertical, 5)
         .background(
             RoundedRectangle(cornerRadius: 7)
-                .fill(DesignTokens.Colors.recessedBackground)
+                .fill(DesignTokens.Surface.recessed)
         )
     }
 
@@ -168,6 +235,14 @@ private struct IconCell: View {
     let onSelect: () -> Void
 
     @State private var isHovered = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var descriptor: Text {
+        if let category = DeviceIconPicker.localizedCategoryTitle(forSymbol: symbol) {
+            return Text(category) + Text(verbatim: ", \(symbol)")
+        }
+        return Text(verbatim: symbol)
+    }
 
     var body: some View {
         Button(action: onSelect) {
@@ -190,14 +265,15 @@ private struct IconCell: View {
         }
         .buttonStyle(.plain)
         .onHover { isHovered = $0 }
-        .animation(DesignTokens.Animation.hover, value: isHovered)
-        .help(symbol)
-        .accessibilityLabel(DeviceIconCatalog.entry(for: symbol)?.keywords.first?.capitalized ?? symbol)
+        .animation(reduceMotion ? nil : DesignTokens.Animation.hover, value: isHovered)
+        .help(descriptor)
+        .accessibilityLabel(Text("Choose device icon") + Text(verbatim: ": ") + descriptor)
+        .accessibilityAddTraits(isHighlighted ? .isSelected : [])
     }
 
     private var fill: Color {
-        if isHighlighted { return DesignTokens.Colors.glassFillStrong }
-        if isHovered { return DesignTokens.Colors.hoverSurface }
+        if isHighlighted { return DesignTokens.Surface.emphasized }
+        if isHovered { return DesignTokens.Surface.hover }
         return .clear
     }
 }

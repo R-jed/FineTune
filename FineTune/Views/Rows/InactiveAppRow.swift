@@ -1,16 +1,12 @@
-// FineTune/Views/Rows/InactiveAppRow.swift
 import SwiftUI
 
-/// A row displaying a pinned but inactive app (not currently producing audio).
-/// Similar to AppRow but:
-/// - Uses PinnedAppInfo instead of AudioApp
-/// - VU meter always shows 0 (no audio level polling)
-/// - Slightly dimmed appearance to indicate inactive state
-/// - All settings (volume/mute/EQ/device) work normally and are persisted
+/// Pinned app row whose process is currently unavailable. It shares the same
+/// control grammar as an active row, but the VU meter is static and no live
+/// process activation path exists.
 struct InactiveAppRow: View {
     let appInfo: PinnedAppInfo
     let icon: NSImage
-    let volume: Float  // Linear gain 0-1 (boost applied separately)
+    let volume: Float
     let devices: [AudioDevice]
     let deviceIconOverrides: [String: String]
     let selectedDeviceUID: String?
@@ -36,6 +32,13 @@ struct InactiveAppRow: View {
     let onRenameUserPreset: (UUID, String) -> Void
     let isEQExpanded: Bool
     let onEQToggle: () -> Void
+    let sliderWidth: CGFloat
+    let isPinned: Bool
+    let onTogglePin: () -> Void
+    let isReordering: Bool
+    let reorderOffset: CGFloat
+    let onReorderChanged: (CGFloat) -> Void
+    let onReorderEnded: () -> Void
     let isFocused: Bool
 
     @State private var localEQSettings: EQSettings
@@ -69,6 +72,13 @@ struct InactiveAppRow: View {
         onRenameUserPreset: @escaping (UUID, String) -> Void = { _, _ in },
         isEQExpanded: Bool = false,
         onEQToggle: @escaping () -> Void = {},
+        sliderWidth: CGFloat = DesignTokens.Dimensions.sliderWidth,
+        isPinned: Bool = true,
+        onTogglePin: @escaping () -> Void,
+        isReordering: Bool,
+        reorderOffset: CGFloat,
+        onReorderChanged: @escaping (CGFloat) -> Void,
+        onReorderEnded: @escaping () -> Void,
         isFocused: Bool = false
     ) {
         self.appInfo = appInfo
@@ -99,31 +109,43 @@ struct InactiveAppRow: View {
         self.onRenameUserPreset = onRenameUserPreset
         self.isEQExpanded = isEQExpanded
         self.onEQToggle = onEQToggle
+        self.sliderWidth = sliderWidth
+        self.isPinned = isPinned
+        self.onTogglePin = onTogglePin
+        self.isReordering = isReordering
+        self.reorderOffset = reorderOffset
+        self.onReorderChanged = onReorderChanged
+        self.onReorderEnded = onReorderEnded
         self.isFocused = isFocused
         self._localEQSettings = State(initialValue: eqSettings)
     }
 
     var body: some View {
         ExpandableGlassRow(isExpanded: isEQExpanded, isFocused: isFocused) {
-            // Header: Main row content (always visible)
-            HStack(spacing: DesignTokens.Spacing.sm) {
-                // VU Meter (always 0 for inactive apps)
-                VUMeter(level: 0, isMuted: isMuted || volume == 0)
+            HStack(spacing: DesignTokens.Spacing.xs + DesignTokens.Spacing.xxs) {
+                ReorderDragHandle(
+                    onChanged: onReorderChanged,
+                    onEnded: onReorderEnded
+                )
 
-                // App icon (no activation for inactive apps)
+                VUMeter(level: 0, isMuted: isMuted || volume == 0)
+                    .opacity(0.6)
+
                 Image(nsImage: icon)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
-                    .frame(width: DesignTokens.Dimensions.rowContentHeight - 4, height: DesignTokens.Dimensions.rowContentHeight - 4)
+                    .frame(
+                        width: DesignTokens.Dimensions.rowContentHeight - 4,
+                        height: DesignTokens.Dimensions.rowContentHeight - 4
+                    )
+                    .opacity(0.65)
 
-                // App name + optional routing subtitle (hidden when the app is on
-                // system default).
                 VStack(alignment: .leading, spacing: 1) {
                     Text(appInfo.displayName)
                         .font(DesignTokens.Typography.rowName)
                         .lineLimit(1)
                         .help(appInfo.displayName)
-                        .foregroundStyle(DesignTokens.Colors.textPrimary)
+                        .foregroundStyle(DesignTokens.Colors.textSecondary)
 
                     if let subtitle = DevicePicker.routingSubtitle(
                         devices: devices,
@@ -132,15 +154,15 @@ struct InactiveAppRow: View {
                         isFollowingDefault: isFollowingDefault,
                         mode: deviceSelectionMode
                     ) {
-                        Text(subtitle)
-                            .font(.system(size: 9))
-                            .foregroundStyle(DesignTokens.Colors.textTertiary)
+                        subtitle
+                            .font(DesignTokens.Typography.caption)
+                            .foregroundStyle(DesignTokens.Colors.textSecondary)
                             .lineLimit(1)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .layoutPriority(1)
 
-                // Shared controls section (VU meter always 0 for inactive apps)
                 AppRowControls(
                     volume: volume,
                     isMuted: isMuted,
@@ -152,7 +174,7 @@ struct InactiveAppRow: View {
                     defaultDeviceUID: defaultDeviceUID,
                     deviceSelectionMode: deviceSelectionMode,
                     boost: boost,
-                    isEQExpanded: isEQExpanded,
+                    sliderWidth: sliderWidth,
                     onVolumeChange: onVolumeChange,
                     onMuteChange: onMuteChange,
                     onBoostChange: onBoostChange,
@@ -160,14 +182,15 @@ struct InactiveAppRow: View {
                     onDevicesSelected: onDevicesSelected,
                     onDeviceModeChange: onDeviceModeChange,
                     onSelectFollowDefault: onSelectFollowDefault,
-                    onEQToggle: onEQToggle,
                     isRowFocused: isFocused
                 )
+
+                AppEQButton(isExpanded: isEQExpanded, action: onEQToggle)
+                AppPinButton(isPinned: isPinned, action: onTogglePin)
             }
             .frame(height: DesignTokens.Dimensions.rowContentHeight)
-            .opacity(0.6)
+            .contentShape(Rectangle())
         } expandedContent: {
-            // EQ panel
             EQPanelView(
                 settings: $localEQSettings,
                 userPresets: userPresets,
@@ -179,9 +202,7 @@ struct InactiveAppRow: View {
                     localEQSettings = userPreset.settings
                     onUserPresetSelected(userPreset)
                 },
-                onSettingsChanged: { settings in
-                    onEQChange(settings)
-                },
+                onSettingsChanged: onEQChange,
                 onSavePreset: onSavePreset,
                 onDeleteUserPreset: onDeleteUserPreset,
                 onRenameUserPreset: onRenameUserPreset
@@ -191,5 +212,9 @@ struct InactiveAppRow: View {
         .onChange(of: eqSettings) { _, newValue in
             localEQSettings = newValue
         }
+        .continuousReorderAppearance(
+            isDragging: isReordering,
+            offset: reorderOffset
+        )
     }
 }

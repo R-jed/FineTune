@@ -25,6 +25,26 @@ struct AudioEngineToggleMuteTests {
         #expect(engine.volumeState.getMute(for: app.id) == false)
     }
 
+    @Test("toggleMute from muted zero restores the shared fifty-percent slider fallback")
+    func toggleMutedZeroRestoresFallback() {
+        let (engine, app) = makeEngineWithApp(initiallyMuted: true, initialVolume: 0)
+
+        engine.toggleMute(for: app)
+
+        #expect(engine.volumeState.getMute(for: app.id) == false)
+        #expect(engine.currentVolume(for: app) == VolumeMapping.sliderToGain(0.5))
+    }
+
+    @Test("toggleMute on zero muted-equivalent output restores fallback without setting mute")
+    func toggleZeroUnmutedRestoresFallback() {
+        let (engine, app) = makeEngineWithApp(initiallyMuted: false, initialVolume: 0)
+
+        engine.toggleMute(for: app)
+
+        #expect(engine.volumeState.getMute(for: app.id) == false)
+        #expect(engine.currentVolume(for: app) == VolumeMapping.sliderToGain(0.5))
+    }
+
     @Test("isAudibleNow returns false when no AudioApp matches the bundle ID")
     func isAudibleNowReturnsFalseForUnknownBundle() {
         let (engine, _) = makeEngineWithApp(initiallyMuted: false)
@@ -37,7 +57,10 @@ struct AudioEngineToggleMuteTests {
         #expect(engine.isAudibleNow(bundleID: app.bundleID ?? "") == false)
     }
 
-    private func makeEngineWithApp(initiallyMuted: Bool) -> (AudioEngine, AudioApp) {
+    private func makeEngineWithApp(
+        initiallyMuted: Bool,
+        initialVolume: Float = 1.0
+    ) -> (AudioEngine, AudioApp) {
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
         let settings = SettingsManager(directory: tempDir)
@@ -58,6 +81,7 @@ struct AudioEngineToggleMuteTests {
             icon: NSImage(systemSymbolName: "speaker.wave.2", accessibilityDescription: nil) ?? NSImage(),
             bundleID: "com.test.toggleMute"
         )
+        engine.volumeState.setVolume(for: app.id, to: initialVolume, identifier: app.persistenceIdentifier)
         engine.volumeState.setMute(for: app.id, to: initiallyMuted, identifier: app.persistenceIdentifier)
         return (engine, app)
     }

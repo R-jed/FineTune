@@ -1,10 +1,9 @@
 // FineTune/Audio/Engine/AppListCoordinator.swift
 import Foundation
 
-/// Owns the app-list surface that is pure `SettingsManager` persistence: pinning,
-/// the persistence half of ignoring, and per-inactive-app settings. Live tap/engine
-/// state (tap teardown on ignore, re-provisioning on unignore) stays in `AudioEngine`,
-/// which holds this coordinator and forwards its public app-list API here.
+/// Owns the app-list surface that is pure `SettingsManager` persistence: global order,
+/// pin membership/metadata, the persistence half of ignoring, and identifier-addressed
+/// app settings. Live tap/engine state stays in `AudioEngine`.
 @MainActor
 final class AppListCoordinator {
     private let settingsManager: SettingsManager
@@ -13,23 +12,48 @@ final class AppListCoordinator {
         self.settingsManager = settingsManager
     }
 
-    // MARK: - Pinning
+    // MARK: - App order
+
+    func registerVisibleApps(_ apps: [AudioApp]) {
+        let visibleByIdentifier = Dictionary(
+            apps
+                .filter { !settingsManager.isIgnored($0.persistenceIdentifier) }
+                .map { ($0.persistenceIdentifier, $0) },
+            uniquingKeysWith: { $0.merging($1) }
+        )
+        let identifiers = visibleByIdentifier.values
+            .sorted { lhs, rhs in
+                let nameOrder = lhs.name.localizedCaseInsensitiveCompare(rhs.name)
+                if nameOrder != .orderedSame { return nameOrder == .orderedAscending }
+                return lhs.persistenceIdentifier.localizedCaseInsensitiveCompare(rhs.persistenceIdentifier) == .orderedAscending
+            }
+            .map(\.persistenceIdentifier)
+        settingsManager.ensureAppsInOrder(identifiers)
+    }
+
+    func moveApp(_ identifier: String, to targetIdentifier: String, currentOrder: [String]) {
+        settingsManager.moveApp(identifier, to: targetIdentifier, currentOrder: currentOrder)
+    }
+
+    // MARK: - Pinning / placement
 
     func pinApp(_ app: AudioApp) {
-        let info = PinnedAppInfo(
-            persistenceIdentifier: app.persistenceIdentifier,
-            displayName: app.name,
-            bundleID: app.bundleID
+        settingsManager.pinApp(
+            app.persistenceIdentifier,
+            info: PinnedAppInfo(
+                persistenceIdentifier: app.persistenceIdentifier,
+                displayName: app.name,
+                bundleID: app.bundleID
+            )
         )
-        settingsManager.pinApp(app.persistenceIdentifier, info: info)
+    }
+
+    func pinApp(_ info: PinnedAppInfo) {
+        settingsManager.pinApp(info.persistenceIdentifier, info: info)
     }
 
     func unpinApp(_ identifier: String) {
         settingsManager.unpinApp(identifier)
-    }
-
-    func isPinned(_ app: AudioApp) -> Bool {
-        settingsManager.isPinned(app.persistenceIdentifier)
     }
 
     func isPinned(identifier: String) -> Bool {
@@ -38,6 +62,29 @@ final class AppListCoordinator {
 
     func pinnedAppInfo() -> [PinnedAppInfo] {
         settingsManager.getPinnedAppInfo()
+    }
+
+    func pinnedAppInfo(identifier: String) -> PinnedAppInfo? {
+        settingsManager.pinnedAppInfo(for: identifier)
+    }
+
+    @discardableResult
+    func placeApp(
+        _ identifier: String,
+        visibleOrder: [String],
+        pinned: Bool,
+        info: PinnedAppInfo?
+    ) -> Bool {
+        settingsManager.placeApp(
+            identifier,
+            visibleOrder: visibleOrder,
+            pinned: pinned,
+            info: info
+        )
+    }
+
+    func addSelectedPinnedApp(_ info: PinnedAppInfo, visibleOrder: [String]) {
+        settingsManager.addSelectedPinnedApp(info, visibleOrder: visibleOrder)
     }
 
     // MARK: - Ignored Apps (persistence half; tap teardown stays in AudioEngine)
@@ -49,6 +96,17 @@ final class AppListCoordinator {
             bundleID: app.bundleID
         )
         settingsManager.ignoreApp(app.persistenceIdentifier, info: info)
+    }
+
+    func recordIgnore(_ info: PinnedAppInfo) {
+        settingsManager.ignoreApp(
+            info.persistenceIdentifier,
+            info: IgnoredAppInfo(
+                persistenceIdentifier: info.persistenceIdentifier,
+                displayName: info.displayName,
+                bundleID: info.bundleID
+            )
+        )
     }
 
     func clearIgnore(_ identifier: String) {

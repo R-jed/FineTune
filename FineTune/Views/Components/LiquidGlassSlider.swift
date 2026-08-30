@@ -8,31 +8,28 @@ struct LiquidGlassSlider: View {
     let range: ClosedRange<Double>
     let showUnityMarker: Bool
     let onEditingChanged: ((Bool) -> Void)?
-
-    @State private var isEditing = false
-    @State private var isHovered = false
-
-    /// Show thumb only when hovering or dragging
-    private var showThumb: Bool {
-        isHovered || isEditing
-    }
+    let accessibilityLabel: Text
 
     init(
         value: Binding<Double>,
         in range: ClosedRange<Double> = 0...1,
         showUnityMarker: Bool = false,
-        onEditingChanged: ((Bool) -> Void)? = nil
+        onEditingChanged: ((Bool) -> Void)? = nil,
+        accessibilityLabel: Text = Text("Volume")
     ) {
         self._value = value
         self.range = range
         self.showUnityMarker = showUnityMarker
         self.onEditingChanged = onEditingChanged
+        self.accessibilityLabel = accessibilityLabel
     }
 
     private let trackHeight: CGFloat = 4
 
     private var normalizedValue: Double {
-        (value - range.lowerBound) / (range.upperBound - range.lowerBound)
+        let span = range.upperBound - range.lowerBound
+        guard span > 0 else { return 0 }
+        return min(1, max(0, (value - range.lowerBound) / span))
     }
 
     var body: some View {
@@ -45,10 +42,12 @@ struct LiquidGlassSlider: View {
                         .fill(DesignTokens.Colors.sliderTrack)
                         .frame(height: trackHeight)
 
-                    // Filled track
-                    Capsule()
-                        .fill(DesignTokens.Colors.accentPrimary)
-                        .frame(width: max(trackHeight, geo.size.width * normalizedValue), height: trackHeight)
+                    // A true zero value has no accent-colored fill.
+                    if normalizedValue > 0 {
+                        Capsule()
+                            .fill(DesignTokens.Colors.accentPrimary)
+                            .frame(width: geo.size.width * normalizedValue, height: trackHeight)
+                    }
                 }
                 .frame(maxHeight: .infinity)
                 .allowsHitTesting(false)
@@ -66,21 +65,19 @@ struct LiquidGlassSlider: View {
                     .allowsHitTesting(false)
                 }
 
-                // Native SwiftUI Slider - gets Liquid Glass thumb on macOS 26+
-                // Thumb only visible on hover/drag
+                // Keep the native SwiftUI Slider visible at rest so its thumb,
+                // focus treatment, and Liquid Glass affordance remain recognizable.
+                // Only the track tint is suppressed because the custom track
+                // above is what guarantees a mathematically true zero fill.
                 Slider(value: $value, in: range) { editing in
-                    isEditing = editing
                     onEditingChanged?(editing)
                 }
                 .controlSize(.mini)
                 .tint(.clear)  // Hide native track, we draw our own
-                .opacity(showThumb ? 1 : 0.01)  // Nearly invisible when not hovered, but still interactive
+                .accessibilityLabel(accessibilityLabel)
             }
         }
-        .frame(height: DesignTokens.Dimensions.sliderThumbHeight)
-        .onHover { hovering in
-            isHovered = hovering
-        }
+        .frame(minHeight: DesignTokens.Dimensions.minTouchTarget)
     }
 }
 

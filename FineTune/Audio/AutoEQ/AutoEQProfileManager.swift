@@ -52,6 +52,13 @@ final class AutoEQProfileManager {
         fetcher.catalog.first(where: { $0.id == id })
     }
 
+    /// Explicit recovery path for a failed catalog load. The fetcher owns
+    /// loading/error state; the manager rebuilds search data after the retry.
+    func refreshCatalog() async {
+        await fetcher.refreshCatalogFromGitHub()
+        rebuildSearchIndex()
+    }
+
     // MARK: - Import / Delete
 
     /// Import a ParametricEQ.txt file. Copies to app support and adds to catalog.

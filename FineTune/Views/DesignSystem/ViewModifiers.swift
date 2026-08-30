@@ -14,7 +14,7 @@ struct HoverableRowModifier: ViewModifier {
             // Flat at rest; hover or keyboard focus reveals hoverSurface only.
             .background(
                 RoundedRectangle(cornerRadius: DesignTokens.Dimensions.buttonRadius)
-                    .fill(isHovered || isFocused ? DesignTokens.Colors.hoverSurface : Color.clear)
+                    .fill(isHovered || isFocused ? DesignTokens.Surface.hover : Color.clear)
                     .allowsHitTesting(false)
             )
             .onHover { hovering in
@@ -31,9 +31,8 @@ struct SectionHeaderStyleModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .font(DesignTokens.Typography.sectionHeader)
-            .foregroundStyle(DesignTokens.Colors.sectionHeaderText)
+            .foregroundStyle(.secondary)
             .tracking(DesignTokens.Typography.sectionHeaderTracking)
-            .textCase(.uppercase)
     }
 }
 
@@ -83,7 +82,6 @@ struct IconButtonStyleModifier: ViewModifier {
 /// Button styling for glass aesthetic with vibrancy
 struct GlassButtonStyleModifier: ViewModifier {
     @State private var isHovered = false
-    @State private var isPressed = false
 
     func body(content: Content) -> some View {
         content
@@ -100,12 +98,10 @@ struct GlassButtonStyleModifier: ViewModifier {
                         lineWidth: 0.5
                     )
             }
-            .scaleEffect(isPressed ? 0.97 : (isHovered ? 1.02 : 1.0))
             .onHover { hovering in
                 isHovered = hovering
             }
             .animation(DesignTokens.Animation.hover, value: isHovered)
-            .animation(DesignTokens.Animation.quick, value: isPressed)
     }
 }
 
@@ -147,7 +143,7 @@ extension View {
         modifier(HoverableRowModifier(isFocused: isFocused))
     }
 
-    /// Applies section header text styling (uppercase, spaced, tertiary color)
+    /// Applies section header text styling using the system semantic secondary color.
     func sectionHeaderStyle() -> some View {
         modifier(SectionHeaderStyleModifier())
     }
@@ -198,7 +194,6 @@ extension View {
         .hoverableRow()
     }
     .padding()
-    .darkGlassBackground()
     .environment(\.colorScheme, .dark)
 }
 
@@ -211,7 +206,6 @@ extension View {
             .sectionHeaderStyle()
     }
     .padding()
-    .darkGlassBackground()
     .environment(\.colorScheme, .dark)
 }
 
@@ -222,7 +216,6 @@ extension View {
         Text("0%").percentageStyle()
     }
     .padding()
-    .darkGlassBackground()
     .environment(\.colorScheme, .dark)
 }
 
@@ -244,7 +237,6 @@ extension View {
         .iconButtonStyle(isActive: false)
     }
     .padding()
-    .darkGlassBackground()
     .environment(\.colorScheme, .dark)
 }
 
@@ -261,7 +253,6 @@ extension View {
         .glassButtonStyle()
     }
     .padding()
-    .darkGlassBackground()
     .environment(\.colorScheme, .dark)
 }
 
@@ -292,6 +283,5 @@ extension View {
         }
     }
     .padding()
-    .darkGlassBackground()
     .environment(\.colorScheme, .dark)
 }

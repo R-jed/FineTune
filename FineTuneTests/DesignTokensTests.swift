@@ -90,14 +90,9 @@ struct DesignTokensDimensionTests {
         #expect(DesignTokens.Dimensions.iconSizeSmall < DesignTokens.Dimensions.iconSize)
     }
 
-    @Test("VU meter has 8 bars")
-    func vuMeterBarCount() {
-        #expect(DesignTokens.Dimensions.vuMeterBarCount == 8)
-    }
-
-    @Test("Min touch target is at least 16pt (Apple HIG minimum)")
+    @Test("Min touch target meets macOS accessibility floor")
     func minTouchTarget() {
-        #expect(DesignTokens.Dimensions.minTouchTarget >= 16)
+        #expect(DesignTokens.Dimensions.minTouchTarget >= 20)
     }
 }
 
@@ -106,14 +101,9 @@ struct DesignTokensDimensionTests {
 @Suite("DesignTokens — Timing constants")
 struct DesignTokensTimingTests {
 
-    @Test("VU meter update interval is ~30fps")
-    func vuMeterInterval() {
+    @Test("Source meter update interval is ~30fps")
+    func sourceMeterInterval() {
         let interval = DesignTokens.Timing.vuMeterUpdateInterval
         #expect(abs(interval - 1.0 / 30.0) < 0.001)
-    }
-
-    @Test("VU meter peak hold is positive")
-    func vuMeterPeakHold() {
-        #expect(DesignTokens.Timing.vuMeterPeakHold > 0)
     }
 }

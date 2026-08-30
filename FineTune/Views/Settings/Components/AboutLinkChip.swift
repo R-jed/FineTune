@@ -10,7 +10,7 @@ import SwiftUI
 ///   fill so the chip reads as the page's primary action.
 @MainActor
 struct AboutLinkChip: View {
-    let label: String
+    let label: LocalizedStringResource
     let icon: String
     let hoverIcon: String
     let hoverColor: Color
@@ -71,11 +71,11 @@ struct AboutLinkChip: View {
         }
         .buttonStyle(.plain)
         .onHover { hovering in
-            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.12)) {
+            withAnimation(reduceMotion ? nil : DesignTokens.Animation.micro) {
                 isHovered = hovering
             }
         }
-        .accessibilityLabel(label)
+        .accessibilityLabel(Text(label))
     }
 }
 
@@ -101,6 +101,5 @@ struct AboutLinkChip: View {
     }
     .padding(24)
     .frame(width: 520, height: 80)
-    .darkGlassBackground()
     .environment(\.colorScheme, .dark)
 }

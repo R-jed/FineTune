@@ -63,6 +63,7 @@ struct MenuBarPopupSizeDimensionsTests {
         let d = MenuBarPopupSize.compact.dimensions
         #expect(d.width == 470)
         #expect(d.contentPadding == 12)
+        #expect(d.appSliderWidth == 100)
         #expect(d.maxContentHeight == 560)
     }
 
@@ -71,6 +72,7 @@ struct MenuBarPopupSizeDimensionsTests {
         let d = MenuBarPopupSize.comfortable.dimensions
         #expect(d.width == 510)
         #expect(d.contentPadding == 16)
+        #expect(d.appSliderWidth == 120)
         #expect(d.maxContentHeight == 660)
     }
 
@@ -79,12 +81,20 @@ struct MenuBarPopupSizeDimensionsTests {
         let d = MenuBarPopupSize.spacious.dimensions
         #expect(d.width == 560)
         #expect(d.contentPadding == 20)
+        #expect(d.appSliderWidth == 140)
         #expect(d.maxContentHeight == 760)
     }
 
     @Test("widths are strictly increasing across the three cases")
     func widthsMonotonic() {
         let widths = MenuBarPopupSize.allCases.map { $0.dimensions.width }
+        #expect(widths == widths.sorted())
+        #expect(Set(widths).count == widths.count)
+    }
+
+    @Test("app slider widths are strictly increasing across the three cases")
+    func appSliderWidthsMonotonic() {
+        let widths = MenuBarPopupSize.allCases.map { $0.dimensions.appSliderWidth }
         #expect(widths == widths.sorted())
         #expect(Set(widths).count == widths.count)
     }

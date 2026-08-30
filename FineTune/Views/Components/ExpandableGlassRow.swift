@@ -21,8 +21,8 @@ struct ExpandableGlassRow<Header: View, ExpandedContent: View>: View {
                 expandedContent
                     .transition(
                         .asymmetric(
-                            insertion: .opacity.combined(with: .scale(scale: 0.98, anchor: .top)),
-                            removal: .opacity.combined(with: .scale(scale: 0.98, anchor: .top))
+                            insertion: .opacity.combined(with: .offset(y: -DesignTokens.Spacing.xs)),
+                            removal: .opacity
                         )
                     )
             }
@@ -36,7 +36,7 @@ struct ExpandableGlassRow<Header: View, ExpandedContent: View>: View {
         // expanded row with a hovered neighbour).
         .background {
             RoundedRectangle(cornerRadius: DesignTokens.Dimensions.rowRadius)
-                .fill(isHovered || isExpanded || isFocused ? DesignTokens.Colors.hoverSurface : Color.clear)
+                .fill(isHovered || isExpanded || isFocused ? DesignTokens.Surface.hover : Color.clear)
                 .padding(.vertical, 1)
                 .allowsHitTesting(false)
         }
@@ -72,7 +72,7 @@ struct ExpandableGlassRow<Header: View, ExpandedContent: View>: View {
                     .padding()
             }
             .frame(height: 100)
-            .background(DesignTokens.Colors.recessedBackground)
+            .background(DesignTokens.Surface.recessed)
         }
     }
 }

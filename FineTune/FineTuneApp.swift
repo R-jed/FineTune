@@ -57,10 +57,11 @@ struct FineTuneApp: App {
     /// default-device volume/mute. The coordinator keeps it in sync afterwards.
     private let launchIconImage: NSImage
 
+    private var localizationContext: LocalizationContext {
+        LocalizationContext(language: audioEngine.settingsManager.appSettings.language)
+    }
+
     var body: some Scene {
-        // Declared before FluidMenuBarExtra so this Settings scene wins over
-        // FluidMenuBarExtra's `Settings {}` placeholder. Both ⌘, and the
-        // gear button route here via openSettings().
         Settings {
             SettingsRootView(
                 settings: audioEngine.settingsManager,
@@ -72,9 +73,11 @@ struct FineTuneApp: App {
                 shortcutsRegistry: shortcutsRegistry,
                 updateManager: updateManager
             )
+            .fineTuneLocale(localizationContext.overrideLocale)
         }
         FluidMenuBarExtra("FineTune", image: launchIconImage, isInserted: $showMenuBarExtra) {
             menuBarContent
+                .fineTuneLocale(localizationContext.overrideLocale)
         }
     }
 
@@ -95,7 +98,6 @@ struct FineTuneApp: App {
             mediaKeyMonitor: mediaKeyMonitor
         )
         .task {
-            // Idempotent: subsequent task runs (popup re-open) are no-ops inside start().
             shortcutsRegistry.start()
         }
     }
@@ -121,26 +123,28 @@ struct FineTuneApp: App {
         let feedbackPlayer = VolumeFeedbackPlayer()
 
         // Wire the interactive Tahoe slider back to the device volume monitor.
-        // Mirrors the mute semantics applied for media-key drags (auto-unmute
-        // when ramping above 0 from muted; auto-mute when dragging down to 0)
-        // so the HUD slider and F11/F12 behave identically.
+        // Uses the same output command semantics as popup rows and media keys:
+        // values above 0 unmute, while 0 remains a mute-equivalent volume state.
         hud.volumeWriter = { [weak engine] sliderFraction in
             guard let engine else { return }
             let volumeMonitor = engine.deviceVolumeMonitor
             let deviceID = volumeMonitor.defaultDeviceID
             guard deviceID.isValid else { return }
             let tier = volumeMonitor.outputVolumeBackend(for: deviceID)
+            let currentSlider = VolumeMapping.sliderFraction(
+                forSystemGain: volumeMonitor.storedOutputVolume(for: deviceID),
+                tier: tier
+            )
             let currentMute = volumeMonitor.muteStates[deviceID] ?? false
-            let willBeSilent = sliderFraction <= 0.001
-            if currentMute && !willBeSilent {
-                volumeMonitor.setMute(for: deviceID, to: false)
-            } else if !currentMute && willBeSilent {
-                volumeMonitor.setMute(for: deviceID, to: true)
-            }
-            let gain = VolumeMapping.systemGain(forSliderFraction: sliderFraction, tier: tier)
-            volumeMonitor.setVolume(for: deviceID, to: gain)
+            let plan = OutputVolumeCommandPlan.adjustment(
+                currentFraction: currentSlider,
+                isMuted: currentMute,
+                tier: tier,
+                requestedFraction: sliderFraction
+            )
+            volumeMonitor.applyOutputCommand(plan, for: deviceID)
             feedbackPlayer.requestFeedback(
-                gain: VolumeFeedback.gain(tier: tier, sliderFraction: sliderFraction)
+                gain: VolumeFeedback.gain(tier: tier, sliderFraction: plan.fraction)
             )
         }
 
@@ -167,7 +171,8 @@ struct FineTuneApp: App {
             settings: settings
         )
         monitor.iconCoordinator = coordinator
-        // Defer start() so NSApplication.shared is fully bootstrapped before we walk NSApp.windows.
+        // Match the original FluidMenuBarExtra lifecycle: NSApplication is not fully
+        // bootstrapped during App.init(), so status-item discovery must begin later.
         DispatchQueue.main.async { [coordinator] in coordinator.start() }
         _iconCoordinator = State(initialValue: coordinator)
 
@@ -175,9 +180,14 @@ struct FineTuneApp: App {
         // placeholder, so non-speaker styles don't briefly flash a speaker icon at launch.
         let launchVolumeMonitor = engine.deviceVolumeMonitor
         let launchID = launchVolumeMonitor.defaultDeviceID
+        let launchStoredVolume = launchVolumeMonitor.volumes[launchID] ?? 1.0
+        let launchTier = launchVolumeMonitor.outputVolumeBackend(for: launchID)
+        let launchDisplayFraction = Float(
+            VolumeMapping.sliderFraction(forSystemGain: launchStoredVolume, tier: launchTier)
+        )
         let launchState = MenuBarIconState.baseline(
             style: settings.appSettings.menuBarIconStyle,
-            volume: launchVolumeMonitor.volumes[launchID] ?? 1.0,
+            volume: launchDisplayFraction,
             muted: launchVolumeMonitor.muteStates[launchID] ?? false,
             deviceSymbol: MenuBarDeviceIconResolver.resolveSymbol(
                 priorityOrder: settings.devicePriorityOrder,
@@ -204,8 +214,7 @@ struct FineTuneApp: App {
 
         // Global hotkeys (KeyboardShortcuts SPM, Carbon-backed; no Accessibility
         // permission required for the hotkey itself). Registry start() is deferred
-        // to a SwiftUI `.task` on the popup content so the FluidMenuBarExtra
-        // status item has been materialized before any hotkey can fire.
+        // to the popup content task so FluidMenuBarExtra has materialized its status item.
         let popupController = MenuBarPopupController()
         let resolver = TargetAppResolver(
             ownBundleID: Bundle.main.bundleIdentifier ?? "com.finetuneapp.FineTune"

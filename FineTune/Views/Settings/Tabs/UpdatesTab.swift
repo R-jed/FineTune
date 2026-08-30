@@ -4,15 +4,26 @@ import SwiftUI
 @MainActor
 struct UpdatesTab: View {
     @ObservedObject var updateManager: UpdateManager
+    let language: AppLanguage
+
+    private var localization: LocalizationContext {
+        LocalizationContext(language: language)
+    }
 
     private var lastCheckDescription: String {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+        let versionLabel = localization.localized("Version")
+
         if let date = updateManager.lastUpdateCheckDate {
             let formatter = RelativeDateTimeFormatter()
             formatter.unitsStyle = .abbreviated
-            return "Version \(version) · \(formatter.localizedString(for: date, relativeTo: .now))"
+            formatter.locale = localization.presentationLocale
+            let relativeDate = formatter.localizedString(for: date, relativeTo: .now)
+            return "\(versionLabel) \(version) · \(relativeDate)"
         }
-        return "Version \(version) · Never checked"
+
+        let neverChecked = localization.localized("Never checked")
+        return "\(versionLabel) \(version) · \(neverChecked)"
     }
 
     private var automaticallyChecksBinding: Binding<Bool> {
@@ -30,7 +41,7 @@ struct UpdatesTab: View {
                         "Automatic updates",
                         description: "Check for new versions automatically"
                     ) {
-                        Toggle("", isOn: automaticallyChecksBinding)
+                        Toggle("Automatic updates", isOn: automaticallyChecksBinding)
                             .toggleStyle(.switch)
                             .controlSize(.small)
                             .labelsHidden()
@@ -38,7 +49,7 @@ struct UpdatesTab: View {
                     SettingsRowDivider()
                     SettingsRow(
                         "Last checked",
-                        description: lastCheckDescription
+                        verbatimDescription: lastCheckDescription
                     ) {
                         Button("Check Now") {
                             updateManager.checkForUpdates()
@@ -52,6 +63,6 @@ struct UpdatesTab: View {
             .padding(.vertical, 20)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .scrollIndicators(.never)
+        .scrollIndicators(.automatic)
     }
 }

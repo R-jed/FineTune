@@ -1,6 +1,6 @@
 // FineTune/Views/MenuBar/MenuBarIconState.swift
-// Value types for the menu bar icon. Bucket thresholds mirror
-// TahoeStyleHUD.waveIconName / ClassicStyleHUD.waveIconName.
+// Value types for the menu bar icon. Bucket thresholds mirror the visible
+// percentages used by TahoeStyleHUD and ClassicStyleHUD.
 // The AppKit NSImage bridge lives in MenuBarIconImage+NSImage.swift.
 
 import Foundation
@@ -17,13 +17,13 @@ nonisolated enum VolumeBucket: Equatable {
     case high
 
     static func bucket(for volume: Float) -> VolumeBucket {
-        // NaN falls through to default in a `..<` switch. Force it to .zero so a
-        // corrupted HAL read doesn't light up the icon at full volume.
         guard volume.isFinite else { return .zero }
-        switch volume {
-        case ..<0.01: return .zero
-        case ..<0.34: return .low
-        case ..<0.67: return .mid
+        let clamped = max(0, min(1, volume))
+        let percent = Int((clamped * 100).rounded())
+        switch percent {
+        case 0:       return .zero
+        case 1...33:  return .low
+        case 34...66: return .mid
         default:      return .high
         }
     }
@@ -56,9 +56,8 @@ nonisolated enum MenuBarIconState: Equatable {
     }
 }
 
-// MARK: - Style → baseline mapping
-
 extension MenuBarIconState {
+    /// `volume` is the same user-visible slider fraction used by the popup and HUD.
     static func baseline(
         style: MenuBarIconStyle,
         volume: Float,
@@ -67,8 +66,15 @@ extension MenuBarIconState {
     ) -> MenuBarIconState {
         switch style {
         case .speaker:
-            if muted { return .speakerMuted }
-            return .speakerVolume(.bucket(for: volume))
+            let presentation = VolumePresentationState(
+                storedFraction: Double(volume),
+                isMuted: muted,
+                sourceIsActive: false
+            )
+            if presentation.displaysMuted {
+                return .speakerMuted
+            }
+            return .speakerVolume(.bucket(for: Float(presentation.displayFraction)))
         case .device:
             return .device(symbol: deviceSymbol)
         case .default:

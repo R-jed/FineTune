@@ -18,6 +18,9 @@ final class AutoEQProcessor: BiquadProcessor, @unchecked Sendable {
     /// Whether to apply the profile's preamp (false = bypass preamp, rely on limiter)
     private var _preampEnabled: Bool = true
 
+    /// Read-only access used when cloning processor state for a new IO proc generation.
+    var isPreampEnabled: Bool { _preampEnabled }
+
     /// Preamp gain in linear scale (RT-safe atomic read in process)
     private nonisolated(unsafe) var _preampGain: Float = 1.0
 

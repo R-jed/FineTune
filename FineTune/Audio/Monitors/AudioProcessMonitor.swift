@@ -2,11 +2,16 @@
 import AppKit
 import AudioToolbox
 import os
+import UniformTypeIdentifiers
 
 /// Lightweight value for detecting process list changes without comparing icons/names.
 private struct AppFingerprint: Hashable {
     let pid: pid_t
+    let persistenceIdentifier: String
     let objectIDs: [AudioObjectID]
+    let producerBundleIDs: [String]
+    let isHelperBacked: Bool
+    let isAudioActive: Bool
 }
 
 @Observable
@@ -75,11 +80,83 @@ final class AudioProcessMonitor: AudioProcessMonitoring {
         return false
     }
 
+    static func shouldIncludeUserApplication(
+        activationPolicy: NSApplication.ActivationPolicy,
+        isTerminated: Bool,
+        bundleURL: URL?,
+        hasAudioProcessObject: Bool = false
+    ) -> Bool {
+        guard !isTerminated, let bundleURL, bundleURL.pathExtension == "app" else { return false }
+        if activationPolicy == .regular { return true }
+
+        let path = bundleURL.standardizedFileURL.path
+        let appBundleCount = bundleURL.standardizedFileURL.pathComponents
+            .filter { $0.hasSuffix(".app") }
+            .count
+        return hasAudioProcessObject
+            && activationPolicy == .accessory
+            && !path.hasPrefix("/System/Library/")
+            && appBundleCount == 1
+    }
+
+    /// Fast path for newly-created HAL process objects. It only attaches objects whose PID
+    /// already matches a known direct user-app row. Helper/XPC objects deliberately miss this
+    /// path and continue through the full responsibility-resolution refresh below.
+    static func mergeNewDirectProcessObjects(
+        into apps: [AudioApp],
+        processIDs: [AudioObjectID],
+        knownProcessIDs: Set<AudioObjectID>,
+        pidForProcess: (AudioObjectID) -> pid_t?,
+        isRunning: (AudioObjectID) -> Bool,
+        producerBundleIDForProcess: (AudioObjectID) -> String? = { _ in nil }
+    ) -> [AudioApp]? {
+        let added = Set(processIDs).subtracting(knownProcessIDs)
+        guard !added.isEmpty else { return nil }
+
+        var appsByPID = Dictionary(
+            apps.map { ($0.id, $0) },
+            uniquingKeysWith: { _, latest in latest }
+        )
+        var changed = false
+
+        for objectID in added.sorted() {
+            guard let pid = pidForProcess(objectID),
+                  let existing = appsByPID[pid],
+                  !existing.isHelperBacked,
+                  !existing.processObjectIDs.contains(objectID) else { continue }
+
+            var mergedIDs = existing.processObjectIDs
+            mergedIDs.append(objectID)
+            mergedIDs.sort()
+
+            var producerBundleIDs = Set(existing.producerBundleIDs)
+            if let producerBundleID = producerBundleIDForProcess(objectID), !producerBundleID.isEmpty {
+                producerBundleIDs.insert(producerBundleID)
+            }
+
+            appsByPID[pid] = AudioApp(
+                id: existing.id,
+                processObjectIDs: mergedIDs,
+                name: existing.name,
+                icon: existing.icon,
+                bundleID: existing.bundleID,
+                producerBundleIDs: Array(producerBundleIDs).sorted(),
+                isHelperBacked: false,
+                isAudioActive: existing.isAudioActive || isRunning(objectID)
+            )
+            changed = true
+        }
+
+        guard changed else { return nil }
+        return apps.map { appsByPID[$0.id] ?? $0 }
+    }
+
     // Property listeners
     private var processListListenerBlock: AudioObjectPropertyListenerBlock?
     private var processListenerBlocks: [AudioObjectID: AudioObjectPropertyListenerBlock] = [:]
     private var monitoredProcesses: Set<AudioObjectID> = []
     private var periodicRefreshTask: Task<Void, Never>?
+    private var workspaceObserverTokens: [NSObjectProtocol] = []
 
     private var processListAddress = AudioObjectPropertyAddress(
         mSelector: kAudioHardwarePropertyProcessObjectList,
@@ -104,12 +181,18 @@ final class AudioProcessMonitor: AudioProcessMonitoring {
     /// Uses Apple's responsibility API first, falls back to process tree walking.
     private func findResponsibleApp(
         for pid: pid_t,
-        in runningAppsByPID: [pid_t: NSRunningApplication]
+        in runningAppsByPID: [pid_t: NSRunningApplication],
+        hasAudioProcessObject: Bool
     ) -> NSRunningApplication? {
         // First try Apple's responsibility API (works for XPC services like Safari's WebKit processes)
         if let responsiblePID = getResponsiblePID(for: pid),
            let app = runningAppsByPID[responsiblePID],
-           app.bundleURL?.pathExtension == "app" {
+           Self.shouldIncludeUserApplication(
+               activationPolicy: app.activationPolicy,
+               isTerminated: app.isTerminated,
+               bundleURL: app.bundleURL,
+               hasAudioProcessObject: hasAudioProcessObject
+           ) {
             return app
         }
 
@@ -122,7 +205,12 @@ final class AudioProcessMonitor: AudioProcessMonitoring {
 
             // Check if this PID is a proper app bundle (.app, not .xpc service)
             if let app = runningAppsByPID[currentPID],
-               app.bundleURL?.pathExtension == "app" {
+               Self.shouldIncludeUserApplication(
+                   activationPolicy: app.activationPolicy,
+                   isTerminated: app.isTerminated,
+                   bundleURL: app.bundleURL,
+                   hasAudioProcessObject: hasAudioProcessObject
+               ) {
                 return app
             }
 
@@ -146,10 +234,12 @@ final class AudioProcessMonitor: AudioProcessMonitoring {
 
         logger.debug("Starting audio process monitor")
 
-        // Set up listener first
-        processListListenerBlock = { [weak self] numberAddresses, addresses in
-            Task { @MainActor [weak self] in
-                self?.refresh()
+        // This listener is explicitly delivered on DispatchQueue.main. Enter the MainActor
+        // synchronously so a new process object can reach AudioEngine before a second queue hop.
+        processListListenerBlock = { [weak self] _, _ in
+            let notificationUptime = ProcessInfo.processInfo.systemUptime
+            MainActor.assumeIsolated {
+                self?.refresh(processListNotificationUptime: notificationUptime)
             }
         }
 
@@ -162,6 +252,18 @@ final class AudioProcessMonitor: AudioProcessMonitoring {
 
         if status != noErr {
             logger.error("Failed to add process list listener: \(status)")
+        }
+
+        let workspaceCenter = NSWorkspace.shared.notificationCenter
+        workspaceObserverTokens = [
+            NSWorkspace.didLaunchApplicationNotification,
+            NSWorkspace.didTerminateApplicationNotification,
+        ].map { name in
+            workspaceCenter.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    self?.refresh()
+                }
+            }
         }
 
         // Initial refresh
@@ -177,6 +279,10 @@ final class AudioProcessMonitor: AudioProcessMonitoring {
 
         periodicRefreshTask?.cancel()
         periodicRefreshTask = nil
+
+        let workspaceCenter = NSWorkspace.shared.notificationCenter
+        workspaceObserverTokens.forEach(workspaceCenter.removeObserver)
+        workspaceObserverTokens.removeAll()
 
         // Remove process list listener
         if let block = processListListenerBlock {
@@ -201,66 +307,144 @@ final class AudioProcessMonitor: AudioProcessMonitoring {
         }
     }
 
-    private func refresh() {
+    private func refresh(processListNotificationUptime: TimeInterval? = nil) {
         do {
             let processIDs = try AudioObjectID.readProcessList()
+
+            // Time-critical path for macOS versions where bundle-targeted prearming is unavailable.
+            // Existing quiet GUI apps are already known by PID, so a newly-created direct HAL
+            // process object can be published to AudioEngine before NSWorkspace/helper discovery.
+            if let fastApps = Self.mergeNewDirectProcessObjects(
+                into: activeApps,
+                processIDs: processIDs,
+                knownProcessIDs: monitoredProcesses,
+                pidForProcess: { try? $0.readProcessPID() },
+                isRunning: { $0.readProcessIsRunning() },
+                producerBundleIDForProcess: { $0.readProcessBundleID() }
+            ) {
+                activeApps = fastApps
+                onAppsChanged?(activeApps)
+
+                if let started = processListNotificationUptime {
+                    let elapsedMs = (ProcessInfo.processInfo.systemUptime - started) * 1000
+                    logger.debug("Fast process-object provisioning callback completed in \(elapsedMs, format: .fixed(precision: 2)) ms")
+                }
+            }
+
             let runningApps = NSWorkspace.shared.runningApplications
             let runningAppsByPID = Dictionary(
                 runningApps.map { ($0.processIdentifier, $0) },
                 uniquingKeysWith: { _, latest in latest }
             )
             let myPID = ProcessInfo.processInfo.processIdentifier
+            let rememberedProducerBundleIDs = Dictionary(
+                activeApps.map { ($0.persistenceIdentifier, Set($0.producerBundleIDs)) },
+                uniquingKeysWith: { $0.union($1) }
+            )
 
             var appsByPID: [pid_t: AudioApp] = [:]
 
+            for app in runningApps where app.processIdentifier != myPID {
+                guard Self.shouldIncludeUserApplication(
+                    activationPolicy: app.activationPolicy,
+                    isTerminated: app.isTerminated,
+                    bundleURL: app.bundleURL
+                ), let name = app.localizedName else { continue }
+
+                let persistenceIdentifier = app.bundleIdentifier ?? "name:\(name)"
+                appsByPID[app.processIdentifier] = AudioApp(
+                    id: app.processIdentifier,
+                    processObjectIDs: [],
+                    name: name,
+                    icon: app.icon ?? NSWorkspace.shared.icon(for: .applicationBundle),
+                    bundleID: app.bundleIdentifier,
+                    producerBundleIDs: Array(rememberedProducerBundleIDs[persistenceIdentifier] ?? []).sorted(),
+                    isAudioActive: false
+                )
+            }
+
             for objectID in processIDs {
                 guard let pid = try? objectID.readProcessPID(), pid != myPID else { continue }
-                guard objectID.readProcessIsRunning() else { continue }
+                let isAudioActive = objectID.readProcessIsRunning()
+                let producerBundleID = objectID.readProcessBundleID()
 
-                // Try to find the parent app (for helper processes like Safari Graphics and Media)
+                // A Core Audio process object is itself enough evidence to keep a top-level
+                // accessory app routable, even while isRunning is false. This lets FineTune
+                // arm the tap before a short notification sound starts without listing every
+                // quiet background accessory app in NSWorkspace.
                 let directApp = runningAppsByPID[pid]
-
-                // Check if it's a real app bundle (.app), not an XPC service (.xpc)
-                let isRealApp = directApp?.bundleURL?.pathExtension == "app"
-                let resolvedApp = isRealApp ? directApp : findResponsibleApp(for: pid, in: runningAppsByPID)
+                let directIsUserApp = directApp.map {
+                    Self.shouldIncludeUserApplication(
+                        activationPolicy: $0.activationPolicy,
+                        isTerminated: $0.isTerminated,
+                        bundleURL: $0.bundleURL,
+                        hasAudioProcessObject: true
+                    )
+                } ?? false
+                let resolvedApp = directIsUserApp
+                    ? directApp
+                    : findResponsibleApp(for: pid, in: runningAppsByPID, hasAudioProcessObject: true)
                 let parentPID = resolvedApp?.processIdentifier ?? pid
                 let isHelper = parentPID != pid
 
-                // Use resolved app's info, fall back to Core Audio bundle ID
+                // Use resolved app's info, fall back to the Core Audio producer identity.
                 let name = resolvedApp?.localizedName
-                    ?? objectID.readProcessBundleID()?.components(separatedBy: ".").last
+                    ?? producerBundleID?.components(separatedBy: ".").last
                     ?? "Unknown"
                 let icon = resolvedApp?.icon
                     ?? NSImage(systemSymbolName: "app.fill", accessibilityDescription: nil)
                     ?? NSImage()
-                let bundleID = resolvedApp?.bundleIdentifier ?? objectID.readProcessBundleID()
+                let bundleID = resolvedApp?.bundleIdentifier ?? producerBundleID
 
-                // Skip system daemons (siri, coreaudio, etc.) - they shouldn't appear in the apps list
+                guard let resolvedApp,
+                      Self.shouldIncludeUserApplication(
+                          activationPolicy: resolvedApp.activationPolicy,
+                          isTerminated: resolvedApp.isTerminated,
+                          bundleURL: resolvedApp.bundleURL,
+                          hasAudioProcessObject: true
+                      ) else { continue }
+
+                // Skip system daemons (siri, coreaudio, etc.) - they shouldn't appear as user apps
                 if isSystemDaemon(bundleID: bundleID, name: name) { continue }
 
-                // Merge helper process objectIDs into parent app entry
+                // Merge helper process objectIDs and producer identities into the parent app entry.
                 if let existing = appsByPID[parentPID] {
                     if !existing.processObjectIDs.contains(objectID) {
                         var mergedIDs = existing.processObjectIDs
                         mergedIDs.append(objectID)
                         mergedIDs.sort()
+
+                        var producerBundleIDs = Set(existing.producerBundleIDs)
+                        if let producerBundleID, !producerBundleID.isEmpty {
+                            producerBundleIDs.insert(producerBundleID)
+                        }
+
                         appsByPID[parentPID] = AudioApp(
                             id: existing.id,
                             processObjectIDs: mergedIDs,
                             name: existing.name,
                             icon: existing.icon,
                             bundleID: existing.bundleID,
-                            isHelperBacked: existing.isHelperBacked || isHelper
+                            producerBundleIDs: Array(producerBundleIDs).sorted(),
+                            isHelperBacked: existing.isHelperBacked || isHelper,
+                            isAudioActive: existing.isAudioActive || isAudioActive
                         )
                     }
                 } else {
+                    let persistenceIdentifier = bundleID ?? "name:\(name)"
+                    var producerBundleIDs = rememberedProducerBundleIDs[persistenceIdentifier] ?? []
+                    if let producerBundleID, !producerBundleID.isEmpty {
+                        producerBundleIDs.insert(producerBundleID)
+                    }
                     appsByPID[parentPID] = AudioApp(
                         id: parentPID,
                         processObjectIDs: [objectID],
                         name: name,
                         icon: icon,
                         bundleID: bundleID,
-                        isHelperBacked: isHelper
+                        producerBundleIDs: Array(producerBundleIDs).sorted(),
+                        isHelperBacked: isHelper,
+                        isAudioActive: isAudioActive
                     )
                 }
             }
@@ -268,11 +452,35 @@ final class AudioProcessMonitor: AudioProcessMonitoring {
             // Update per-process listeners
             updateProcessListeners(for: processIDs)
 
-            let sorted = appsByPID.values.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+            let appsByIdentifier = Dictionary(
+                appsByPID.values.map { ($0.persistenceIdentifier, $0) },
+                uniquingKeysWith: { $0.merging($1) }
+            )
+            let sorted = appsByIdentifier.values.sorted {
+                $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+            }
 
             // Only fire callback if the app list actually changed (avoids churn from periodic refresh)
-            let oldSet = Set(activeApps.map { AppFingerprint(pid: $0.id, objectIDs: $0.processObjectIDs) })
-            let newSet = Set(sorted.map { AppFingerprint(pid: $0.id, objectIDs: $0.processObjectIDs) })
+            let oldSet = Set(activeApps.map {
+                AppFingerprint(
+                    pid: $0.id,
+                    persistenceIdentifier: $0.persistenceIdentifier,
+                    objectIDs: $0.processObjectIDs,
+                    producerBundleIDs: $0.producerBundleIDs,
+                    isHelperBacked: $0.isHelperBacked,
+                    isAudioActive: $0.isAudioActive
+                )
+            })
+            let newSet = Set(sorted.map {
+                AppFingerprint(
+                    pid: $0.id,
+                    persistenceIdentifier: $0.persistenceIdentifier,
+                    objectIDs: $0.processObjectIDs,
+                    producerBundleIDs: $0.producerBundleIDs,
+                    isHelperBacked: $0.isHelperBacked,
+                    isAudioActive: $0.isAudioActive
+                )
+            })
 
             activeApps = sorted
             if oldSet != newSet {

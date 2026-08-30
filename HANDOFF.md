@@ -1,157 +1,303 @@
 # FineTune Project Handoff
 
-Last updated: 2026-08-23
+Last updated: 2026-08-27
 
-This file is the starting context for future development sessions on this repository. Read it before changing code, then verify any time-sensitive details against the repository itself.
+Read this file before changing code. Re-fetch the active branch head and every sensitive file before each write. Treat GitHub CI and real-machine acceptance as separate evidence axes.
 
 ## Project identity
 
-FineTune is a macOS menu bar audio-control application. It can control per-app volume, boost app gain, route apps to different output devices, manage output/input device levels, provide per-app EQ and AutoEQ headphone correction, handle global shortcuts and media keys, and display its own volume HUD.
+FineTune is a macOS menu bar audio-control application. It controls per-app volume and gain, application routing, output and input device levels, EQ, AutoEQ, global shortcuts, media keys, notifications, and FineTune-owned volume HUDs.
 
 Repository: `R-jed/FineTune`
 
-Upstream origin used to bootstrap this repository: `ronitsingh10/FineTune`
+Upstream bootstrap source: `ronitsingh10/FineTune`
 
-Bootstrap baseline:
+Bootstrap commit: `2285279d36d3f8115c1c2d4aecd904f1bdf96a51`
 
-- Upstream branch: `main`
-- Upstream commit: `2285279d36d3f8115c1c2d4aecd904f1bdf96a51`
-- Upstream tree: `cfc960ed5e09651c8876aa42c2443adffe0705a5`
-- Upstream release represented by that snapshot: v1.9.0
-- License: GNU GPL v3
-- Original copyright notice must be preserved.
+License: GNU GPL v3. Preserve the original copyright notice.
 
-The initial `R-jed/FineTune` snapshot was verified at the Git tree level against the upstream tree before project-specific development began. Later commits in this repository intentionally diverge from that upstream snapshot.
+## Branch and PR topology
 
-## Current platform and dependencies
+`main` remains the stable base. Do not merge or modify it without explicit authorization.
 
-FineTune targets macOS 15.0 or later. The release workflow currently builds on macOS 26 runners.
+Important Draft validation branches:
 
-Important Swift Package dependencies pinned in `Package.resolved`:
+- PR #10: `integration/full-product-acceptance`, validated integration baseline `d0f8dc7162218996ef5dc5b5bcf789ce6f47a2f4`
+- PR #12: `fix/loudness-equalizer-rt-lifetime`, validated product head `639af28e4a8123e1bbc655591a6586c2b8420c17`
+- PR #14: `feat/reorder-liquid-glass-ui`, current UI iteration and CI validation carrier
 
-- FluidMenuBarExtra 1.5.1
-- KeyboardShortcuts 2.4.0
-- Sparkle 2.8.1
-- swift-snapshot-testing 1.18.7
-- swift-custom-dump 1.3.3
-- SwiftSyntax 602.0.0
-- XCTest Dynamic Overlay 1.8.1
+PR #14 must remain Draft and unmerged until explicit authorization after real-machine/UI acceptance.
 
-Do not upgrade dependencies casually. Read the relevant changelog or migration guidance, change one dependency or tightly related group at a time, and verify the lockfile diff.
+The fixed-point baseline for the current UI iteration is:
 
-## Build and test commands
+`639af28e4a8123e1bbc655591a6586c2b8420c17`
 
-The repository CI defines the canonical build and test path.
+Do not let unrelated integration or `main` movement silently change this review boundary.
 
-Build:
+## Current UI iteration
 
-```bash
-xcodebuild build \
-  -project FineTune.xcodeproj \
-  -scheme FineTune \
-  -configuration Debug \
-  CODE_SIGN_IDENTITY=- \
-  CODE_SIGNING_REQUIRED=NO
+Task specification:
+
+- `tasks/reorder-liquid-glass-ui.md`
+- `tasks/reorder-liquid-glass-ui-architecture.md`
+- `tasks/reorder-liquid-glass-ui-result.md`
+
+Current code-level state:
+
+- active App, inactive App, output device, and input device rows use one shared reorder handle and dragged-row appearance
+- App label/name area remains draggable
+- slider, mute, device picker, EQ, pin/hide, App activation, and other controls retain independent pointer behavior
+- `RowReorderDragState` remains the canonical midpoint/origin-adjustment state machine
+- reverse-direction and upper/lower boundary regression tests are present
+- durable `DisplayableApp.id` identity is used for App row/navigation identity where persistence identity is required
+- reorder motion uses the shared `(0.16, 1, 0.3, 1)` timing family
+- row transactions suppress reorder animation when Reduce Motion is enabled
+
+The popup host now belongs to FineTune:
+
+- `FineTuneMenuBarExtra` owns the real `NSStatusItem`
+- `FineTuneMenuBarPopupPanel` owns the popup `NSPanel`
+- global shortcut toggling calls the owned popup directly
+- `MenuBarIconCoordinator` receives the real owned `NSStatusBarButton`
+- popup lifecycle filtering uses `FineTuneMenuBarPopupPanel` instead of a third-party class-name string
+- popup frame calculation is a deterministic function with normal, left/right boundary, and dynamic-resize/top-anchor tests
+- macOS 26+ creates `NSGlassEffectView()` and installs the real SwiftUI hosting view through `contentView`
+- older supported systems use one `.popover` `NSVisualEffectView` fallback
+- the popup content layer no longer adds a second runtime material/tint surface
+
+Do not reintroduce private status-bar-window discovery, recursive `NSApp.windows` scanning, synthetic clicks, or third-party window-class string matching.
+
+## Liquid Glass API truth
+
+The current Xcode SDK disproved an earlier assumption that FineTune should assign:
+
+```swift
+glass.style = .regular
+glass.cornerRadius = ...
 ```
 
-Test:
+Do not restore those assignments.
 
-```bash
-xcodebuild test \
-  -project FineTune.xcodeproj \
-  -scheme FineTune \
-  -configuration Debug \
-  -skip-testing:FineTuneUITests \
-  CODE_SIGN_IDENTITY=- \
-  CODE_SIGNING_REQUIRED=NO \
-  -resultBundlePath build/TestResults.xcresult
+The approved modern host pattern is:
+
+```swift
+let glass = NSGlassEffectView()
+glass.contentView = content
 ```
 
-A change is not complete until the relevant tests and build pass. For UI work, also verify the affected window or menu bar surface manually when possible.
+The real content belongs in `NSGlassEffectView.contentView`. Let AppKit control the standard Liquid Glass presentation and system accessibility adaptation.
 
-## Repository structure
+Do not stack a second `.popover`, a fixed white/black root tint, or decorative glass sibling behind the hosting view.
 
-Main application code lives in `FineTune/`.
+## FluidMenuBarExtra clean break
 
-Key areas:
+FluidMenuBarExtra is no longer a runtime or package dependency of the current UI branch.
 
-- `FineTune/FineTuneApp.swift`: application composition and lifetime wiring. Creates the audio engine and long-lived services, declares the Settings scene and FluidMenuBarExtra.
-- `FineTune/Audio/`: audio capture, routing, gain, EQ, device volume backends and related audio logic.
-- `FineTune/Coordination/`: coordination and service-level orchestration.
-- `FineTune/Models/`: domain models and state representations.
-- `FineTune/Settings/`: persisted settings, migrations, settings-facing types and state.
-- `FineTune/Shortcuts/`: global shortcuts and related command handling.
-- `FineTune/Utilities/`: shared utilities and platform helpers.
-- `FineTune/Views/`: SwiftUI and AppKit-backed presentation code.
-- `FineTune/Views/MenuBarPopupView.swift`: large central menu bar popup surface. Treat changes here carefully because it is already a large file.
-- `FineTune/Views/Settings/`: Settings window root, reusable Settings components, and tab content.
-- `FineTuneTests/`: unit and integration-style tests.
-- `.github/workflows/ci.yml`: build and test CI.
-- `.github/workflows/release.yml`: signed/notarized release process and Sparkle appcast generation.
+The clean break removes it from:
 
-## Architecture notes
+- the app target framework build phase
+- app target package product dependencies
+- Xcode project package references
+- `XCSwiftPackageProductDependency`
+- `XCRemoteSwiftPackageReference`
+- `Package.resolved`
 
-`FineTuneApp` creates a single `SettingsManager` and injects it through the production graph via `AudioEngine`. Settings UI receives the same manager with Swift Observation (`@Bindable`). This makes `SettingsManager` the natural owner for new persisted app-wide preferences.
+The lock-file `originHash` was regenerated for the remaining root package set.
 
-The Settings window is a SwiftUI `TabView` with General, Audio, Shortcuts, Updates, and About sections. Window appearance is already user-selectable and is applied through both SwiftUI and AppKit bridges.
+Do not preserve a compatibility path merely to keep Fluid alive. If behavior parity is missing, fix the FineTune-owned host directly and verify it.
 
-The app mixes SwiftUI-localizable view initializers such as `Text`, `Label`, `Button`, and custom component APIs that currently accept plain `String`. A localization implementation must account for both paths. Do not assume that converting only visible `Text("...")` calls is sufficient.
+## Automated evidence for the UI iteration
 
-Several enums use English display strings through `CustomStringConvertible` or raw values, including appearance, popup size, menu bar icon style and volume hotkey step. Persisted values must stay stable when presentation labels are localized. Do not change Codable/raw persistence identifiers merely to translate UI text.
+CI failures in this iteration were useful evidence:
 
-## Current UI language state
+- CI #270 exposed Swift 6 ObservableObject visibility and explicit `self` compile issues
+- CI #271 exposed invalid `NSGlassEffectView` API assumptions
+- later CI exposed additional host-isolation/test integration issues that were repaired at source
 
-The repository already contains `README.zh-CN.md`, but the application UI is effectively English-only. Visible text is hardcoded across Settings, menu bar popup, pickers, dialogs, permission/error surfaces, device UI and supporting presentation types.
+Dependency-clean-break SHA:
 
-The next planned feature is full application UI localization with an in-app language selector. Initial scope:
+`b00f8761f4ef7a602e9bacb1e01362ad60036612`
+
+Exact-head CI #279 / run `33065012491` passed on that SHA:
+
+- Build
+- complete non-UI Tests
+- test-result upload
+
+History cleanup may move the branch to a new commit SHA without changing the final tree. After any such rewrite or later code/doc change, re-run exact-head Build + complete non-UI Tests and use that new run as the automated acceptance evidence.
+
+Never infer real-machine/UI acceptance from CI.
+
+## Real-machine/UI gates still pending
+
+The current UI iteration is not complete until the actual built app passes the applicable matrix.
+
+Reorder:
+
+- active Apps
+- inactive Apps
+- output devices
+- input devices
+- up/down one row
+- fast multi-row crossing
+- reverse direction before release
+- release between thresholds
+- persistence after leaving edit mode/reopening
+- Compact, Comfortable, and Spacious popup sizes
+- slider, mute, picker, EQ, pin/hide, and App activation remain conflict-free
+
+Popup and Liquid Glass:
+
+- Light, Dark, and System appearance
+- bright and dark wallpapers
+- System appearance changes while the popup is in use
+- Reduce Transparency
+- Increase Contrast
+- Reduce Motion
+- available system Liquid Glass appearance preferences
+- global shortcut open/close
+- keyboard focus/navigation
+- Escape and outside-click dismissal
+- dynamic popup resize with stable top anchoring
+- status-item highlight
+- menu icon crossfade
+- multi-display positioning where available
+
+Do not mark these passed without observation on the acceptance machine.
+
+## Core product invariants
+
+### Localization
+
+FineTune-owned UI supports exactly:
 
 - English
-- Simplified Chinese (`zh-Hans`)
-- A user-facing language selector in Settings
-- Complete translation of user-visible application UI, including dialogs, menu bar popup, Settings, pickers, labels, permission/help text, empty states and user-facing errors
-- Stable English/internal identifiers for persistence, URLs, commands and programmatic keys
-- Tests or automated checks that make missing localization coverage visible
+- Simplified Chinese
 
-Do not implement this as a table of ad-hoc ternaries. Use the native Apple localization system and keep localization resources as the source of truth.
+The in-app selector exposes:
 
-## Known upstream-specific references
+- `Auto`
+- `English`
+- `简体中文`
 
-Because the repository began as a faithful upstream snapshot, several user-facing and release paths still refer to `ronitsingh10/FineTune`, including README download/release links and parts of the release/appcast workflow.
+Persisted identities remain:
 
-Do not silently rewrite these while working on unrelated features. Treat repository ownership/release migration as its own reviewed change.
+- `.system` -> `system`
+- `.english` -> `en`
+- `.simplifiedChinese` -> `zh-Hans`
 
-The release workflow also depends on signing, notarization, Sparkle and repository secrets. A normal feature change must not alter release secrets or signing assumptions unless that work is explicitly in scope.
+`Auto` uses the first preferred system UI language. Chinese maps to `zh-Hans`; other or unusable values map to `en`.
 
-## Development rules for future sessions
+Dynamic application/device/profile/preset names, UIDs, PIDs, bundle identifiers, versions, URLs, and other external identity values stay verbatim.
 
-Before implementation:
+### App discovery and durable identity
 
-1. Read this file, the relevant source files and tests.
-2. Establish the exact behavioral goal and success criteria.
-3. For framework-specific decisions, verify the current pattern against official Apple or dependency documentation that matches the project version.
-4. Prefer the smallest architectural change that solves the whole requirement cleanly.
+Do not regress app discovery into live-audio-only discovery.
 
-During implementation:
+Regular running applications may remain visible without current audio output. Pinned inactive applications retain a stable representation when the process is unavailable.
 
-- Branch from `main` using a short-lived feature/fix/refactor branch.
-- Keep `main` usable.
-- Make focused commits with one logical concern each.
-- Preserve persisted data compatibility unless a migration is explicitly designed and tested.
-- Keep feature-specific logic in the owning module.
-- Avoid adding new dependencies when Foundation, SwiftUI, AppKit or existing packages already solve the problem.
-- Do not mix drive-by refactors with feature behavior.
-- For large files such as `MenuBarPopupView.swift`, prefer extraction when a change would add another independent responsibility.
+Durable app state is keyed by `persistenceIdentifier`. PID/process identity is only the current representative.
 
-Before merge:
+Representative changes must not silently transfer stale transient tap/process ownership.
 
-- Review correctness, readability, architecture, security and performance.
-- Run the relevant tests and full build.
-- Check for user-facing regressions and missing states.
-- Compare behavior against `main` for the changed feature.
-- Review the final diff for accidental unrelated changes.
+### Routing, taps, DSP, and realtime lifetime
 
-## Localization initiative handoff
+The integration line contains source-level repairs for:
 
-When continuing the language feature, begin by reading the localization plan/spec committed with or after this handoff, then re-scan the current tree for new user-facing literals before implementation. The codebase may change between sessions, so a string inventory captured once is evidence for a baseline, not a permanent whitelist.
+- representative-process routing/tap ownership
+- quiet-app first-sound routing prearm
+- source-activity metering and weak-signal handling
+- Biquad realtime-reader quiescence
+- tap processor-generation ownership
+- Loudness Equalization lifetime retirement using real reader quiescence
 
-For Simplified Chinese, translations should read like native macOS product UI. Keep technical product names and established terms consistent across the popup, Settings and dialogs. Test layout with Chinese because translated lengths and line breaks differ from English even when Chinese often appears visually shorter.
+Do not replace those lifetime protocols with fixed time delays.
+
+Physical first-transient routing, sleep/wake, device switching, and permission recovery remain real-machine gates unless a later handoff records actual acceptance evidence.
+
+### Settings ordering
+
+An older debounced settings write must never overwrite a newer flush.
+
+`SettingsWriteCoordinator` deterministic regression coverage exists for this ordering contract. Do not reintroduce timing-guess tests or parallel unordered persistence writes.
+
+## Swift and concurrency constraints
+
+Current project settings include:
+
+- Swift 6.0
+- `SWIFT_APPROACHABLE_CONCURRENCY = YES`
+- no explicit app-target default actor isolation override
+- unit-test target default actor isolation is MainActor
+
+UI/AppKit ownership rules:
+
+- popup host state is main-actor owned
+- AppKit window/status-item mutation stays on the main actor
+- SwiftUI reorder state stays inside SwiftUI/main-actor ownership
+- event-monitor callbacks must hop to `@MainActor` before touching AppKit/SwiftUI-owned mutable state if callback isolation is not guaranteed
+
+Do not add UI fixes using:
+
+- `Task.detached`
+- `nonisolated(unsafe)`
+- `@unchecked Sendable`
+- semaphores
+- ad-hoc locks
+- background mutation of SwiftUI/AppKit state
+
+A delayed UI transition should keep the wait cancellable/lifecycle-aware and keep the actual UI mutation on the main actor.
+
+## Dependency/system boundaries
+
+Current important packages include Sparkle, KeyboardShortcuts, and SnapshotTesting. FluidMenuBarExtra has been removed from the UI branch.
+
+Do not fork or rewrite package-owned UI without a concrete product requirement.
+
+macOS owns privacy-prompt chrome, file-panel controls, standard accessibility adaptations, and native Liquid Glass behavior. FineTune should adapt its own content and host boundaries rather than fight those system surfaces.
+
+## Scope discipline for the UI iteration
+
+The diff from `639af28e...` should stay inside:
+
+- menu-bar host/popup UI
+- reorder row/components
+- menu-bar icon/shortcut bridge needed by the owned host
+- deterministic UI/geometry tests
+- Xcode dependency metadata
+- task/handoff documentation
+
+Keep these production subsystems out unless a failing test proves a direct regression caused by this UI work:
+
+- audio routing algorithms
+- process discovery
+- source activity metering
+- realtime DSP/lifetime ownership
+- settings write ordering
+- EQ/AutoEQ DSP
+- signing
+- release/appcast
+
+## Review and completion rules
+
+Before claiming the automated axis is complete:
+
+1. compare the final tree against fixed point `639af28e...`
+2. review code quality, Swift concurrency, dependency graph, entropy, and Git history
+3. confirm PR #14 is still Draft and unmerged
+4. run exact-head Build
+5. run the complete non-UI Test suite
+6. confirm test-result upload
+
+Before claiming the whole UI iteration is complete, the real-machine/UI matrix above must also pass.
+
+Known low-severity cleanup candidates that do not currently create a second runtime popup surface:
+
+- the historical no-op `darkGlassBackground()` content helper
+- the old popup-overlay design token/its token-level test
+
+Treat these as entropy to remove when doing so can be verified cleanly. Do not revive their old visual behavior.
+
+## Next action
+
+Finish history cleanup only after the final tree is settled, then run exact-head CI on the history-cleaned HEAD. If that is green, automated acceptance can be reported PASS while real-machine/UI acceptance remains Pending.

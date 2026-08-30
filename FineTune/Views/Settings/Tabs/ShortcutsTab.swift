@@ -21,7 +21,7 @@ struct ShortcutsTab: View {
             .padding(.vertical, 20)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .scrollIndicators(.never)
+        .scrollIndicators(.automatic)
         .onChange(of: settings.appSettings.mediaKeyControlEnabled) { _, _ in
             mediaKeyMonitor.reconcile()
         }
@@ -35,9 +35,9 @@ struct ShortcutsTab: View {
                 "Volume Step",
                 description: "How much each keypress changes the volume. Applies to media keys, configured hotkeys, and arrow-key nav in the popup."
             ) {
-                Picker("", selection: $settings.appSettings.volumeHotkeyStep) {
+                Picker("Volume Step", selection: $settings.appSettings.volumeHotkeyStep) {
                     ForEach(VolumeHotkeyStep.allCases) { step in
-                        Text(step.description).tag(step)
+                        Text(step.displayName).tag(step)
                     }
                 }
                 .pickerStyle(.menu)
@@ -55,7 +55,7 @@ struct ShortcutsTab: View {
                 "Media Keys Control",
                 description: "Use F11/F12 (or volume keys) to control FineTune"
             ) {
-                Toggle("", isOn: $settings.appSettings.mediaKeyControlEnabled)
+                Toggle("Media Keys Control", isOn: $settings.appSettings.mediaKeyControlEnabled)
                     .toggleStyle(.switch)
                     .controlSize(.small)
                     .labelsHidden()
@@ -74,7 +74,7 @@ struct ShortcutsTab: View {
                     mediaKeyMonitor.reconcile()
                 }
                 .padding(.horizontal, 16)
-                .padding(.vertical, 12)
+                    .padding(.vertical, 12)
             }
 
             if settings.appSettings.mediaKeyControlEnabled && accessibility.isTrustedCached {
@@ -108,7 +108,7 @@ struct ShortcutsTab: View {
         }
     }
 
-    private func description(for action: ShortcutAction) -> String {
+    private func description(for action: ShortcutAction) -> LocalizedStringResource {
         switch action {
         case .togglePopup: "Show or hide the menu bar popup"
         case .targetAppVolumeUp: "Raise volume for the app playing audio"

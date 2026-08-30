@@ -5,8 +5,9 @@ import SwiftUI
 struct ClassicStyleHUD: View {
     let sliderFraction: Float
     let mute: Bool
+    var language: AppLanguage = .system
 
-    // MARK: - Constants
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     static let hasPercentageLabel: Bool = false
 
@@ -18,14 +19,24 @@ struct ClassicStyleHUD: View {
     private static let tileSpacing: CGFloat = 2
     private static let tileSideInset: CGFloat = 20
 
-    // MARK: - Derived state
+    private var presentationState: VolumePresentationState {
+        VolumePresentationState(
+            storedFraction: Double(max(0, min(1, sliderFraction))),
+            isMuted: mute,
+            sourceIsActive: false
+        )
+    }
 
     private var displayValue: Float {
-        mute ? 0 : max(0, min(1, sliderFraction))
+        Float(presentationState.displayFraction)
+    }
+
+    private var displayMute: Bool {
+        presentationState.displaysMuted
     }
 
     private var displayedPercent: Int {
-        Int((displayValue * 100).rounded())
+        presentationState.displayPercent
     }
 
     private var filledTileCount: Int {
@@ -43,19 +54,22 @@ struct ClassicStyleHUD: View {
 
     /// `speaker.slash.fill` sits 2pt high vs the rest of the `speaker.*` glyphs at 80pt.
     private var iconYOffset: CGFloat {
-        (mute || displayedPercent == 0) ? 2 : 0
+        displayMute ? 2 : 0
     }
 
     #if DEBUG
     var waveIconNameForTest: String { waveIconName }
+    var displayedPercentForTest: Int { displayedPercent }
+    var displayMuteForTest: Bool { displayMute }
     #endif
 
     private var accessibilityDescription: String {
-        if mute { return "Muted" }
-        return "Volume \(Int((displayValue * 100).rounded())) percent"
+        HUDPresentation.classicAccessibilityLabel(
+            sliderFraction: Double(displayValue),
+            mute: displayMute,
+            language: language
+        )
     }
-
-    // MARK: - Body
 
     var body: some View {
         VStack(spacing: 0) {
@@ -78,8 +92,7 @@ struct ClassicStyleHUD: View {
     private var iconSection: some View {
         VStack(spacing: 0) {
             Spacer().frame(height: 56)
-            // Hard-swap — symbolEffect(.replace.*) cross-fades the whole wave glyph on every bin change.
-            Image(systemName: mute ? "speaker.slash.fill" : waveIconName)
+            Image(systemName: displayMute ? "speaker.slash.fill" : waveIconName)
                 .font(.system(size: Self.iconSize, weight: .medium))
                 .foregroundStyle(DesignTokens.Colors.hudTileActive)
                 .offset(y: iconYOffset)
@@ -102,7 +115,7 @@ struct ClassicStyleHUD: View {
                 }
                 Spacer().frame(width: Self.tileSideInset)
             }
-            .animation(DesignTokens.Animation.quick, value: filledTileCount)
+            .animation(reduceMotion ? nil : DesignTokens.Animation.quick, value: filledTileCount)
         }
         .frame(height: 80)
     }

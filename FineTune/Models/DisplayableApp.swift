@@ -2,60 +2,53 @@
 import AppKit
 import UniformTypeIdentifiers
 
-/// Represents an app that can be displayed in the UI, either active (currently playing audio)
-/// or pinned but inactive (not currently running or producing audio).
+/// Stable presentation identity for either a running app or a pinned app whose
+/// process is currently unavailable. Identity remains the persistence identifier
+/// so relaunches replace the inactive row without changing its ordering slot.
 enum DisplayableApp: Identifiable {
     case active(AudioApp)
     case pinnedInactive(PinnedAppInfo)
 
     var id: String {
         switch self {
-        case .active(let app):
-            return app.persistenceIdentifier
-        case .pinnedInactive(let info):
-            return info.persistenceIdentifier
-        }
-    }
-
-    /// Whether this represents a pinned-but-inactive app.
-    /// Note: Active apps may also be pinned - check the pinned list directly for that case.
-    var isPinnedInactive: Bool {
-        switch self {
-        case .active:
-            return false
-        case .pinnedInactive:
-            return true
-        }
-    }
-
-    var isActive: Bool {
-        switch self {
-        case .active:
-            return true
-        case .pinnedInactive:
-            return false
+        case .active(let app): app.persistenceIdentifier
+        case .pinnedInactive(let info): info.persistenceIdentifier
         }
     }
 
     var displayName: String {
         switch self {
-        case .active(let app):
-            return app.name
-        case .pinnedInactive(let info):
-            return info.displayName
+        case .active(let app): app.name
+        case .pinnedInactive(let info): info.displayName
         }
     }
 
     var icon: NSImage {
         switch self {
-        case .active(let app):
-            return app.icon
-        case .pinnedInactive(let info):
-            return Self.loadIcon(bundleID: info.bundleID)
+        case .active(let app): app.icon
+        case .pinnedInactive(let info): Self.loadIcon(bundleID: info.bundleID)
         }
     }
 
-    /// Loads the app icon from a bundle ID, or returns a generic placeholder.
+    var app: AudioApp? {
+        guard case .active(let app) = self else { return nil }
+        return app
+    }
+
+    var pinInfo: PinnedAppInfo {
+        switch self {
+        case .active(let app):
+            PinnedAppInfo(
+                persistenceIdentifier: app.persistenceIdentifier,
+                displayName: app.name,
+                bundleID: app.bundleID
+            )
+        case .pinnedInactive(let info):
+            info
+        }
+    }
+
+    /// Loads a persisted app icon for management surfaces such as Hidden Apps.
     static func loadIcon(bundleID: String?) -> NSImage {
         if let bundleID,
            let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) {

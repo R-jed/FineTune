@@ -32,7 +32,7 @@ struct AboutTab: View {
                     .font(.system(size: 22, weight: .semibold))
                     .foregroundStyle(DesignTokens.Colors.textPrimary)
 
-                Text("Version \(versionShort) (\(buildNumber))")
+                (Text("Version") + Text(verbatim: " \(versionShort) (\(buildNumber))"))
                     .font(.system(size: 12, design: .monospaced))
                     .foregroundStyle(.secondary)
             }
@@ -70,6 +70,8 @@ struct AboutTab: View {
                 NSWorkspace.shared.open(DesignTokens.Links.license)
             } label: {
                 Text("GPL-3.0")
+                    .frame(minHeight: DesignTokens.Dimensions.minTouchTarget)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
 

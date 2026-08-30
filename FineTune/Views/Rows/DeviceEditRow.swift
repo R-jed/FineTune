@@ -2,8 +2,8 @@
 import SwiftUI
 import AppKit
 
-/// Priority-edit-mode row with drag handle, priority number, icon+name,
-/// DEFAULT badge, hide toggle, and an info/close button that expands the
+/// Device-management row with a native drag handle, visible move alternatives,
+/// icon+name, DEFAULT badge, hide toggle, and an info/close button that expands the
 /// Device Inspector pane. Icon opens the icon picker; name+badge is the
 /// tap region for expand — siblings keep their own gestures.
 struct DeviceEditRow<ExpandedContent: View>: View {
@@ -15,15 +15,21 @@ struct DeviceEditRow<ExpandedContent: View>: View {
     let deviceCount: Int
     let isExpanded: Bool
     let isHidden: Bool
+    let isReordering: Bool
+    let reorderOffset: CGFloat
+    let onReorderChanged: (CGFloat) -> Void
+    let onReorderEnded: () -> Void
     let onReorder: (Int) -> Void
-    let onToggleExpand: () -> Void
-    let onToggleHidden: () -> Void
+    var onToggleExpand: (() -> Void)? = nil
+    var onToggleHidden: (() -> Void)? = nil
     var onIconSelect: ((String?) -> Void)? = nil
     @ViewBuilder let expandedContent: () -> ExpandedContent
 
     @State private var isInfoButtonHovered = false
     @State private var showingIconPicker = false
     @State private var isIconHovered = false
+    @State private var isHideButtonHovered = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var displayIcon: NSImage? {
         DeviceIconResolver.displayIcon(
@@ -33,13 +39,62 @@ struct DeviceEditRow<ExpandedContent: View>: View {
         )
     }
 
+    private var detailsAccessibilityLabel: LocalizedStringResource {
+        isExpanded ? "Collapse device details" : "Expand device details"
+    }
+
+    private var hideHelpText: LocalizedStringResource {
+        if isDefault { return "Cannot hide the default device" }
+        return isHidden ? "Show in main view" : "Hide from main view"
+    }
+
+    private var hideAccessibilityLabel: LocalizedStringResource {
+        isHidden ? "Show in main view" : "Hide from main view"
+    }
+
+    private var inspectorHelpText: LocalizedStringResource {
+        isExpanded ? "Close device inspector" : "Device inspector"
+    }
+
+    private var inspectorAccessibilityLabel: LocalizedStringResource {
+        isExpanded ? "Close device inspector" : "Open device inspector"
+    }
+
     var body: some View {
-        ExpandableGlassRow(isExpanded: isExpanded) {
-            headerRow
-                .opacity(isHidden && !isDefault ? 0.5 : 1.0)
-                .animation(.easeOut(duration: 0.2), value: isHidden)
-        } expandedContent: {
-            expandedContent()
+        accessibleReorderActions(
+            ExpandableGlassRow(isExpanded: isExpanded) {
+                headerRow
+                    .opacity(isHidden && !isDefault ? 0.5 : 1.0)
+                    .animation(.easeOut(duration: 0.2), value: isHidden)
+            } expandedContent: {
+                expandedContent()
+            }
+        )
+        .continuousReorderAppearance(
+            isDragging: isReordering,
+            offset: reorderOffset
+        )
+    }
+
+    private func accessibleReorderActions<Content: View>(_ content: Content) -> some View {
+        let moveUpTarget = DeviceReorderAccessibility.targetIndex(
+            currentIndex: priorityIndex,
+            direction: -1,
+            count: deviceCount
+        )
+        let moveDownTarget = DeviceReorderAccessibility.targetIndex(
+            currentIndex: priorityIndex,
+            direction: 1,
+            count: deviceCount
+        )
+
+        return content.accessibilityActions {
+            if let moveUpTarget {
+                Button("Move Up") { onReorder(moveUpTarget) }
+            }
+            if let moveDownTarget {
+                Button("Move Down") { onReorder(moveDownTarget) }
+            }
         }
     }
 
@@ -55,71 +110,80 @@ struct DeviceEditRow<ExpandedContent: View>: View {
 
     private var headerRow: some View {
         HStack(spacing: DesignTokens.Spacing.sm) {
-            Image(systemName: "line.3.horizontal")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(DesignTokens.Colors.textTertiary)
-                .frame(width: 16)
-
-            EditablePriority(
-                index: priorityIndex,
-                count: deviceCount,
-                onReorder: onReorder
+            ReorderDragHandle(
+                onChanged: onReorderChanged,
+                onEnded: onReorderEnded
             )
 
-            iconButton
+            iconControl
 
-            HStack(spacing: DesignTokens.Spacing.sm) {
-                Text(device.name)
+            deviceIdentity
+
+            if onToggleHidden != nil {
+                hideToggleButton
+            }
+
+            if onToggleExpand != nil {
+                infoButton
+            }
+        }
+        .frame(height: DesignTokens.Dimensions.rowContentHeight)
+    }
+
+    private var deviceIdentityContent: some View {
+        HStack(spacing: DesignTokens.Spacing.sm) {
+                Text(verbatim: device.name)
                     .font(DesignTokens.Typography.rowName)
                     .lineLimit(1)
-                    .help(device.uid)
+                    .help(Text(verbatim: "\(device.name)\n\(device.uid)"))
 
                 if isDefault {
                     Text("DEFAULT")
-                        .font(.system(size: 9, weight: .semibold))
+                        .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(DesignTokens.Colors.textSecondary)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
                         .background(
                             Capsule()
-                                .fill(DesignTokens.Colors.glassFillStrong)
+                                .fill(DesignTokens.Surface.emphasized)
                         )
                 }
 
                 Spacer()
-            }
+        }
+    }
+
+    @ViewBuilder
+    private var deviceIdentity: some View {
+        if let onToggleExpand {
+            deviceIdentityContent
             .contentShape(Rectangle())
             .onTapGesture { onToggleExpand() }
             .accessibilityAddTraits(.isButton)
-            .accessibilityLabel(isExpanded ? "Collapse device details" : "Expand device details")
-
-            hideToggleButton
-
-            infoButton
+            .accessibilityLabel(Text(detailsAccessibilityLabel))
+        } else {
+            deviceIdentityContent
         }
-        .frame(height: DesignTokens.Dimensions.rowContentHeight)
+    }
+
+    @ViewBuilder
+    private var iconControl: some View {
+        if onIconSelect != nil {
+            iconButton
+        } else {
+            deviceIcon
+        }
     }
 
     private var iconButton: some View {
         Button {
             showingIconPicker = true
         } label: {
-            Group {
-                if let icon = displayIcon {
-                    Image(nsImage: icon)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                } else {
-                    Image(systemName: isInputDevice ? "mic" : "speaker.wave.2")
-                        .symbolRenderingMode(.hierarchical)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .frame(width: DesignTokens.Dimensions.iconSize, height: DesignTokens.Dimensions.iconSize)
+            deviceIcon
             .overlay(alignment: .bottomTrailing) {
                 if isIconHovered {
                     Image(systemName: "pencil.circle.fill")
-                        .font(.system(size: 9))
+                        .font(.system(size: 11))
                         .symbolRenderingMode(.palette)
                         .foregroundStyle(Color.white, DesignTokens.Colors.accentPrimary)
                         .offset(x: 3, y: 3)
@@ -141,20 +205,28 @@ struct DeviceEditRow<ExpandedContent: View>: View {
         }
     }
 
-    /// Eye / eye-slash toggle. Disabled for the current default device —
-    /// it stays visible while it's the default.
+    private var deviceIcon: some View {
+        Group {
+            if let icon = displayIcon {
+                Image(nsImage: icon)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+            } else {
+                Image(systemName: isInputDevice ? "mic" : "speaker.wave.2")
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(width: DesignTokens.Dimensions.iconSize, height: DesignTokens.Dimensions.iconSize)
+    }
+
     private var hideToggleButton: some View {
         Button {
-            onToggleHidden()
+            onToggleHidden?()
         } label: {
             Image(systemName: isHidden ? "eye.slash" : "eye")
-                .font(.system(size: 11))
-                .foregroundStyle(
-                    isDefault
-                        ? DesignTokens.Colors.textTertiary.opacity(0.4)
-                        : (isHidden ? DesignTokens.Colors.mutedIndicator : DesignTokens.Colors.textTertiary)
-                )
-                .contentTransition(.symbolEffect(.replace))
+                .font(.system(size: 12))
+                .foregroundStyle(hideSymbolColor)
                 .frame(
                     minWidth: DesignTokens.Dimensions.minTouchTarget,
                     minHeight: DesignTokens.Dimensions.minTouchTarget
@@ -163,25 +235,35 @@ struct DeviceEditRow<ExpandedContent: View>: View {
         }
         .buttonStyle(.plain)
         .disabled(isDefault)
-        .help(isDefault
-            ? "Cannot hide the default device"
-            : (isHidden ? "Show in main view" : "Hide from main view")
-        )
-        .accessibilityLabel(isHidden ? "Show in main view" : "Hide from main view")
+        .onHover { isHideButtonHovered = !isDefault && $0 }
+        .help(hideHelpText)
+        .accessibilityLabel(Text(hideAccessibilityLabel))
+    }
+
+    private var hideSymbolColor: Color {
+        if isDefault {
+            return DesignTokens.Colors.textTertiary.opacity(0.4)
+        }
+        if isHidden {
+            return DesignTokens.Colors.mutedIndicator
+        }
+        return isHideButtonHovered
+            ? DesignTokens.Colors.interactiveHover
+            : DesignTokens.Colors.textTertiary
     }
 
     private var infoButton: some View {
         Button {
-            onToggleExpand()
+            onToggleExpand?()
         } label: {
             ZStack {
                 Image(systemName: "info.circle")
                     .opacity(isExpanded ? 0 : 1)
-                    .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                    .rotationEffect(.degrees(reduceMotion ? 0 : (isExpanded ? 90 : 0)))
 
                 Image(systemName: "xmark")
                     .opacity(isExpanded ? 1 : 0)
-                    .rotationEffect(.degrees(isExpanded ? 0 : -90))
+                    .rotationEffect(.degrees(reduceMotion ? 0 : (isExpanded ? 0 : -90)))
             }
             .font(.system(size: 12))
             .symbolRenderingMode(.hierarchical)
@@ -194,146 +276,37 @@ struct DeviceEditRow<ExpandedContent: View>: View {
         }
         .buttonStyle(.plain)
         .onHover { isInfoButtonHovered = $0 }
-        .help(isExpanded ? "Close device inspector" : "Device inspector")
-        .accessibilityLabel(isExpanded ? "Close device inspector" : "Open device inspector")
-        .animation(.spring(response: 0.3, dampingFraction: 0.75), value: isExpanded)
-        .animation(DesignTokens.Animation.hover, value: isInfoButtonHovered)
+        .help(inspectorHelpText)
+        .accessibilityLabel(Text(inspectorAccessibilityLabel))
+        .animation(reduceMotion ? nil : DesignTokens.Animation.hover, value: isInfoButtonHovered)
     }
 }
 
-// MARK: - Editable Priority Number
-
-/// Inline editable priority number — click to type a new position.
-/// Same interaction pattern as `EditablePercentage` but displays just a number.
-private struct EditablePriority: View {
-    let index: Int
-    let count: Int
-    let onReorder: (Int) -> Void
-
-    @State private var isEditing = false
-    @State private var inputText = ""
-    @State private var isHovered = false
-    @FocusState private var isFocused: Bool
-    @State private var coordinator = ClickOutsideCoordinator()
-    @State private var componentFrame: CGRect = .zero
-
-    /// Display number is 1-based
-    private var displayNumber: Int { index + 1 }
-
-    private var textColor: Color {
-        isEditing ? DesignTokens.Colors.accentPrimary : DesignTokens.Colors.textSecondary
+enum DeviceReorderAccessibility {
+    static func targetIndex(currentIndex: Int, direction: Int, count: Int) -> Int? {
+        guard direction == -1 || direction == 1 else { return nil }
+        let targetIndex = currentIndex + direction
+        guard (0..<count).contains(targetIndex) else { return nil }
+        return targetIndex
     }
 
-    var body: some View {
-        Group {
-            if isEditing {
-                TextField("", text: $inputText)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 11, weight: .semibold).monospacedDigit())
-                    .foregroundStyle(textColor)
-                    .multilineTextAlignment(.center)
-                    .focused($isFocused)
-                    .onSubmit { commit() }
-                    .onExitCommand { cancel() }
-                    .fixedSize()
-            } else {
-                Text("\(displayNumber)")
-                    .font(.system(size: 11, weight: .semibold).monospacedDigit())
-                    .foregroundStyle(isHovered ? DesignTokens.Colors.textPrimary : textColor)
-            }
+    static func reorderedIdentifiers(
+        _ orderedIdentifiers: [String],
+        moving identifier: String,
+        to targetIndex: Int
+    ) -> [String]? {
+        guard let sourceIndex = orderedIdentifiers.firstIndex(of: identifier),
+              orderedIdentifiers.indices.contains(targetIndex),
+              sourceIndex != targetIndex else {
+            return nil
         }
-        .padding(.horizontal, isEditing ? 4 : 2)
-        .padding(.vertical, isEditing ? 2 : 1)
-        .background {
-            GeometryReader { geo in
-                Color.clear
-                    .preference(key: PriorityFrameKey.self, value: geo.frame(in: .global))
-            }
-        }
-        .onPreferenceChange(PriorityFrameKey.self) { frame in
-            updateScreenFrame(from: frame)
-        }
-        .background {
-            if isEditing {
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(DesignTokens.Colors.accentPrimary.opacity(0.12))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 4)
-                            .strokeBorder(DesignTokens.Colors.accentPrimary.opacity(0.4), lineWidth: 1)
-                    }
-            } else if isHovered {
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(Color.primary.opacity(0.08))
-            }
-        }
-        .frame(width: 16, alignment: .center)
-        .contentShape(Rectangle())
-        .onTapGesture { if !isEditing { startEditing() } }
-        .accessibilityAddTraits(.isButton)
-        .accessibilityLabel("Edit priority position")
-        .onHover { hovering in
-            isHovered = hovering
-            if hovering {
-                NSCursor.pointingHand.push()
-            } else {
-                NSCursor.pop()
-            }
-        }
-        .onChange(of: isEditing) { _, editing in
-            if !editing {
-                coordinator.removeMonitors()
-            }
-        }
-        .animation(.easeOut(duration: 0.15), value: isEditing)
-        .animation(.easeOut(duration: 0.1), value: isHovered)
-    }
 
-    private func startEditing() {
-        inputText = "\(displayNumber)"
-        isEditing = true
-
-        coordinator.install(
-            excludingFrame: componentFrame,
-            onClickOutside: { [self] in
-                cancel()
-            }
-        )
-
-        Task { @MainActor in
-            isFocused = true
-        }
-    }
-
-    private func commit() {
-        let cleaned = inputText.trimmingCharacters(in: .whitespaces)
-        if let value = Int(cleaned), (1...count).contains(value) {
-            let newIndex = value - 1
-            if newIndex != index {
-                onReorder(newIndex)
-            }
-        }
-        isEditing = false
-    }
-
-    private func cancel() {
-        isEditing = false
-    }
-
-    private func updateScreenFrame(from globalFrame: CGRect) {
-        componentFrame = screenFrame(from: globalFrame)
+        var result = orderedIdentifiers
+        let movedIdentifier = result.remove(at: sourceIndex)
+        result.insert(movedIdentifier, at: min(targetIndex, result.count))
+        return result
     }
 }
-
-// MARK: - Preference Key
-
-private struct PriorityFrameKey: PreferenceKey {
-    static let defaultValue: CGRect = .zero
-    static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
-        value = nextValue()
-    }
-}
-
-// MARK: - Previews
 
 #Preview("DeviceEditRow Tap Carveout") {
     DeviceEditRowTapCarveoutPreview()
@@ -358,11 +331,15 @@ struct DeviceEditRowTapCarveoutPreview: View {
                     deviceCount: 3,
                     isExpanded: expandedUID == MockData.sampleDevices[0].uid,
                     isHidden: false,
+                    isReordering: false,
+                    reorderOffset: 0,
+                    onReorderChanged: { _ in },
+                    onReorderEnded: {},
                     onReorder: { newIndex in
                         lastEvent = "Reorder to \(newIndex + 1)"
                     },
                     onToggleExpand: {
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                        withAnimation(.easeOut(duration: 0.16)) {
                             let uid = MockData.sampleDevices[0].uid
                             expandedUID = (expandedUID == uid) ? nil : uid
                             lastEvent = "Toggled expand → \(expandedUID ?? "nil")"

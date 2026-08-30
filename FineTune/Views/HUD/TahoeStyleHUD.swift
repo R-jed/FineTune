@@ -6,10 +6,9 @@ struct TahoeStyleHUD: View {
     let sliderFraction: Float
     let mute: Bool
     let deviceName: String
+    var language: AppLanguage = .system
     var onSliderChange: ((Float) -> Void)? = nil
     var onHoverChange: ((Bool) -> Void)? = nil
-
-    // MARK: - Constants
 
     static let nameFont: Font = DesignTokens.Typography.rowNameBold
 
@@ -18,24 +17,26 @@ struct TahoeStyleHUD: View {
     private static let cornerRadius: CGFloat = 22
     private static let percentageWidth: CGFloat = 36
 
-    // MARK: - State
+    @State private var dragValue: Double?
 
-    @State private var dragValue: Double? = nil
-
-    // MARK: - Derived state
+    private var presentationState: VolumePresentationState {
+        VolumePresentationState(
+            storedFraction: dragValue ?? Double(max(0, min(1, sliderFraction))),
+            isMuted: dragValue == nil ? mute : false,
+            sourceIsActive: false
+        )
+    }
 
     private var displayFloat: Float {
-        if let dragValue { return Float(max(0, min(1, dragValue))) }
-        return max(0, min(1, sliderFraction))
+        Float(presentationState.displayFraction)
     }
 
     private var displayedPercent: Int {
-        Int((displayFloat * 100).rounded())
+        presentationState.displayPercent
     }
 
     private var displayMute: Bool {
-        if let dragValue { return Int((dragValue * 100).rounded()) == 0 }
-        return mute
+        presentationState.displaysMuted
     }
 
     private var waveIconName: String {
@@ -56,23 +57,24 @@ struct TahoeStyleHUD: View {
     #endif
 
     private var accessibilityDescription: String {
-        let device = deviceName.isEmpty ? "Unknown device" : deviceName
-        let percent = Int((displayFloat * 100).rounded())
-        if displayMute { return "\(device), muted, volume at \(percent) percent" }
-        return "\(device), volume \(percent) percent"
+        HUDPresentation.tahoeAccessibilityLabel(
+            deviceName: deviceName,
+            sliderFraction: Double(displayFloat),
+            mute: displayMute,
+            language: language
+        )
     }
 
     private var sliderBinding: Binding<Double> {
         Binding(
             get: { Double(displayFloat) },
             set: { newValue in
-                dragValue = newValue
-                onSliderChange?(Float(newValue))
+                let normalizedValue = max(0, min(1, newValue))
+                dragValue = normalizedValue
+                onSliderChange?(Float(normalizedValue))
             }
         )
     }
-
-    // MARK: - Body
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -82,9 +84,9 @@ struct TahoeStyleHUD: View {
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .help(Text(verbatim: deviceName))
 
             HStack(spacing: 8) {
-                // Hard-swap — symbolEffect(.replace.*) cross-fades the whole wave glyph on every bin change.
                 Image(systemName: displayMute ? "speaker.slash.fill" : waveIconName)
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(displayMute
@@ -95,10 +97,9 @@ struct TahoeStyleHUD: View {
                 LiquidGlassSlider(
                     value: sliderBinding,
                     in: 0...1,
-                    showUnityMarker: false
+                    showUnityMarker: false,
+                    accessibilityLabel: Text("System volume")
                 )
-                .opacity(displayMute ? 0.5 : 1.0)
-                .scrollWheelStep(sliderBinding, in: 0.0...1.0)
 
                 Text(percentageText)
                     .font(.system(size: 11, weight: .semibold).monospacedDigit())
@@ -123,7 +124,6 @@ struct TahoeStyleHUD: View {
             onHoverChange?(hovering)
         }
         .onChange(of: sliderFraction) { _, _ in
-            // External source pushed a value; drop the sticky drag snapshot.
             dragValue = nil
         }
         .onChange(of: mute) { _, _ in

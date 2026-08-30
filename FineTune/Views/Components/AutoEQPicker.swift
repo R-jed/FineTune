@@ -11,7 +11,7 @@ struct AutoEQPicker: View {
     let onSelect: (AutoEQProfile?) -> Void
     let onImport: () -> Void
     let onToggleFavorite: (String) -> Void
-    let importError: String?
+    let importError: LocalizedStringResource?
     var isCorrectionEnabled: Bool = false
     var onCorrectionToggle: ((Bool) -> Void)?
     var preampEnabled: Bool = true
@@ -40,6 +40,17 @@ struct AutoEQPicker: View {
             return DesignTokens.Colors.interactiveHover
         }
         return DesignTokens.Colors.interactiveDefault
+    }
+
+    private var triggerHelp: LocalizedStringResource {
+        isExpanded ? "Close AutoEQ" : "AutoEQ correction"
+    }
+
+    private var catalogLoadFailed: Bool {
+        if case .error = profileManager.catalogState {
+            return true
+        }
+        return false
     }
 
     // MARK: - Body
@@ -77,7 +88,8 @@ struct AutoEQPicker: View {
         }
         .buttonStyle(.plain)
         .onHover { isButtonHovered = $0 }
-        .help(isExpanded ? "Close AutoEQ" : "AutoEQ correction")
+        .help(triggerHelp)
+        .accessibilityLabel("AutoEQ correction")
         .animation(DesignTokens.Animation.hover, value: isButtonHovered)
     }
 
@@ -91,12 +103,12 @@ struct AutoEQPicker: View {
                 selectedProfileID: selection?.profileID,
                 onSelect: { profile in
                     onSelect(profile)
-                    withAnimation(.easeOut(duration: 0.15)) {
+                    withAnimation(DesignTokens.Animation.selection) {
                         isExpanded = false
                     }
                 },
                 onDismiss: {
-                    withAnimation(.easeOut(duration: 0.15)) {
+                    withAnimation(DesignTokens.Animation.selection) {
                         isExpanded = false
                     }
                 },
@@ -111,6 +123,19 @@ struct AutoEQPicker: View {
                 preampEnabled: preampEnabled,
                 onPreampToggle: onPreampToggle
             )
+
+            if catalogLoadFailed {
+                Divider()
+                    .padding(.horizontal, DesignTokens.Spacing.sm)
+
+                Button("Retry") {
+                    Task { await profileManager.refreshCatalog() }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .padding(.vertical, DesignTokens.Spacing.sm)
+                .accessibilityLabel("Retry AutoEQ catalog")
+            }
         }
         .frame(width: popoverWidth)
         .background(

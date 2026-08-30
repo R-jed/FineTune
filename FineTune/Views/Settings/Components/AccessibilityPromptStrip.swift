@@ -6,9 +6,8 @@ import SwiftUI
 /// `MediaKeyControlRow` so it can compose cleanly inside a `SettingsCard`.
 ///
 /// Renders two states: untrusted (Grant button) and post-grant flourish
-/// (animated checkmark + "Granted" pill). The flourish duration is owned
-/// here because the parent only knows about the trust flag, not the
-/// transient celebration window.
+/// (checkmark + "Granted" pill). The flourish duration is owned here because
+/// the parent only knows about the trust flag, not the transient celebration window.
 @MainActor
 struct AccessibilityPromptStrip: View {
     @Bindable var accessibility: AccessibilityPermissionService
@@ -26,7 +25,6 @@ struct AccessibilityPromptStrip: View {
                 .symbolRenderingMode(.hierarchical)
                 .foregroundStyle(iconColor)
                 .frame(width: 28, alignment: .center)
-                .contentTransition(.symbolEffect(.replace))
 
             Text(message)
                 .font(DesignTokens.Typography.rowDescription)
@@ -47,6 +45,8 @@ struct AccessibilityPromptStrip: View {
                     }
                     .font(DesignTokens.Typography.pickerText)
                     .foregroundStyle(DesignTokens.Colors.accentPrimary)
+                    .frame(minHeight: DesignTokens.Dimensions.minTouchTarget)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityHint("Registers FineTune in the Accessibility list and opens System Settings.")
@@ -56,7 +56,7 @@ struct AccessibilityPromptStrip: View {
         .padding(.vertical, DesignTokens.Spacing.sm)
         .frame(maxWidth: .infinity, alignment: .leading)
         .animation(
-            reduceMotion ? .linear(duration: 0.15) : .spring(response: 0.35, dampingFraction: 0.85),
+            reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.85),
             value: showingGrantedFlourish
         )
         .onChange(of: accessibility.isTrustedCached) { oldValue, newValue in
@@ -71,7 +71,7 @@ struct AccessibilityPromptStrip: View {
                 .fill(DesignTokens.Colors.vuGreen)
                 .frame(width: 5, height: 5)
             Text("Granted")
-                .font(.system(size: 9, weight: .semibold))
+                .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(DesignTokens.Colors.textSecondary)
         }
         .padding(.horizontal, 6)
@@ -83,9 +83,9 @@ struct AccessibilityPromptStrip: View {
         showingGrantedFlourish ? DesignTokens.Colors.vuGreen : DesignTokens.Colors.accentPrimary
     }
 
-    private var message: String {
+    private var message: LocalizedStringResource {
         showingGrantedFlourish
-            ? "Access granted — volume keys now control FineTune."
+            ? "Access granted. Volume keys now control FineTune."
             : "FineTune needs Accessibility to intercept F10 / F11 / F12."
     }
 

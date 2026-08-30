@@ -32,7 +32,7 @@ struct AudioTab: View {
             .padding(.vertical, 20)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .scrollIndicators(.never)
+        .scrollIndicators(.automatic)
         .onAppear { updateSortedDevices() }
         .onChange(of: audioEngine.outputDevices) { _, _ in updateSortedDevices() }
         .onChange(of: settings.appSettings.lockInputDevice) { oldValue, newValue in
@@ -59,7 +59,8 @@ struct AudioTab: View {
                 VolumeSlider(
                     $settings.appSettings.defaultNewAppVolume,
                     range: 0.1...1.0,
-                    width: 280
+                    width: 280,
+                    accessibilityLabel: "Default Volume"
                 )
             }
             SettingsRowDivider()
@@ -67,7 +68,7 @@ struct AudioTab: View {
                 "Loudness Compensation",
                 description: "Boost low frequencies at low volume"
             ) {
-                Toggle("", isOn: unifiedLoudnessToggleBinding)
+                Toggle("Loudness Compensation", isOn: unifiedLoudnessToggleBinding)
                     .toggleStyle(.switch)
                     .controlSize(.small)
                     .labelsHidden()
@@ -83,7 +84,7 @@ struct AudioTab: View {
                 "Lock Input Device",
                 description: "Prevent auto-switching when devices connect"
             ) {
-                Toggle("", isOn: $settings.appSettings.lockInputDevice)
+                Toggle("Lock Input Device", isOn: $settings.appSettings.lockInputDevice)
                     .toggleStyle(.switch)
                     .controlSize(.small)
                     .labelsHidden()
@@ -120,7 +121,8 @@ struct AudioTab: View {
                         set: { deviceVolumeMonitor.setAlertVolume($0) }
                     ),
                     range: 0...1,
-                    width: 280
+                    width: 280,
+                    accessibilityLabel: "Alert Volume"
                 )
             }
             .task {

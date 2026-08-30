@@ -13,6 +13,16 @@ enum MenuBarIconStyle: String, Codable, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
+    var displayName: LocalizedStringResource {
+        switch self {
+        case .default: "Default"
+        case .speaker: "Speaker"
+        case .device: "Device"
+        case .waveform: "Waveform"
+        case .equalizer: "Equalizer"
+        }
+    }
+
     /// The icon name - either asset catalog name or SF Symbol
     var iconName: String {
         switch self {
@@ -40,6 +50,13 @@ enum HUDStyle: String, Codable, CaseIterable, Identifiable {
     case classic
 
     var id: String { rawValue }
+
+    var displayName: LocalizedStringResource {
+        switch self {
+        case .tahoe: "Tahoe"
+        case .classic: "Classic"
+        }
+    }
 }
 
 // MARK: - Appearance Preference
@@ -52,6 +69,14 @@ enum AppearancePreference: String, Codable, CaseIterable, Identifiable, CustomSt
     case dark
 
     var id: String { rawValue }
+
+    var displayName: LocalizedStringResource {
+        switch self {
+        case .system: "System"
+        case .light: "Light"
+        case .dark: "Dark"
+        }
+    }
 
     var description: String {
         switch self {
@@ -85,6 +110,14 @@ enum MenuBarPopupSize: String, Codable, CaseIterable, Identifiable, CustomString
 
     var id: String { rawValue }
 
+    var displayName: LocalizedStringResource {
+        switch self {
+        case .compact: "Compact"
+        case .comfortable: "Comfortable"
+        case .spacious: "Spacious"
+        }
+    }
+
     var description: String {
         switch self {
         case .compact: return "Compact"
@@ -97,6 +130,7 @@ enum MenuBarPopupSize: String, Codable, CaseIterable, Identifiable, CustomString
 struct PopupDimensions: Equatable {
     let width: CGFloat
     let contentPadding: CGFloat
+    let appSliderWidth: CGFloat
     /// Ceiling on the scrollable body. Sized to stay within a 13" MacBook Air's
     /// usable height after the menu bar, since FluidMenuBarExtra does not clamp
     /// the popup against `screen.visibleFrame` vertically.
@@ -110,18 +144,21 @@ extension MenuBarPopupSize {
             return PopupDimensions(
                 width: 470,
                 contentPadding: 12,
+                appSliderWidth: 100,
                 maxContentHeight: 560
             )
         case .comfortable:
             return PopupDimensions(
                 width: 510,
                 contentPadding: 16,
+                appSliderWidth: 120,
                 maxContentHeight: 660
             )
         case .spacious:
             return PopupDimensions(
                 width: 560,
                 contentPadding: 20,
+                appSliderWidth: 140,
                 maxContentHeight: 760
             )
         }
@@ -144,6 +181,15 @@ enum VolumeHotkeyStep: String, Codable, CaseIterable, Identifiable, CustomString
         case .normal:    return 1.0 / 16.0
         case .fine:      return 1.0 / 32.0
         case .extraFine: return 1.0 / 64.0
+        }
+    }
+
+    var displayName: LocalizedStringResource {
+        switch self {
+        case .coarse: "Coarse (12.5%)"
+        case .normal: "Normal (6.25%)"
+        case .fine: "Fine (3.13%)"
+        case .extraFine: "Extra-Fine (1.56%)"
         }
     }
 

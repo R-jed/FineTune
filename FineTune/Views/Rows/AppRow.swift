@@ -7,6 +7,8 @@ struct AppRow: View {
     let app: AudioApp
     let volume: Float  // Linear gain 0-1 (boost applied separately)
     let audioLevel: Float
+    let getAudioLevel: (() -> Float)?
+    let isMeterActive: Bool
     let devices: [AudioDevice]
     let deviceIconOverrides: [String: String]
     let selectedDeviceUID: String  // For single mode
@@ -33,6 +35,13 @@ struct AppRow: View {
     let onRenameUserPreset: (UUID, String) -> Void
     let isEQExpanded: Bool
     let onEQToggle: () -> Void
+    let isPinned: Bool
+    let onTogglePin: () -> Void
+    let sliderWidth: CGFloat
+    let isReordering: Bool
+    let reorderOffset: CGFloat
+    let onReorderChanged: (CGFloat) -> Void
+    let onReorderEnded: () -> Void
     let isFocused: Bool
 
     @State private var isIconHovered = false
@@ -42,6 +51,8 @@ struct AppRow: View {
         app: AudioApp,
         volume: Float,
         audioLevel: Float = 0,
+        getAudioLevel: (() -> Float)? = nil,
+        isMeterActive: Bool = true,
         devices: [AudioDevice],
         deviceIconOverrides: [String: String] = [:],
         selectedDeviceUID: String,
@@ -68,11 +79,20 @@ struct AppRow: View {
         onRenameUserPreset: @escaping (UUID, String) -> Void = { _, _ in },
         isEQExpanded: Bool = false,
         onEQToggle: @escaping () -> Void = {},
+        isPinned: Bool = false,
+        onTogglePin: @escaping () -> Void = {},
+        sliderWidth: CGFloat = DesignTokens.Dimensions.sliderWidth,
+        isReordering: Bool,
+        reorderOffset: CGFloat,
+        onReorderChanged: @escaping (CGFloat) -> Void,
+        onReorderEnded: @escaping () -> Void,
         isFocused: Bool = false
     ) {
         self.app = app
         self.volume = volume
         self.audioLevel = audioLevel
+        self.getAudioLevel = getAudioLevel
+        self.isMeterActive = isMeterActive
         self.devices = devices
         self.deviceIconOverrides = deviceIconOverrides
         self.selectedDeviceUID = selectedDeviceUID
@@ -99,19 +119,35 @@ struct AppRow: View {
         self.onRenameUserPreset = onRenameUserPreset
         self.isEQExpanded = isEQExpanded
         self.onEQToggle = onEQToggle
+        self.isPinned = isPinned
+        self.onTogglePin = onTogglePin
+        self.sliderWidth = sliderWidth
+        self.isReordering = isReordering
+        self.reorderOffset = reorderOffset
+        self.onReorderChanged = onReorderChanged
+        self.onReorderEnded = onReorderEnded
         self.isFocused = isFocused
-        // Initialize local EQ state for reactive UI updates
         self._localEQSettings = State(initialValue: eqSettings)
     }
 
     var body: some View {
         ExpandableGlassRow(isExpanded: isEQExpanded, isFocused: isFocused) {
-            // Header: Main row content (always visible)
-            HStack(spacing: DesignTokens.Spacing.sm) {
-                // VU Meter
-                VUMeter(level: audioLevel, isMuted: isMutedExternal || volume == 0)
+            HStack(spacing: DesignTokens.Spacing.xs + DesignTokens.Spacing.xxs) {
+                ReorderDragHandle(
+                    onChanged: onReorderChanged,
+                    onEnded: onReorderEnded
+                )
 
-                // App icon - clickable to activate app
+                if let getAudioLevel {
+                    LiveVUMeter(
+                        isMuted: isMutedExternal || volume == 0,
+                        isActive: isMeterActive,
+                        readLevel: getAudioLevel
+                    )
+                } else {
+                    VUMeter(level: audioLevel, isMuted: isMutedExternal || volume == 0)
+                }
+
                 Button(action: onAppActivate) {
                     Image(nsImage: app.icon)
                         .resizable()
@@ -120,7 +156,9 @@ struct AppRow: View {
                         .opacity(isIconHovered ? 0.7 : 1.0)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Open \(app.name)")
+                .accessibilityLabel { _ in
+                    Text("Open") + Text(verbatim: " \(app.name)")
+                }
                 .onHover { hovering in
                     isIconHovered = hovering
                     if hovering {
@@ -130,9 +168,6 @@ struct AppRow: View {
                     }
                 }
 
-                // App name + optional routing subtitle (hidden when the app is on
-                // system default; the same VStack-with-subtitle pattern as device
-                // rows' AutoEQ subtitle).
                 VStack(alignment: .leading, spacing: 1) {
                     Text(app.name)
                         .font(DesignTokens.Typography.rowName)
@@ -146,15 +181,15 @@ struct AppRow: View {
                         isFollowingDefault: isFollowingDefault,
                         mode: deviceSelectionMode
                     ) {
-                        Text(subtitle)
-                            .font(.system(size: 9))
-                            .foregroundStyle(DesignTokens.Colors.textTertiary)
+                        subtitle
+                            .font(DesignTokens.Typography.caption)
+                            .foregroundStyle(DesignTokens.Colors.textSecondary)
                             .lineLimit(1)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .layoutPriority(1)
 
-                // Shared controls section
                 AppRowControls(
                     volume: volume,
                     isMuted: isMutedExternal,
@@ -166,7 +201,7 @@ struct AppRow: View {
                     defaultDeviceUID: defaultDeviceUID,
                     deviceSelectionMode: deviceSelectionMode,
                     boost: boost,
-                    isEQExpanded: isEQExpanded,
+                    sliderWidth: sliderWidth,
                     onVolumeChange: onVolumeChange,
                     onMuteChange: onMuteChange,
                     onBoostChange: onBoostChange,
@@ -174,14 +209,16 @@ struct AppRow: View {
                     onDevicesSelected: onDevicesSelected,
                     onDeviceModeChange: onDeviceModeChange,
                     onSelectFollowDefault: onSelectFollowDefault,
-                    onEQToggle: onEQToggle,
                     isRowFocused: isFocused
                 )
+
+                AppEQButton(isExpanded: isEQExpanded, action: onEQToggle)
+
+                AppPinButton(isPinned: isPinned, action: onTogglePin)
             }
             .frame(height: DesignTokens.Dimensions.rowContentHeight)
+            .contentShape(Rectangle())
         } expandedContent: {
-            // EQ panel - shown when expanded
-            // SwiftUI calculates natural height via conditional rendering
             EQPanelView(
                 settings: $localEQSettings,
                 userPresets: userPresets,
@@ -203,13 +240,14 @@ struct AppRow: View {
             .padding(.top, DesignTokens.Spacing.sm)
         }
         .onChange(of: eqSettings) { _, newValue in
-            // Sync from parent when external EQ settings change
             localEQSettings = newValue
         }
+        .continuousReorderAppearance(
+            isDragging: isReordering,
+            offset: reorderOffset
+        )
     }
 }
-
-// MARK: - Previews
 
 #Preview("App Row") {
     PreviewContainer {
@@ -222,7 +260,11 @@ struct AppRow: View {
                 selectedDeviceUID: MockData.sampleDevices[0].uid,
                 onVolumeChange: { _ in },
                 onMuteChange: { _ in },
-                onDeviceSelected: { _ in }
+                onDeviceSelected: { _ in },
+                isReordering: false,
+                reorderOffset: 0,
+                onReorderChanged: { _ in },
+                onReorderEnded: {}
             )
 
             AppRow(
@@ -233,7 +275,11 @@ struct AppRow: View {
                 selectedDeviceUID: MockData.sampleDevices[1].uid,
                 onVolumeChange: { _ in },
                 onMuteChange: { _ in },
-                onDeviceSelected: { _ in }
+                onDeviceSelected: { _ in },
+                isReordering: false,
+                reorderOffset: 0,
+                onReorderChanged: { _ in },
+                onReorderEnded: {}
             )
 
             AppRow(
@@ -244,7 +290,11 @@ struct AppRow: View {
                 selectedDeviceUID: MockData.sampleDevices[2].uid,
                 onVolumeChange: { _ in },
                 onMuteChange: { _ in },
-                onDeviceSelected: { _ in }
+                onDeviceSelected: { _ in },
+                isReordering: false,
+                reorderOffset: 0,
+                onReorderChanged: { _ in },
+                onReorderEnded: {}
             )
         }
     }
@@ -259,10 +309,14 @@ struct AppRow: View {
                     volume: Float.random(in: 0.5...1.5),
                     audioLevel: Float.random(in: 0...0.8),
                     devices: MockData.sampleDevices,
-                    selectedDeviceUID: MockData.sampleDevices.randomElement()!.uid,
+                    selectedDeviceUID: MockData.sampleDevices[0].uid,
                     onVolumeChange: { _ in },
                     onMuteChange: { _ in },
-                    onDeviceSelected: { _ in }
+                    onDeviceSelected: { _ in },
+                    isReordering: false,
+                    reorderOffset: 0,
+                    onReorderChanged: { _ in },
+                    onReorderEnded: {}
                 )
             }
         }

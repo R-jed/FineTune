@@ -54,7 +54,8 @@ private struct IconOption: View {
             }
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(style.rawValue)
+        .accessibilityLabel(Text(style.displayName))
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 
@@ -68,6 +69,5 @@ private struct IconOption: View {
     }
     .padding()
     .frame(width: 300)
-    .darkGlassBackground()
     .environment(\.colorScheme, .dark)
 }

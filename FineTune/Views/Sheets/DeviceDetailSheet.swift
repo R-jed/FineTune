@@ -51,12 +51,12 @@ struct DeviceDetailSheet: View {
                 errorBanner(error)
             }
 
-            if let hogLine = DeviceInspectorInfo.formatHogModeOwner(
+            if let hogOwner = DeviceInspectorInfo.hogModeOwnerDetails(
                 viewModel.info.hogModeOwner,
                 processName: viewModel.hogModeOwnerName
             ) {
                 separator
-                hogModeRow(hogLine)
+                hogModeRow(hogOwner)
             }
 
             if Self.shouldShowToggle(autoTier: autoDetectedTier) {
@@ -69,7 +69,7 @@ struct DeviceDetailSheet: View {
         .padding(.vertical, 10)
         .background {
             RoundedRectangle(cornerRadius: 10)
-                .fill(DesignTokens.Colors.recessedBackground)
+                .fill(DesignTokens.Surface.recessed)
         }
         .padding(.horizontal, 2)
         .padding(.top, DesignTokens.Spacing.xs)
@@ -78,22 +78,19 @@ struct DeviceDetailSheet: View {
         .onDisappear { viewModel.stop() }
     }
 
-    // MARK: - Auto badge
-
     private var autoBadge: some View {
-        Text("Auto: \(Self.tierDisplayName(autoDetectedTier))")
-            .font(.system(size: 9, weight: .semibold))
+        (Text("Auto") + Text(verbatim: ": ") + Text(Self.tierDisplayName(autoDetectedTier)))
+            .font(.system(size: 10, weight: .semibold))
             .foregroundStyle(DesignTokens.Colors.textSecondary)
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
-            .background(
-                Capsule()
-                    .fill(DesignTokens.Colors.glassFillStrong)
+            .background(Capsule().fill(DesignTokens.Surface.emphasized))
+            .accessibilityLabel(
+                Text("Auto-detected volume control")
+                    + Text(verbatim: ": ")
+                    + Text(Self.tierDisplayName(autoDetectedTier))
             )
-            .accessibilityLabel("Auto-detected volume control: \(Self.tierDisplayName(autoDetectedTier))")
     }
-
-    // MARK: - Separator
 
     private var separator: some View {
         Rectangle()
@@ -101,39 +98,41 @@ struct DeviceDetailSheet: View {
             .frame(height: 0.5)
     }
 
-    // MARK: - Hog mode row
+    private func hogModeText(_ details: DeviceInspectorInfo.HogModeOwnerDetails) -> Text {
+        if let processName = details.processName {
+            return Text("In exclusive use by")
+                + Text(verbatim: " \(processName) · PID \(details.pid)")
+        }
+        return Text("In exclusive use by PID") + Text(verbatim: " \(details.pid)")
+    }
 
-    private func hogModeRow(_ text: String) -> some View {
+    private func hogModeRow(_ details: DeviceInspectorInfo.HogModeOwnerDetails) -> some View {
         HStack(spacing: DesignTokens.Spacing.xs) {
             Image(systemName: "lock.fill")
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(DesignTokens.Colors.textSecondary)
-            Text(text)
+            hogModeText(details)
                 .font(DesignTokens.Typography.caption)
                 .foregroundStyle(DesignTokens.Colors.textSecondary)
             Spacer(minLength: 0)
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(text)
+        .accessibilityLabel(hogModeText(details))
     }
 
-    // MARK: - Error banner
-
-    private func errorBanner(_ text: String) -> some View {
+    private func errorBanner(_ resource: LocalizedStringResource) -> some View {
         HStack(spacing: DesignTokens.Spacing.xs) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(DesignTokens.Colors.mutedIndicator)
-            Text(text)
+            Text(resource)
                 .font(DesignTokens.Typography.caption)
                 .foregroundStyle(DesignTokens.Colors.textSecondary)
             Spacer(minLength: 0)
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(text)
+        .accessibilityLabel(Text(resource))
     }
-
-    // MARK: - Software Toggle
 
     @ViewBuilder
     private var softwareToggle: some View {
@@ -146,14 +145,13 @@ struct DeviceDetailSheet: View {
 
             Spacer(minLength: DesignTokens.Spacing.sm)
 
-            Toggle("", isOn: useSoftwareBinding)
+            Toggle("Use FineTune's software volume", isOn: useSoftwareBinding)
                 .toggleStyle(.switch)
-                .scaleEffect(0.8)
+                .controlSize(.small)
                 .labelsHidden()
         }
     }
 
-    /// OFF writes `nil` (clears the pin, re-runs auto-detect); ON pins `.software`.
     private var useSoftwareBinding: Binding<Bool> {
         Binding(
             get: { currentOverride == .some(.software) },
@@ -164,8 +162,6 @@ struct DeviceDetailSheet: View {
         )
     }
 
-    // MARK: - Callout
-
     private var calloutText: some View {
         Text("Turn on only if the volume slider doesn't work. FineTune remembers this for each device.")
             .font(DesignTokens.Typography.caption)
@@ -173,9 +169,7 @@ struct DeviceDetailSheet: View {
             .fixedSize(horizontal: false, vertical: true)
     }
 
-    // MARK: - Helpers
-
-    static func tierDisplayName(_ tier: VolumeControlTier) -> String {
+    static func tierDisplayName(_ tier: VolumeControlTier) -> LocalizedStringResource {
         switch tier {
         case .hardware: return "Hardware"
         case .ddc: return "DDC"
@@ -183,7 +177,6 @@ struct DeviceDetailSheet: View {
         }
     }
 
-    /// Hidden when auto-tier is already `.software` — no alternative backend to switch to.
     static func shouldShowToggle(autoTier: VolumeControlTier) -> Bool {
         autoTier != .software
     }

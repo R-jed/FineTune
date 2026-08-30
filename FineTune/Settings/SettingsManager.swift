@@ -10,6 +10,39 @@ struct PinnedAppInfo: Codable, Equatable {
     let persistenceIdentifier: String
     let displayName: String
     let bundleID: String?
+
+    init(persistenceIdentifier: String, displayName: String, bundleID: String?) {
+        self.persistenceIdentifier = persistenceIdentifier
+        self.displayName = displayName
+        self.bundleID = bundleID
+    }
+
+    init?(appURL: URL, excludingBundleIdentifier: String? = Bundle.main.bundleIdentifier) {
+        var isDirectory: ObjCBool = false
+        guard appURL.isFileURL,
+              appURL.pathExtension.caseInsensitiveCompare("app") == .orderedSame,
+              FileManager.default.fileExists(atPath: appURL.path, isDirectory: &isDirectory),
+              isDirectory.boolValue,
+              let bundle = Bundle(url: appURL),
+              let executableURL = bundle.executableURL,
+              FileManager.default.isExecutableFile(atPath: executableURL.path),
+              let bundleIdentifier = bundle.bundleIdentifier?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !bundleIdentifier.isEmpty,
+              bundleIdentifier != excludingBundleIdentifier
+        else { return nil }
+
+        let displayName = ["CFBundleDisplayName", "CFBundleName"]
+            .compactMap { bundle.object(forInfoDictionaryKey: $0) as? String }
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first { !$0.isEmpty }
+            ?? appURL.deletingPathExtension().lastPathComponent
+
+        self.init(
+            persistenceIdentifier: bundleIdentifier,
+            displayName: displayName,
+            bundleID: bundleIdentifier
+        )
+    }
 }
 
 // MARK: - Ignored App Info
@@ -26,6 +59,7 @@ nonisolated struct AppSettings: Codable, Equatable {
     // General
     var launchAtLogin: Bool = false
     var menuBarIconStyle: MenuBarIconStyle = .default
+    var language: AppLanguage = .system
 
     // Audio
     var defaultNewAppVolume: Float = 1.0      // 100% (unity gain)
@@ -67,6 +101,7 @@ nonisolated struct AppSettings: Codable, Equatable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         launchAtLogin = try c.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? false
         menuBarIconStyle = try c.decodeIfPresent(MenuBarIconStyle.self, forKey: .menuBarIconStyle) ?? .default
+        language = try c.decodeIfPresent(AppLanguage.self, forKey: .language) ?? .system
         defaultNewAppVolume = try c.decodeIfPresent(Float.self, forKey: .defaultNewAppVolume) ?? 1.0
         lockInputDevice = try c.decodeIfPresent(Bool.self, forKey: .lockInputDevice) ?? true
         showDeviceDisconnectAlerts = try c.decodeIfPresent(Bool.self, forKey: .showDeviceDisconnectAlerts) ?? true
@@ -83,16 +118,42 @@ nonisolated struct AppSettings: Codable, Equatable {
 
 // MARK: - Settings Manager
 
+nonisolated final class SettingsWriteCoordinator: @unchecked Sendable {
+    typealias Writer = @Sendable (Data, URL) throws -> Void
+
+    private let queue = DispatchQueue(label: "com.finetune.settings-write", qos: .utility)
+    private let writer: Writer
+
+    init(writer: @escaping Writer) {
+        self.writer = writer
+    }
+
+    func enqueue(_ data: Data, to url: URL) {
+        let writer = self.writer
+        queue.async {
+            try? writer(data, url)
+        }
+    }
+
+    func flush(_ data: Data, to url: URL) throws {
+        let writer = self.writer
+        try queue.sync {
+            try writer(data, url)
+        }
+    }
+}
+
 @Observable
 @MainActor
 final class SettingsManager {
     private var settings: Settings
     private var saveTask: Task<Void, Never>?
     private let settingsURL: URL
+    private let writeCoordinator: SettingsWriteCoordinator
     private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "FineTune", category: "SettingsManager")
 
     struct Settings: Codable {
-        var version: Int = 12
+        var version: Int = 14
         var appVolumes: [String: Float] = [:]
         var appDeviceRouting: [String: String] = [:]  // bundleID → deviceUID
         var appMutes: [String: Bool] = [:]  // bundleID → isMuted
@@ -106,6 +167,7 @@ final class SettingsManager {
         var preferredInputDeviceUID: String? = nil  // User's intended input device (survives disconnect)
         var pinnedApps: Set<String> = []  // Persistence identifiers of pinned apps
         var pinnedAppInfo: [String: PinnedAppInfo] = [:]  // Persistence identifier → app metadata
+        var appOrder: [String] = []  // Persistence identifiers in user-defined display order
         var ignoredApps: Set<String> = []  // Persistence identifiers of hidden apps
         var ignoredAppInfo: [String: IgnoredAppInfo] = [:]  // Persistence identifier → app metadata
 
@@ -129,9 +191,11 @@ final class SettingsManager {
         var outputDevicePriority: [String] = []
         var inputDevicePriority: [String] = []
 
-        // Hidden devices (UIDs of devices suppressed from the main view)
+        // Hidden output devices (UIDs suppressed from the main view).
+        // Input-device hiding was removed when Input management was reduced to
+        // priority-only; old hiddenInputDeviceUIDs keys are intentionally
+        // ignored by Codable as unknown legacy data.
         var hiddenOutputDeviceUIDs: Set<String> = []
-        var hiddenInputDeviceUIDs: Set<String> = []
 
         // Per-device AutoEQ headphone correction
         var deviceAutoEQ: [String: AutoEQSelection] = [:]  // deviceUID → selection
@@ -145,7 +209,7 @@ final class SettingsManager {
 
         init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
-            version = try c.decodeIfPresent(Int.self, forKey: .version) ?? 9
+            version = 14
             appVolumes = (try c.decodeIfPresent([String: Float].self, forKey: .appVolumes) ?? [:])
                 .filter { $0.value.isFinite && $0.value >= 0 }
                 .mapValues { min($0, 1.0) }  // Clamp old volumes > 1.0 (boost is now per-app)
@@ -166,6 +230,10 @@ final class SettingsManager {
             preferredInputDeviceUID = try c.decodeIfPresent(String.self, forKey: .preferredInputDeviceUID)
             pinnedApps = try c.decodeIfPresent(Set<String>.self, forKey: .pinnedApps) ?? []
             pinnedAppInfo = try c.decodeIfPresent([String: PinnedAppInfo].self, forKey: .pinnedAppInfo) ?? [:]
+            let decodedAppOrder = try c.decodeIfPresent([String].self, forKey: .appOrder)
+                ?? pinnedApps.sorted()
+            var seenAppIdentifiers: Set<String> = []
+            appOrder = decodedAppOrder.filter { seenAppIdentifiers.insert($0).inserted }
             ignoredApps = try c.decodeIfPresent(Set<String>.self, forKey: .ignoredApps) ?? []
             ignoredAppInfo = try c.decodeIfPresent([String: IgnoredAppInfo].self, forKey: .ignoredAppInfo) ?? [:]
             ddcVolumes = try c.decodeIfPresent([String: Int].self, forKey: .ddcVolumes) ?? [:]
@@ -183,7 +251,6 @@ final class SettingsManager {
             outputDevicePriority = try c.decodeIfPresent([String].self, forKey: .outputDevicePriority) ?? []
             inputDevicePriority = try c.decodeIfPresent([String].self, forKey: .inputDevicePriority) ?? []
             hiddenOutputDeviceUIDs = try c.decodeIfPresent(Set<String>.self, forKey: .hiddenOutputDeviceUIDs) ?? []
-            hiddenInputDeviceUIDs = try c.decodeIfPresent(Set<String>.self, forKey: .hiddenInputDeviceUIDs) ?? []
             deviceAutoEQ = try c.decodeIfPresent([String: AutoEQSelection].self, forKey: .deviceAutoEQ) ?? [:]
             favoriteAutoEQProfiles = try c.decodeIfPresent(Set<String>.self, forKey: .favoriteAutoEQProfiles) ?? []
             autoEQPreampEnabled = try c.decodeIfPresent(Bool.self, forKey: .autoEQPreampEnabled) ?? true
@@ -191,9 +258,13 @@ final class SettingsManager {
         }
     }
 
-    init(directory: URL? = nil) {
+    init(
+        directory: URL? = nil,
+        writer: @escaping SettingsWriteCoordinator.Writer = SettingsManager.writeData
+    ) {
         let baseDir = directory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!.appendingPathComponent("FineTune")
         self.settingsURL = baseDir.appendingPathComponent("settings.json")
+        self.writeCoordinator = SettingsWriteCoordinator(writer: writer)
         self.settings = Settings()
         loadFromDisk()
     }
@@ -313,27 +384,173 @@ final class SettingsManager {
         scheduleSave()
     }
 
-    // MARK: - Pinned Apps
+    // MARK: - App Order
 
-    func pinApp(_ identifier: String, info: PinnedAppInfo) {
-        settings.pinnedApps.insert(identifier)
-        settings.pinnedAppInfo[identifier] = info
+    /// Global latent app order. Hidden and currently absent apps remain in this list
+    /// so they can recover their previous placement when they become visible again.
+    var appOrder: [String] {
+        settings.appOrder
+    }
+
+    func ensureAppsInOrder(_ identifiers: [String]) {
+        var changed = false
+        for identifier in identifiers where !settings.appOrder.contains(identifier) {
+            settings.appOrder.append(identifier)
+            changed = true
+        }
+        if changed { scheduleSave() }
+    }
+
+    func moveApp(_ identifier: String, to targetIdentifier: String, currentOrder: [String]) {
+        guard identifier != targetIdentifier,
+              let sourceIndex = currentOrder.firstIndex(of: identifier),
+              let targetIndex = currentOrder.firstIndex(of: targetIdentifier)
+        else { return }
+
+        var reorderedVisible = currentOrder
+        let movedIdentifier = reorderedVisible.remove(at: sourceIndex)
+        reorderedVisible.insert(movedIdentifier, at: min(targetIndex, reorderedVisible.count))
+
+        let merged = AppListPresentationOrder.mergingVisibleOrder(
+            reorderedVisible,
+            into: settings.appOrder
+        )
+        guard merged != settings.appOrder else { return }
+        settings.appOrder = merged
         scheduleSave()
     }
 
+    // MARK: - Pinned Apps
+
+    func pinApp(_ identifier: String, info: PinnedAppInfo) {
+        var changed = false
+        if settings.pinnedApps.insert(identifier).inserted {
+            changed = true
+        }
+        if settings.pinnedAppInfo[identifier] != info {
+            settings.pinnedAppInfo[identifier] = info
+            changed = true
+        }
+        if !settings.appOrder.contains(identifier) {
+            settings.appOrder.append(identifier)
+            changed = true
+        }
+        if changed { scheduleSave() }
+    }
+
     func unpinApp(_ identifier: String) {
-        settings.pinnedApps.remove(identifier)
-        settings.pinnedAppInfo.removeValue(forKey: identifier)
-        scheduleSave()
+        let removedMembership = settings.pinnedApps.remove(identifier) != nil
+        let removedInfo = settings.pinnedAppInfo.removeValue(forKey: identifier) != nil
+        if removedMembership || removedInfo { scheduleSave() }
     }
 
     func isPinned(_ identifier: String) -> Bool {
         settings.pinnedApps.contains(identifier)
     }
 
-    /// Returns metadata for all pinned apps
+    func pinnedAppInfo(for identifier: String) -> PinnedAppInfo? {
+        settings.pinnedAppInfo[identifier]
+    }
+
     func getPinnedAppInfo() -> [PinnedAppInfo] {
-        settings.pinnedApps.compactMap { settings.pinnedAppInfo[$0] }
+        let rank = Dictionary(uniqueKeysWithValues: settings.appOrder.enumerated().map { ($1, $0) })
+        return settings.pinnedApps
+            .compactMap { settings.pinnedAppInfo[$0] }
+            .sorted { lhs, rhs in
+                let lhsRank = rank[lhs.persistenceIdentifier]
+                let rhsRank = rank[rhs.persistenceIdentifier]
+                if let lhsRank, let rhsRank { return lhsRank < rhsRank }
+                if lhsRank != nil { return true }
+                if rhsRank != nil { return false }
+                let nameOrder = lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName)
+                if nameOrder != .orderedSame { return nameOrder == .orderedAscending }
+                return lhs.persistenceIdentifier.localizedCaseInsensitiveCompare(rhs.persistenceIdentifier) == .orderedAscending
+            }
+    }
+
+    /// Commits one app-list placement transaction. The visible order is merged back
+    /// into the latent global order, while pin membership is updated in the same
+    /// observable mutation so section changes cannot expose an intermediate layout.
+    @discardableResult
+    func placeApp(
+        _ identifier: String,
+        visibleOrder: [String],
+        pinned: Bool,
+        info: PinnedAppInfo?
+    ) -> Bool {
+        if pinned && info == nil && settings.pinnedAppInfo[identifier] == nil {
+            return false
+        }
+
+        guard let merged = AppListPresentationOrder.mergingPlacement(
+            identifier: identifier,
+            visibleOrder: visibleOrder,
+            pinned: pinned,
+            currentPinnedIdentifiers: settings.pinnedApps,
+            into: settings.appOrder
+        ) else {
+            return false
+        }
+        var changed = merged != settings.appOrder
+        settings.appOrder = merged
+
+        if pinned {
+            if settings.pinnedApps.insert(identifier).inserted {
+                changed = true
+            }
+            if let info, settings.pinnedAppInfo[identifier] != info {
+                settings.pinnedAppInfo[identifier] = info
+                changed = true
+            }
+        } else {
+            if settings.pinnedApps.remove(identifier) != nil {
+                changed = true
+            }
+            if settings.pinnedAppInfo.removeValue(forKey: identifier) != nil {
+                changed = true
+            }
+        }
+
+        if changed { scheduleSave() }
+        return changed
+    }
+
+    /// Explicit Add Applications intent: make the selected app visible and pin it
+    /// in the same settings mutation. Low-level `pinApp` intentionally does not
+    /// alter hidden state.
+    func addSelectedPinnedApp(_ info: PinnedAppInfo, visibleOrder: [String]) {
+        let identifier = info.persistenceIdentifier
+        let wasPinned = settings.pinnedApps.contains(identifier)
+        var changed = false
+        if !wasPinned {
+            guard let merged = AppListPresentationOrder.mergingPlacement(
+                identifier: identifier,
+                visibleOrder: visibleOrder,
+                pinned: true,
+                currentPinnedIdentifiers: settings.pinnedApps,
+                into: settings.appOrder
+            ) else {
+                return
+            }
+            changed = merged != settings.appOrder
+            settings.appOrder = merged
+        }
+
+        if settings.ignoredApps.remove(identifier) != nil {
+            changed = true
+        }
+        if settings.ignoredAppInfo.removeValue(forKey: identifier) != nil {
+            changed = true
+        }
+        if settings.pinnedApps.insert(identifier).inserted {
+            changed = true
+        }
+        if settings.pinnedAppInfo[identifier] != info {
+            settings.pinnedAppInfo[identifier] = info
+            changed = true
+        }
+
+        if changed { scheduleSave() }
     }
 
     // MARK: - Ignored Apps
@@ -341,17 +558,6 @@ final class SettingsManager {
     func ignoreApp(_ identifier: String, info: IgnoredAppInfo) {
         settings.ignoredApps.insert(identifier)
         settings.ignoredAppInfo[identifier] = info
-        // Hiding is mutually exclusive with pinning
-        settings.pinnedApps.remove(identifier)
-        settings.pinnedAppInfo.removeValue(forKey: identifier)
-        // Clear per-app settings — FineTune won't interact with this app
-        settings.appVolumes.removeValue(forKey: identifier)
-        settings.appBoosts.removeValue(forKey: identifier)
-        settings.appMutes.removeValue(forKey: identifier)
-        settings.appDeviceRouting.removeValue(forKey: identifier)
-        settings.appEQSettings.removeValue(forKey: identifier)
-        settings.appDeviceSelectionMode.removeValue(forKey: identifier)
-        settings.appSelectedDeviceUIDs.removeValue(forKey: identifier)
         scheduleSave()
     }
 
@@ -538,38 +744,6 @@ final class SettingsManager {
         scheduleSave()
     }
 
-    /// Hides an input device from the main view. Has no effect when the device is the current default.
-    func hideInputDevice(uid: String) {
-        settings.hiddenInputDeviceUIDs.insert(uid)
-        scheduleSave()
-    }
-
-    /// Reveals a previously hidden input device in the main view.
-    func unhideInputDevice(uid: String) {
-        settings.hiddenInputDeviceUIDs.remove(uid)
-        scheduleSave()
-    }
-
-    /// Returns true if the input device is hidden from the main view.
-    func isInputDeviceHidden(_ uid: String) -> Bool {
-        settings.hiddenInputDeviceUIDs.contains(uid)
-    }
-
-    /// All UIDs of hidden input devices.
-    var hiddenInputDeviceUIDs: Set<String> {
-        settings.hiddenInputDeviceUIDs
-    }
-
-    /// Flips the hidden state of an input device based on the persisted set.
-    func toggleInputDeviceHidden(uid: String) {
-        if settings.hiddenInputDeviceUIDs.contains(uid) {
-            settings.hiddenInputDeviceUIDs.remove(uid)
-        } else {
-            settings.hiddenInputDeviceUIDs.insert(uid)
-        }
-        scheduleSave()
-    }
-
     /// Merges reordered connected devices into the full priority list, preserving
     /// disconnected device positions via an anchor algorithm.
     ///
@@ -635,7 +809,7 @@ final class SettingsManager {
         return result
     }
 
-    /// Removes per-app settings for apps that are no longer active, not pinned,
+    /// Removes per-app settings for apps that are no longer active or hidden
     /// and have only default values. Preserves device routing (explicit user intent).
     ///
     /// - Parameter activeIdentifiers: Persistence identifiers of currently active apps.
@@ -651,8 +825,8 @@ final class SettingsManager {
         for identifier in allIdentifiers {
             // Keep active apps
             if activeIdentifiers.contains(identifier) { continue }
-            // Keep pinned apps
-            if settings.pinnedApps.contains(identifier) { continue }
+            // Hidden apps retain their persisted settings even while absent from the runtime list.
+            if settings.ignoredApps.contains(identifier) { continue }
             // Keep apps with explicit device routing (user intent)
             if settings.appDeviceRouting[identifier] != nil { continue }
 
@@ -838,6 +1012,7 @@ final class SettingsManager {
         settings.appEQSettings.removeAll()
         settings.pinnedApps.removeAll()
         settings.pinnedAppInfo.removeAll()
+        settings.appOrder.removeAll()
         settings.ignoredApps.removeAll()
         settings.ignoredAppInfo.removeAll()
         settings.appSettings = AppSettings()
@@ -855,7 +1030,6 @@ final class SettingsManager {
         settings.outputDevicePriority.removeAll()
         settings.inputDevicePriority.removeAll()
         settings.hiddenOutputDeviceUIDs.removeAll()
-        settings.hiddenInputDeviceUIDs.removeAll()
         settings.autoEQPreampEnabled = true
         settings.deviceAutoEQ.removeAll()
         settings.favoriteAutoEQProfiles.removeAll()
@@ -897,19 +1071,12 @@ final class SettingsManager {
             let url = settingsURL
             let data = try? JSONEncoder().encode(snapshot)
             guard let data else { return }
-            Task.detached(priority: .utility) {
-                do {
-                    try Self.writeData(data, to: url)
-                } catch {
-                    // Avoid actor hops/logging on audio-critical paths; failures are
-                    // non-fatal and will retry on the next settings mutation.
-                }
-            }
+            writeCoordinator.enqueue(data, to: url)
         }
     }
 
-    /// Immediately writes pending changes to disk.
-    /// Call this on app termination to prevent data loss.
+    /// Immediately writes pending changes to disk after every older queued write.
+    /// Call this on app termination to prevent stale asynchronous saves from winning.
     func flushSync() {
         saveTask?.cancel()
         saveTask = nil
@@ -919,7 +1086,7 @@ final class SettingsManager {
     private func writeToDisk() {
         do {
             let data = try JSONEncoder().encode(settings)
-            try Self.writeData(data, to: settingsURL)
+            try writeCoordinator.flush(data, to: settingsURL)
 
             logger.debug("Saved settings")
         } catch {

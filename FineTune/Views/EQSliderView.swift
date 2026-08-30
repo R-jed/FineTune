@@ -9,6 +9,7 @@ struct EQSliderView: View {
     // Local state for smooth visual updates
     @State private var localGain: Float = 0
     @State private var isDragging: Bool = false
+    @FocusState private var isKeyboardFocused: Bool
 
     // Use design tokens for slider style variant support
     private var trackWidth: CGFloat { DesignTokens.Dimensions.sliderTrackHeight }
@@ -17,10 +18,18 @@ struct EQSliderView: View {
     private let tickWidth: CGFloat = 3
     private let tickGap: CGFloat = 3
     private let verticalPadding: CGFloat = 8
+    private let keyboardStep: Float = 1
 
     private func formatGain(_ gain: Float) -> String {
         let rounded = Int(gain.rounded())
         return rounded >= 0 ? "+\(rounded)dB" : "\(rounded)dB"
+    }
+
+    private func adjustGain(by delta: Float) {
+        let next = min(range.upperBound, max(range.lowerBound, gain + delta))
+        guard next != gain else { return }
+        localGain = next
+        gain = next
     }
 
     var body: some View {
@@ -102,7 +111,7 @@ struct EQSliderView: View {
                             // dB value label (appears during drag)
                             if isDragging {
                                 Text(formatGain(localGain))
-                                    .font(.system(size: 9, weight: .medium).monospacedDigit())
+                                    .font(.system(size: 10, weight: .medium).monospacedDigit())
                                     .foregroundStyle(DesignTokens.Colors.textPrimary)
                                     .fixedSize()
                                     .position(x: geo.size.width / 2, y: thumbY - thumbSize / 2 - 10)
@@ -119,6 +128,38 @@ struct EQSliderView: View {
                 Text("Hz")
                     .font(DesignTokens.Typography.caption)
                     .foregroundStyle(DesignTokens.Colors.textTertiary)
+            }
+        }
+        .focusable()
+        .focused($isKeyboardFocused)
+        .onKeyPress(.upArrow) {
+            adjustGain(by: keyboardStep)
+            return .handled
+        }
+        .onKeyPress(.rightArrow) {
+            adjustGain(by: keyboardStep)
+            return .handled
+        }
+        .onKeyPress(.downArrow) {
+            adjustGain(by: -keyboardStep)
+            return .handled
+        }
+        .onKeyPress(.leftArrow) {
+            adjustGain(by: -keyboardStep)
+            return .handled
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text("Equalizer band") + Text(verbatim: " \(frequency) Hz"))
+        .accessibilityValue(Text(verbatim: formatGain(localGain)))
+        .accessibilityHint("Use the arrow keys to adjust gain")
+        .accessibilityAdjustableAction { direction in
+            switch direction {
+            case .increment:
+                adjustGain(by: keyboardStep)
+            case .decrement:
+                adjustGain(by: -keyboardStep)
+            @unknown default:
+                break
             }
         }
         .onAppear {
@@ -138,6 +179,5 @@ struct EQSliderView: View {
     }
     .frame(width: 120, height: 120)
     .padding()
-    .darkGlassBackground()
     .environment(\.colorScheme, .dark)
 }

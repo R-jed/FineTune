@@ -1,0 +1,1820 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "Add" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Add" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加" } }
+      }
+    },
+    "Add Applications" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Add Applications" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加应用程序" } }
+      }
+    },
+    "Applications" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "应用程序" } }
+      }
+    },
+    "App Mute" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "App Mute" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "应用静音" } }
+      }
+    },
+    "App Volume Down" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "App Volume Down" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "降低应用音量" } }
+      }
+    },
+    "App Volume Up" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "App Volume Up" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "提高应用音量" } }
+      }
+    },
+    "Choose one or more applications to add." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose one or more applications to add." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择一个或多个要添加的应用程序。" } }
+      }
+    },
+    "Classic" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Classic" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "经典" } }
+      }
+    },
+    "Coarse (12.5%)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Coarse (12.5%)" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "粗调 (12.5%)" } }
+      }
+    },
+    "Comfortable" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Comfortable" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "舒适" } }
+      }
+    },
+    "Compact" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Compact" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "紧凑" } }
+      }
+    },
+    "Some applications could not be added because they were invalid, missing a bundle identifier, or were FineTune." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Some applications could not be added because they were invalid, missing a bundle identifier, or were FineTune." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "部分应用程序无法添加：文件无效、缺少软件包标识符，或所选应用程序为 FineTune。" } }
+      }
+    },
+    "Dark" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Dark" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "深色" } }
+      }
+    },
+    "DDC" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "DDC" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "DDC" } }
+      }
+    },
+    "Default" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Default" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "默认" } }
+      }
+    },
+    "Device" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Device" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "设备" } }
+      }
+    },
+    "English" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "English" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "English" } }
+      }
+    },
+    "Equalizer" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Equalizer" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "均衡器" } }
+      }
+    },
+    "Extra-Fine (1.56%)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Extra-Fine (1.56%)" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "超细调 (1.56%)" } }
+      }
+    },
+    "Fine (3.13%)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Fine (3.13%)" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "细调 (3.13%)" } }
+      }
+    },
+    "Follow System" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Follow System" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "跟随系统" } }
+      }
+    },
+    "Hardware" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Hardware" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "硬件" } }
+      }
+    },
+    "Light" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Light" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "浅色" } }
+      }
+    },
+    "Localization" : {
+      "comment" : "Foundation localization probe used by tests and as a minimal verified catalog entry.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Localization" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "本地化" } }
+      }
+    },
+    "Lower volume for the app playing audio" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Lower volume for the app playing audio" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "降低正在播放音频的应用音量" } }
+      }
+    },
+    "Mute or unmute the app playing audio" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Mute or unmute the app playing audio" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "将正在播放音频的应用静音或取消静音" } }
+      }
+    },
+    "Normal (6.25%)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Normal (6.25%)" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "标准 (6.25%)" } }
+      }
+    },
+    "Raise volume for the app playing audio" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Raise volume for the app playing audio" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "提高正在播放音频的应用音量" } }
+      }
+    },
+    "Show or hide the menu bar popup" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Show or hide the menu bar popup" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "显示或隐藏菜单栏弹窗" } }
+      }
+    },
+    "Software" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Software" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "软件" } }
+      }
+    },
+    "Spacious" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Spacious" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "宽敞" } }
+      }
+    },
+    "Speaker" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Speaker" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "扬声器" } }
+      }
+    },
+    "System" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "System" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "系统" } }
+      }
+    },
+    "Tahoe" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Tahoe" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Tahoe" } }
+      }
+    },
+    "Toggle FineTune Popup" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Toggle FineTune Popup" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "切换 FineTune 弹窗" } }
+      }
+    },
+    "Waveform" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Waveform" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "波形" } }
+      }
+    },
+    "简体中文" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "简体中文" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "简体中文" } }
+      }
+    },
+    "General" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "通用" } }
+      }
+    },
+    "Audio" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "音频" } }
+      }
+    },
+    "Shortcuts" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "快捷键" } }
+      }
+    },
+    "Updates" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "更新" } }
+      }
+    },
+    "About" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "关于" } }
+      }
+    },
+    "FineTune Settings" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "FineTune 设置" } }
+      }
+    },
+    "settings.reset.confirmationTitle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Reset all settings?" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重置所有设置？" } }
+      }
+    },
+    "Reset" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重置" } }
+      }
+    },
+    "Cancel" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "取消" } }
+      }
+    },
+    "This cannot be undone." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "此操作无法撤销。" } }
+      }
+    },
+    "Launch at Login" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "登录时启动" } }
+      }
+    },
+    "Start FineTune when you log in" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "登录时启动 FineTune" } }
+      }
+    },
+    "Language" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "语言" } }
+      }
+    },
+    "Choose the language used by FineTune" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择 FineTune 界面使用的语言" } }
+      }
+    },
+    "Theme" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "主题" } }
+      }
+    },
+    "Match macOS, or lock to Light or Dark" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "跟随 macOS，或固定使用浅色或深色" } }
+      }
+    },
+    "Device Disconnect Alerts" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "设备断开提醒" } }
+      }
+    },
+    "Show notification when an audio device disconnects" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "音频设备断开时显示通知" } }
+      }
+    },
+    "Menu Bar" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "菜单栏" } }
+      }
+    },
+    "Icon Style" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "图标样式" } }
+      }
+    },
+    "How FineTune appears in your menu bar" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "FineTune 在菜单栏中的显示方式" } }
+      }
+    },
+    "Popup Size" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "弹窗大小" } }
+      }
+    },
+    "Smaller fits more on screen; larger leaves more breathing room." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "小尺寸可显示更多内容，大尺寸留出更多间距。" } }
+      }
+    },
+    "Data" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "数据" } }
+      }
+    },
+    "Reset All Settings" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重置所有设置" } }
+      }
+    },
+    "Clear all volumes, EQ, and device routings" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "清除所有音量、EQ 和设备路由" } }
+      }
+    },
+    "Volume" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "音量" } }
+      }
+    },
+    "Default Volume" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "默认音量" } }
+      }
+    },
+    "Initial volume for new apps" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "新应用的初始音量" } }
+      }
+    },
+    "Loudness Compensation" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "响度补偿" } }
+      }
+    },
+    "Boost low frequencies at low volume" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "低音量时增强低频" } }
+      }
+    },
+    "Devices" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "设备" } }
+      }
+    },
+    "Lock Input Device" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "锁定输入设备" } }
+      }
+    },
+    "Prevent auto-switching when devices connect" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "防止设备连接时自动切换" } }
+      }
+    },
+    "System Sounds" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "系统声音" } }
+      }
+    },
+    "Where alerts and effects play" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "提示音和音效的播放设备" } }
+      }
+    },
+    "Alert Volume" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "提示音音量" } }
+      }
+    },
+    "Volume for alerts and notifications" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "提示音和通知的音量" } }
+      }
+    },
+    "Volume Step" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "音量步进" } }
+      }
+    },
+    "How much each keypress changes the volume. Applies to media keys, configured hotkeys, and arrow-key nav in the popup." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "每次按键调整的音量幅度。适用于媒体键、已配置的快捷键以及弹窗中的方向键操作。" } }
+      }
+    },
+    "Media Keys" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "媒体键" } }
+      }
+    },
+    "Media Keys Control" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "媒体键控制" } }
+      }
+    },
+    "Use F11/F12 (or volume keys) to control FineTune" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "使用 F11/F12（或音量键）控制 FineTune" } }
+      }
+    },
+    "HUD Style" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "HUD 样式" } }
+      }
+    },
+    "How the volume indicator appears" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "音量提示的显示方式" } }
+      }
+    },
+    "Hotkeys" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "快捷键" } }
+      }
+    },
+    "Grant" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "授权" } }
+      }
+    },
+    "Registers FineTune in the Accessibility list and opens System Settings." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "将 FineTune 添加到“辅助功能”列表并打开“系统设置”。" } }
+      }
+    },
+    "Granted" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已授权" } }
+      }
+    },
+    "Access granted. Volume keys now control FineTune." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已获得权限。音量键现在可以控制 FineTune。" } }
+      }
+    },
+    "FineTune needs Accessibility to intercept F10 / F11 / F12." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "FineTune 需要“辅助功能”权限才能拦截 F10 / F11 / F12。" } }
+      }
+    },
+    "Media keys offline" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "媒体键离线" } }
+      }
+    },
+    "Retry" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重试" } }
+      }
+    },
+    "Reinstalls the media-key event tap." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重新安装媒体键事件监听。" } }
+      }
+    },
+    "Media keys offline. Retry to reinstall the event tap." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "媒体键离线。重试以重新安装事件监听。" } }
+      }
+    },
+    "Software Updates" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "软件更新" } }
+      }
+    },
+    "Automatic updates" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "自动更新" } }
+      }
+    },
+    "Check for new versions automatically" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "自动检查新版本" } }
+      }
+    },
+    "Last checked" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "上次检查" } }
+      }
+    },
+    "Check Now" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "立即检查" } }
+      }
+    },
+    "Version" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "版本" } }
+      }
+    },
+    "Never checked" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "从未检查" } }
+      }
+    },
+    "Donate" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "捐赠" } }
+      }
+    },
+    "Star on GitHub" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "在 GitHub 加星" } }
+      }
+    },
+    "The system disabled FineTune's event tap, usually after a sleep/wake cycle or a main-thread stall. Retry to reinstall it." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "系统已停用 FineTune 的事件监听，通常发生在睡眠唤醒后或主线程停顿后。请重试以重新安装。" } }
+      }
+    },
+    "Single" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "单设备" } }
+      }
+    },
+    "Multi" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "多设备" } }
+      }
+    },
+    "devices" : {
+      "extractionState" : "manual",
+      "generatesSymbol" : false,
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "个设备" } }
+      }
+    },
+    "System Audio" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "系统音频" } }
+      }
+    },
+    "Select" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择" } }
+      }
+    },
+    "Not available in multi mode" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "多设备模式下不可用" } }
+      }
+    },
+    "Follows macOS default" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "跟随 macOS 默认设置" } }
+      }
+    },
+    "Audio direction" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "音频方向" } }
+      }
+    },
+    "Output" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "输出" } }
+      }
+    },
+    "Input" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "输入" } }
+      }
+    },
+    "Manage Output" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "管理输出" } }
+      }
+    },
+    "Manage Input" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "管理输入" } }
+      }
+    },
+    "Done managing" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "完成管理" } }
+      }
+    },
+    "Settings" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "设置" } }
+      }
+    },
+    "Donate to FineTune" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "向 FineTune 捐赠" } }
+      }
+    },
+    "Quit" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "退出" } }
+      }
+    },
+    "Quit FineTune" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "退出 FineTune" } }
+      }
+    },
+    "Quit FineTune (⌘Q)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "退出 FineTune (⌘Q)" } }
+      }
+    },
+    "Output Devices" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "输出设备" } }
+      }
+    },
+    "Turn on Bluetooth to connect devices" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开蓝牙以连接设备" } }
+      }
+    },
+    "Paired" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已配对" } }
+      }
+    },
+    "No audio apps running" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "没有正在运行的音频应用" } }
+      }
+    },
+    "Apps" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "应用" } }
+      }
+    },
+    "hidden" : {
+      "extractionState" : "manual",
+      "generatesSymbol" : false,
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "个隐藏应用" } }
+      }
+    },
+    "Hidden apps" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "隐藏的应用" } }
+      }
+    },
+    "Utility" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "基础" } }
+      }
+    },
+    "Speech" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "语音" } }
+      }
+    },
+    "Listening" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "聆听" } }
+      }
+    },
+    "Music" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "音乐" } }
+      }
+    },
+    "Media" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "媒体" } }
+      }
+    },
+    "Flat" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "平直" } }
+      }
+    },
+    "Bass Boost" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "低频增强" } }
+      }
+    },
+    "Bass Cut" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "低频削减" } }
+      }
+    },
+    "Treble Boost" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "高频增强" } }
+      }
+    },
+    "Vocal Clarity" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "人声清晰" } }
+      }
+    },
+    "Podcast" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "播客" } }
+      }
+    },
+    "Spoken Word" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "口语" } }
+      }
+    },
+    "Loudness" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "响度" } }
+      }
+    },
+    "Late Night" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "夜间" } }
+      }
+    },
+    "Small Speakers" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "小型扬声器" } }
+      }
+    },
+    "Rock" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "摇滚" } }
+      }
+    },
+    "Pop" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "流行" } }
+      }
+    },
+    "Electronic" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "电子" } }
+      }
+    },
+    "Jazz" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "爵士" } }
+      }
+    },
+    "Classical" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "古典" } }
+      }
+    },
+    "Hip-Hop" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "嘻哈" } }
+      }
+    },
+    "R&B" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "R&B" } }
+      }
+    },
+    "Deep" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "深沉" } }
+      }
+    },
+    "Acoustic" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "原声" } }
+      }
+    },
+    "Movie" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "电影" } }
+      }
+    },
+    "My Presets" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "我的预设" } }
+      }
+    },
+    "Custom" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "自定义" } }
+      }
+    },
+    "EQ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "EQ" } }
+      }
+    },
+    "Preset" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "预设" } }
+      }
+    },
+    "Save current EQ as preset" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "将当前 EQ 保存为预设" } }
+      }
+    },
+    "Save current EQ curve as a new preset" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "将当前 EQ 曲线保存为新预设" } }
+      }
+    },
+    "Preset name" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "预设名称" } }
+      }
+    },
+    "Save preset" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "保存预设" } }
+      }
+    },
+    "Confirm save preset" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "确认保存预设" } }
+      }
+    },
+    "Cancel saving preset" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "取消保存预设" } }
+      }
+    },
+    "Rename preset" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重命名预设" } }
+      }
+    },
+    "Rename current preset" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重命名当前预设" } }
+      }
+    },
+    "Confirm rename" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "确认重命名" } }
+      }
+    },
+    "Confirm rename preset" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "确认重命名预设" } }
+      }
+    },
+    "Cancel renaming preset" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "取消重命名预设" } }
+      }
+    },
+    "Delete preset" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除预设" } }
+      }
+    },
+    "Close AutoEQ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "关闭 AutoEQ" } }
+      }
+    },
+    "AutoEQ correction" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "AutoEQ 校正" } }
+      }
+    },
+    "No correction active" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未启用校正" } }
+      }
+    },
+    "Search or pick a favorite below" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "搜索耳机或从下方收藏中选择" } }
+      }
+    },
+    "No correction active. Search or pick a favorite below." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未启用校正。搜索耳机或从下方收藏中选择。" } }
+      }
+    },
+    "Loading profile..." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在加载配置文件..." } }
+      }
+    },
+    "Imported" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已导入" } }
+      }
+    },
+    "Remove from favorites" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "从收藏中移除" } }
+      }
+    },
+    "Add to favorites" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加到收藏" } }
+      }
+    },
+    "Remove correction profile" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "移除校正配置文件" } }
+      }
+    },
+    "Returns to no correction state" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "恢复为未启用校正" } }
+      }
+    },
+    "Correction" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "校正" } }
+      }
+    },
+    "Preamp" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "前置增益" } }
+      }
+    },
+    "On" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "开启" } }
+      }
+    },
+    "Off" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "关闭" } }
+      }
+    },
+    "Correction profile" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "校正配置文件" } }
+      }
+    },
+    "Search headphones..." : {
+      "extractionState" : "manual",
+      "generatesSymbol" : false,
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "搜索耳机..." } }
+      }
+    },
+    "Search headphones" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "搜索耳机" } }
+      }
+    },
+    "Clear search" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "清除搜索" } }
+      }
+    },
+    "Loading headphone catalog..." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在加载耳机目录..." } }
+      }
+    },
+    "Type to search headphones" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "输入关键词搜索耳机" } }
+      }
+    },
+    "FAVORITES" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "收藏" } }
+      }
+    },
+    "No profiles found" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未找到配置文件" } }
+      }
+    },
+    "Import ParametricEQ.txt..." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "导入 ParametricEQ.txt..." } }
+      }
+    },
+    "Import custom profile" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "导入自定义配置文件" } }
+      }
+    },
+    "Opens file picker for ParametricEQ.txt files" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开文件选择器以选择 ParametricEQ.txt 文件" } }
+      }
+    },
+    "Showing" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "显示" } }
+      }
+    },
+    "of" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "/" } }
+      }
+    },
+    "results" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "个结果" } }
+      }
+    },
+    "Apply this correction profile" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "应用此校正配置文件" } }
+      }
+    },
+    "Collapse device details" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "收起设备详情" } }
+      }
+    },
+    "Expand device details" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "展开设备详情" } }
+      }
+    },
+    "Cannot hide the default device" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "默认设备无法隐藏" } }
+      }
+    },
+    "Show in main view" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "在主界面中显示" } }
+      }
+    },
+    "Hide from main view" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "从主界面隐藏" } }
+      }
+    },
+    "Close device inspector" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "关闭设备详情" } }
+      }
+    },
+    "Device inspector" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "设备详情" } }
+      }
+    },
+    "Open device inspector" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开设备详情" } }
+      }
+    },
+    "Change icon" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "更改图标" } }
+      }
+    },
+    "DEFAULT" : {
+      "extractionState" : "manual",
+      "generatesSymbol" : false,
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "默认" } }
+      }
+    },
+    "Suggested" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "推荐" } }
+      }
+    },
+    "Headphones & Earbuds" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "耳机与耳塞" } }
+      }
+    },
+    "Speakers" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "扬声器" } }
+      }
+    },
+    "Computers & Displays" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "电脑与显示器" } }
+      }
+    },
+    "Microphones" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "麦克风" } }
+      }
+    },
+    "Connectors & Other" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "连接与其他" } }
+      }
+    },
+    "Restore Default" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "恢复默认图标" } }
+      }
+    },
+    "No matching icons" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未找到匹配的图标" } }
+      }
+    },
+    "Search icons" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "搜索图标" } }
+      }
+    },
+    "Choose device icon" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择设备图标" } }
+      }
+    },
+    "Transport" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "连接方式" } }
+      }
+    },
+    "Sample rate" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "采样率" } }
+      }
+    },
+    "Format" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "格式" } }
+      }
+    },
+    "Device ID" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "设备 ID" } }
+      }
+    },
+    "Activate to change" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "按下可更改" } }
+      }
+    },
+    "Copied" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已复制" } }
+      }
+    },
+    "Copy device ID" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "复制设备 ID" } }
+      }
+    },
+    "Device ID copied" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "设备 ID 已复制" } }
+      }
+    },
+    "Built-in" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "内置" } }
+      }
+    },
+    "Virtual" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "虚拟" } }
+      }
+    },
+    "Other" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "其他" } }
+      }
+    },
+    "Couldn't change sample rate. The device refused." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法更改采样率，设备拒绝了此次更改。" } }
+      }
+    },
+    "Auto" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "自动" } }
+      }
+    },
+    "Auto-detected volume control" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "自动检测的音量控制方式" } }
+      }
+    },
+    "In exclusive use by" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "独占使用：" } }
+      }
+    },
+    "In exclusive use by PID" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "独占使用 · PID" } }
+      }
+    },
+    "Use FineTune's software volume" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "使用 FineTune 软件音量控制" } }
+      }
+    },
+    "Turn on only if the volume slider doesn't work. FineTune remembers this for each device." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "仅在音量滑块无法正常工作时开启。FineTune 会针对每台设备记住此设置。" } }
+      }
+    },
+    "notification.audioDeviceReconnected.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Audio Device Reconnected" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "音频设备已重新连接" } }
+      }
+    },
+    "notification.audioDeviceReconnected.afterDevice" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : " is back. " } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已重新连接。" } }
+      }
+    },
+    "notification.oneAppSwitchedBack" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : " app switched back." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : " 个应用已切换回来。" } }
+      }
+    },
+    "notification.manyAppsSwitchedBack" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : " apps switched back." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : " 个应用已切换回来。" } }
+      }
+    },
+    "notification.audioDeviceDisconnected.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Audio Device Disconnected" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "音频设备已断开连接" } }
+      }
+    },
+    "notification.audioDeviceDisconnected.afterDevice" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : " disconnected. " } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已断开连接。" } }
+      }
+    },
+    "notification.oneAppSwitchedTo" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : " app switched to " } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : " 个应用已切换到" } }
+      }
+    },
+    "notification.manyAppsSwitchedTo" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : " apps switched to " } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : " 个应用已切换到" } }
+      }
+    },
+    "notification.defaultAudioDeviceChanged.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Default Audio Device Changed" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "默认音频设备已更改" } }
+      }
+    },
+    "notification.sentenceEnd" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "。" } }
+      }
+    },
+    "Select an AutoEQ ParametricEQ.txt file" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择要导入的 AutoEQ ParametricEQ.txt 文件" } }
+      }
+    },
+    "Could not read profile. Check the file format." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法读取配置文件，请检查文件格式。" } }
+      }
+    },
+    "Failed to load" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法加载" } }
+      }
+    },
+    "Audio capture access required" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "需要音频捕获权限" } }
+      }
+    },
+    "Enable in System Settings → Privacy & Security → Screen & System Audio Recording" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请在“系统设置”→“隐私与安全性”→“屏幕与系统音频录制”中启用" } }
+      }
+    },
+    "Open System Settings" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开系统设置" } }
+      }
+    },
+    "Grant Access" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "授予权限" } }
+      }
+    },
+    "Edit volume percentage" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "编辑音量百分比" } }
+      }
+    },
+    "Mute" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "静音" } }
+      }
+    },
+    "Unmute" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "取消静音" } }
+      }
+    },
+    "Mute microphone" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "将麦克风静音" } }
+      }
+    },
+    "Unmute microphone" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "取消麦克风静音" } }
+      }
+    },
+    "Default device" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "默认设备" } }
+      }
+    },
+    "Set as default" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "设为默认设备" } }
+      }
+    },
+    "Pin app" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "置顶应用" } }
+      }
+    },
+    "Unpin app" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "取消置顶" } }
+      }
+    },
+    "Pinned" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已置顶" } }
+      }
+    },
+    "Drag to reorder" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "拖动以重新排序" } }
+      }
+    },
+    "Move Up" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "向上移动" } }
+      }
+    },
+    "Move Down" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "向下移动" } }
+      }
+    },
+    "Move device up" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "向上移动设备" } }
+      }
+    },
+    "Move device down" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "向下移动设备" } }
+      }
+    },
+    "Hide app" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "隐藏应用" } }
+      }
+    },
+    "Close Equalizer" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "关闭均衡器" } }
+      }
+    },
+    "Connect" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "连接" } }
+      }
+    },
+    "Couldn't connect" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法连接" } }
+      }
+    },
+    "Connection timed out" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "连接超时" } }
+      }
+    },
+    " (off)" : {
+      "extractionState" : "manual",
+      "generatesSymbol" : false,
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "（已关闭）" } }
+      }
+    },
+    "Volume boost:" : {
+      "extractionState" : "manual",
+      "generatesSymbol" : false,
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "音量增强：" } }
+      }
+    },
+    "Volume boost" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "音量增强" } }
+      }
+    },
+    "Open" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开" } }
+      }
+    },
+    "notification.noFallbackDevice" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "none" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无可用设备" } }
+      }
+    },
+    "notification.defaultOutputFallback" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Default Output" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "默认输出设备" } }
+      }
+    },
+    "hud.unknownDevice" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Unknown device" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未知设备" } }
+      }
+    },
+    "hud.muted" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Muted" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已静音" } }
+      }
+    },
+    "hud.unmuted" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Unmuted" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已取消静音" } }
+      }
+    },
+    "hud.notControlled" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Not controlled by FineTune" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未由 FineTune 控制" } }
+      }
+    },
+    "hud.appNotControlledFallback" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "FineTune isn't controlling this app yet" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "FineTune 尚未控制此应用" } }
+      }
+    },
+    "hud.accessibility.mutedSuffix" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : ", muted" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "，已静音" } }
+      }
+    },
+    "hud.accessibility.unmutedSuffix" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : ", unmuted" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "，已取消静音" } }
+      }
+    },
+    "hud.accessibility.mutedVolumePrefix" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : ", muted, volume at " } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "，已静音，音量 " } }
+      }
+    },
+    "hud.accessibility.classicVolumePrefix" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Volume " } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "音量 " } }
+      }
+    },
+    "hud.accessibility.volumePrefix" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : ", volume " } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "，音量 " } }
+      }
+    },
+    "hud.accessibility.percentSuffix" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : " percent" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%" } }
+      }
+    },
+    "hud.accessibility.notControlledSuffix" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : ", not controlled by FineTune" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "，未由 FineTune 控制" } }
+      }
+    }
+  },
+  "version" : "1.0"
+}

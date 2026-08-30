@@ -1,13 +1,14 @@
-// FineTune/Views/Components/ModeToggle.swift
+import Foundation
 import SwiftUI
 
 /// A segmented control for switching between single and multi device modes
 struct ModeToggle: View {
     @Binding var mode: DeviceSelectionMode
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var hoveredOption: DeviceSelectionMode?
 
-    private let options: [(mode: DeviceSelectionMode, label: String)] = [
+    private let options: [(mode: DeviceSelectionMode, label: LocalizedStringResource)] = [
         (.single, "Single"),
         (.multi, "Multi")
     ]
@@ -20,7 +21,7 @@ struct ModeToggle: View {
         }
         .background(
             RoundedRectangle(cornerRadius: DesignTokens.Dimensions.buttonRadius)
-                .fill(.regularMaterial)
+                .fill(DesignTokens.Surface.raised)
         )
         .overlay {
             RoundedRectangle(cornerRadius: DesignTokens.Dimensions.buttonRadius)
@@ -29,12 +30,12 @@ struct ModeToggle: View {
     }
 
     @ViewBuilder
-    private func optionButton(_ optionMode: DeviceSelectionMode, label: String) -> some View {
+    private func optionButton(_ optionMode: DeviceSelectionMode, label: LocalizedStringResource) -> some View {
         let isSelected = mode == optionMode
         let isHovered = hoveredOption == optionMode
 
         Button {
-            withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+            withAnimation(reduceMotion ? nil : DesignTokens.Animation.micro) {
                 mode = optionMode
             }
         } label: {
@@ -52,13 +53,14 @@ struct ModeToggle: View {
             .frame(maxWidth: .infinity)
             .background(
                 RoundedRectangle(cornerRadius: DesignTokens.Dimensions.buttonRadius - 1)
-                    .fill(isSelected ? Color.accentColor.opacity(0.15) : (isHovered ? DesignTokens.Colors.hoverSurface : Color.clear))
+                    .fill(isSelected ? Color.accentColor.opacity(0.15) : (isHovered ? DesignTokens.Surface.hover : Color.clear))
             )
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
         .whenHovered { hovering in
-            withAnimation(DesignTokens.Animation.hover) {
+            withAnimation(reduceMotion ? nil : DesignTokens.Animation.hover) {
                 hoveredOption = hovering ? optionMode : nil
             }
         }

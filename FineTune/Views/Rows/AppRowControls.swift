@@ -1,8 +1,8 @@
 // FineTune/Views/Rows/AppRowControls.swift
 import SwiftUI
 
-/// Shared controls for app rows: mute button, volume slider, percentage, VU meter, device picker, EQ button.
-/// Used by both AppRow (active apps) and InactiveAppRow (pinned inactive apps).
+/// Shared volume/routing control cluster for app rows. EQ and pin actions live
+/// outside this cluster so the parent row can enforce their visual order.
 struct AppRowControls: View {
     let volume: Float
     let isMuted: Bool
@@ -14,7 +14,8 @@ struct AppRowControls: View {
     let defaultDeviceUID: String?
     let deviceSelectionMode: DeviceSelectionMode
     let boost: BoostLevel
-    let isEQExpanded: Bool
+    var sliderWidth: CGFloat = DesignTokens.Dimensions.sliderWidth
+    var volumeAccessibilityLabel: Text = Text("App volume")
     let onVolumeChange: (Float) -> Void
     let onMuteChange: (Bool) -> Void
     let onBoostChange: (BoostLevel) -> Void
@@ -22,94 +23,98 @@ struct AppRowControls: View {
     let onDevicesSelected: (Set<String>) -> Void
     let onDeviceModeChange: (DeviceSelectionMode) -> Void
     let onSelectFollowDefault: () -> Void
-    let onEQToggle: () -> Void
     var isRowFocused: Bool = false
 
-    @State private var dragOverrideValue: Double?
-    @State private var isEQButtonHovered = false
+    @State private var interactionOverrideValue: Double?
+    @State private var isEditing = false
+
+    private var storedSliderFraction: Double {
+        VolumeMapping.gainToSlider(volume)
+    }
+
+    /// During direct manipulation, the local interaction value is the user's current intent.
+    /// Treat it as locally unmuted while the backend catches up so the slider
+    /// stays under the pointer instead of snapping back to visual zero.
+    private var presentationState: VolumePresentationState {
+        VolumePresentationState(
+            storedFraction: interactionOverrideValue ?? storedSliderFraction,
+            isMuted: interactionOverrideValue == nil ? isMuted : false,
+            sourceIsActive: false
+        )
+    }
 
     private var sliderValue: Double {
-        dragOverrideValue ?? VolumeMapping.gainToSlider(volume)
+        presentationState.displayFraction
     }
 
     private var sliderBinding: Binding<Double> {
         Binding(
             get: { sliderValue },
             set: { newValue in
-                dragOverrideValue = newValue
-                let gain = VolumeMapping.sliderToGain(newValue)
-                onVolumeChange(gain)
-                if isMuted {
-                    onMuteChange(false)
-                }
+                let state = presentationState
+                let plan = AppVolumeCommandPlan.adjustment(
+                    currentFraction: state.storedFraction,
+                    isMuted: state.isMuted,
+                    requestedFraction: newValue
+                )
+                interactionOverrideValue = plan.fraction
+                plan.apply(setVolume: onVolumeChange, setMute: onMuteChange)
             }
         )
     }
 
-    /// The displayed percentage value, matching EditablePercentage's formula.
-    private var displayedPercentage: Int { Int(round(sliderValue * 100)) }
+    private var displayedPercentage: Int {
+        presentationState.displayPercent
+    }
 
-    /// Show muted icon when muted OR displayed volume is 0%.
-    /// Uses percentage threshold (not exact sliderValue == 0) because the x² volume
-    /// mapping round-trip can leave sliderValue at tiny non-zero values (e.g. 0.003)
-    /// that display as "0%" but fail exact Double equality.
-    private var showMutedIcon: Bool { isMuted || displayedPercentage == 0 }
-
-    private var eqButtonColor: Color {
-        if isEQExpanded {
-            return DesignTokens.Colors.interactiveActive
-        } else if isEQButtonHovered {
-            return DesignTokens.Colors.interactiveHover
-        } else {
-            return DesignTokens.Colors.interactiveDefault
-        }
+    private var showMutedIcon: Bool {
+        presentationState.displaysMuted
     }
 
     var body: some View {
-        HStack(spacing: DesignTokens.Spacing.sm) {
-            // Mute button
+        HStack(spacing: DesignTokens.Spacing.xs) {
             MuteButton(isMuted: showMutedIcon, levelFraction: sliderValue) {
-                if showMutedIcon {
-                    if displayedPercentage == 0 {
-                        onVolumeChange(1.0)
-                    }
-                    onMuteChange(false)
-                } else {
-                    onMuteChange(true)
-                }
+                AppVolumeCommandPlan.muteToggle(
+                    currentGain: volume,
+                    isMuted: isMuted
+                ).apply(setVolume: onVolumeChange, setMute: onMuteChange)
             }
 
-            // Volume slider
             LiquidGlassSlider(
                 value: sliderBinding,
                 showUnityMarker: false,
                 onEditingChanged: { editing in
+                    isEditing = editing
                     if !editing {
-                        dragOverrideValue = nil
+                        interactionOverrideValue = nil
                     }
-                }
+                },
+                accessibilityLabel: volumeAccessibilityLabel
             )
-            .frame(width: DesignTokens.Dimensions.sliderWidth)
-            .opacity(showMutedIcon ? 0.5 : 1.0)
-            .scrollWheelStep(sliderBinding, in: 0.0...1.0)
+            .frame(width: sliderWidth)
+            .scrollWheelStep(
+                sliderBinding,
+                in: 0.0...1.0,
+                requiresOptionModifier: true
+            )
 
-            // Editable volume percentage (shows slider position, not raw gain)
             EditablePercentage(
                 percentage: Binding(
-                    get: {
-                        Int(round(sliderValue * 100))
-                    },
+                    get: { displayedPercentage },
                     set: { newPercentage in
-                        let sliderPos = Double(newPercentage) / 100.0
-                        let gain = VolumeMapping.sliderToGain(sliderPos)
-                        onVolumeChange(gain)
+                        let state = presentationState
+                        let plan = AppVolumeCommandPlan.adjustment(
+                            currentFraction: state.storedFraction,
+                            isMuted: state.isMuted,
+                            requestedFraction: Double(newPercentage) / 100.0
+                        )
+                        plan.apply(setVolume: onVolumeChange, setMute: onMuteChange)
                     }
                 ),
                 range: 0...100,
                 isRowFocused: isRowFocused
             )
 
-            // Boost chevrons
             BoostChevrons(level: boost, onTap: { onBoostChange(boost.next) })
 
             DevicePicker(
@@ -129,35 +134,91 @@ struct AppRowControls: View {
                 triggerStyle: .iconOnly
             )
 
-            // EQ button
-            Button {
-                onEQToggle()
-            } label: {
-                ZStack {
-                    Image(systemName: "slider.vertical.3")
-                        .opacity(isEQExpanded ? 0 : 1)
-                        .rotationEffect(.degrees(isEQExpanded ? 90 : 0))
+        }
+        .onChange(of: volume) { _, _ in
+            // Direct slider manipulation may keep a local optimistic value until
+            // the drag finishes. Wheel/typed changes are not drag sessions, so an
+            // external value update must immediately return presentation ownership
+            // to the backend instead of leaving a stale override in place.
+            guard !isEditing else { return }
+            interactionOverrideValue = nil
+        }
+        .onChange(of: isMuted) { _, _ in
+            interactionOverrideValue = nil
+        }
+    }
+}
 
-                    Image(systemName: "xmark")
-                        .opacity(isEQExpanded ? 1 : 0)
-                        .rotationEffect(.degrees(isEQExpanded ? 0 : -90))
-                }
+
+/// Dedicated EQ action so row layout can place it independently from the
+/// volume/routing control cluster.
+struct AppEQButton: View {
+    let isExpanded: Bool
+    let action: () -> Void
+
+    @State private var isHovered = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var foregroundColor: Color {
+        if isExpanded { return DesignTokens.Colors.interactiveActive }
+        if isHovered { return DesignTokens.Colors.interactiveHover }
+        return DesignTokens.Colors.interactiveDefault
+    }
+
+    var body: some View {
+        Button(action: action) {
+            ZStack {
+                Image(systemName: "slider.vertical.3")
+                    .opacity(isExpanded ? 0 : 1)
+                Image(systemName: "xmark")
+                    .opacity(isExpanded ? 1 : 0)
+            }
+            .font(.system(size: 12))
+            .symbolRenderingMode(.hierarchical)
+            .foregroundStyle(foregroundColor)
+            .frame(
+                minWidth: DesignTokens.Dimensions.minTouchTarget,
+                minHeight: DesignTokens.Dimensions.minTouchTarget
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(isExpanded ? "Close Equalizer" : "Equalizer")
+        .onHover { isHovered = $0 }
+        .help(isExpanded ? "Close Equalizer" : "Equalizer")
+        .animation(reduceMotion ? nil : DesignTokens.Animation.hover, value: isHovered)
+    }
+}
+
+struct AppPinButton: View {
+    let isPinned: Bool
+    let action: () -> Void
+
+    @State private var isHovered = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var foregroundColor: Color {
+        if isPinned { return DesignTokens.Colors.interactiveActive }
+        if isHovered { return DesignTokens.Colors.interactiveHover }
+        return DesignTokens.Colors.interactiveDefault
+    }
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: isPinned ? "pin.slash.fill" : "pin")
                 .font(.system(size: 12))
                 .symbolRenderingMode(.hierarchical)
-                .foregroundStyle(eqButtonColor)
+                .foregroundStyle(foregroundColor)
                 .frame(
                     minWidth: DesignTokens.Dimensions.minTouchTarget,
                     minHeight: DesignTokens.Dimensions.minTouchTarget
                 )
                 .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(isEQExpanded ? "Close Equalizer" : "Equalizer")
-            .onHover { isEQButtonHovered = $0 }
-            .help(isEQExpanded ? "Close Equalizer" : "Equalizer")
-            .animation(.spring(response: 0.3, dampingFraction: 0.75), value: isEQExpanded)
-            .animation(DesignTokens.Animation.hover, value: isEQButtonHovered)
         }
-        .fixedSize()
+        .buttonStyle(.plain)
+        .accessibilityLabel(isPinned ? "Unpin app" : "Pin app")
+        .onHover { isHovered = $0 }
+        .help(isPinned ? "Unpin app" : "Pin app")
+        .animation(reduceMotion ? nil : DesignTokens.Animation.hover, value: isHovered)
     }
 }

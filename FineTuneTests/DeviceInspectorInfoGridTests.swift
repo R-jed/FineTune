@@ -10,8 +10,6 @@ import AudioToolbox
 import CoreAudio
 @testable import FineTune
 
-// MARK: - Formatter tests
-
 @Suite("DeviceInspectorInfo — formatters")
 struct DeviceInspectorFormatterTests {
     @Test("formatSampleRate renders integer kHz without a decimal")
@@ -61,40 +59,42 @@ struct DeviceInspectorFormatterTests {
         #expect(DeviceInspectorInfo.formatPhysicalFormat(nil) == nil)
     }
 
-    @Test("formatHogModeOwner returns nil when owner is -1")
+    @Test("hog-mode details return nil when owner is -1")
     func hogUnowned() {
-        #expect(DeviceInspectorInfo.formatHogModeOwner(-1, processName: nil) == nil)
+        #expect(DeviceInspectorInfo.hogModeOwnerDetails(-1, processName: nil) == nil)
     }
 
-    @Test("formatHogModeOwner returns nil when self-owned")
+    @Test("hog-mode details return nil when self-owned")
     func hogSelfOwned() {
-        #expect(DeviceInspectorInfo.formatHogModeOwner(getpid(), processName: "FineTune") == nil)
+        #expect(DeviceInspectorInfo.hogModeOwnerDetails(getpid(), processName: "FineTune") == nil)
     }
 
-    @Test("formatHogModeOwner returns resolved name when provided")
+    @Test("hog-mode details preserve resolved process name and PID")
     func hogWithName() {
-        let result = DeviceInspectorInfo.formatHogModeOwner(1234, processName: "Audirvana")
-        #expect(result == "In exclusive use by Audirvana (PID 1234)")
+        let result = DeviceInspectorInfo.hogModeOwnerDetails(1234, processName: "Audirvana")
+        #expect(result?.pid == 1234)
+        #expect(result?.processName == "Audirvana")
     }
 
-    @Test("formatHogModeOwner falls back to PID-only when name is nil")
+    @Test("hog-mode details preserve PID when name is nil")
     func hogWithoutName() {
-        let result = DeviceInspectorInfo.formatHogModeOwner(5678, processName: nil)
-        #expect(result == "In exclusive use by PID 5678")
+        let result = DeviceInspectorInfo.hogModeOwnerDetails(5678, processName: nil)
+        #expect(result?.pid == 5678)
+        #expect(result?.processName == nil)
     }
 
-    @Test("formatHogModeOwner falls back to PID-only when name is empty")
+    @Test("hog-mode details normalize an empty process name to nil")
     func hogWithEmptyName() {
-        let result = DeviceInspectorInfo.formatHogModeOwner(5678, processName: "")
-        #expect(result == "In exclusive use by PID 5678")
+        let result = DeviceInspectorInfo.hogModeOwnerDetails(5678, processName: "")
+        #expect(result?.pid == 5678)
+        #expect(result?.processName == nil)
     }
 }
-
-// MARK: - Layout tests
 
 @Suite("InfoGridLayout — row decisions")
 struct InfoGridLayoutTests {
     private func makeInfo(
+        transportType: TransportType = .usb,
         sampleRate: Double = 48_000,
         availableSampleRates: [Double] = [48_000],
         sampleRateSettable: Bool = false,
@@ -103,7 +103,7 @@ struct InfoGridLayoutTests {
         uid: String = "uid-test"
     ) -> DeviceInspectorInfo {
         DeviceInspectorInfo(
-            transportLabel: "USB",
+            transportType: transportType,
             sampleRate: sampleRate,
             availableSampleRates: availableSampleRates,
             sampleRateSettable: sampleRateSettable,
@@ -113,28 +113,21 @@ struct InfoGridLayoutTests {
         )
     }
 
-    @Test("Always emits Transport as the first row")
+    @Test("Always emits transport as the first row without flattening it to display text")
     func transportAlwaysFirst() {
-        let layout = InfoGridLayout(info: makeInfo())
-        #expect(layout.rows.first == .transport("USB"))
+        let layout = InfoGridLayout(info: makeInfo(transportType: .usb))
+        #expect(layout.rows.first == .transport(.usb))
     }
 
     @Test("Always emits a sample-rate row")
     func sampleRateAlwaysPresent() {
         let layout = InfoGridLayout(info: makeInfo())
-        let hasSampleRate = layout.rows.contains { row in
-            if case .sampleRate = row { return true }
-            return false
-        }
-        #expect(hasSampleRate)
+        #expect(layout.rows.contains { if case .sampleRate = $0 { return true }; return false })
     }
 
     @Test("Sample-rate row is a picker when settable AND options > 1")
     func pickerWhenSettable() {
-        let info = makeInfo(
-            availableSampleRates: [44_100, 48_000, 96_000],
-            sampleRateSettable: true
-        )
+        let info = makeInfo(availableSampleRates: [44_100, 48_000, 96_000], sampleRateSettable: true)
         let layout = InfoGridLayout(info: info)
         guard case .sampleRate(_, let isPicker, let options) = layout.rows[1] else {
             Issue.record("Expected sampleRate row at index 1")
@@ -146,10 +139,7 @@ struct InfoGridLayoutTests {
 
     @Test("Sample-rate row is plain text when not settable")
     func plainTextWhenNotSettable() {
-        let info = makeInfo(
-            availableSampleRates: [44_100, 48_000, 96_000],
-            sampleRateSettable: false
-        )
+        let info = makeInfo(availableSampleRates: [44_100, 48_000, 96_000], sampleRateSettable: false)
         let layout = InfoGridLayout(info: info)
         guard case .sampleRate(_, let isPicker, let options) = layout.rows[1] else {
             Issue.record("Expected sampleRate row at index 1")
@@ -161,10 +151,7 @@ struct InfoGridLayoutTests {
 
     @Test("Sample-rate row is plain text when only one rate is available")
     func plainTextWhenSingleRate() {
-        let info = makeInfo(
-            availableSampleRates: [48_000],
-            sampleRateSettable: true
-        )
+        let info = makeInfo(availableSampleRates: [48_000], sampleRateSettable: true)
         let layout = InfoGridLayout(info: info)
         guard case .sampleRate(_, let isPicker, _) = layout.rows[1] else {
             Issue.record("Expected sampleRate row at index 1")
@@ -176,20 +163,13 @@ struct InfoGridLayoutTests {
     @Test("Format row hidden when formatLabel is nil")
     func formatHiddenWhenNil() {
         let layout = InfoGridLayout(info: makeInfo(formatLabel: nil))
-        let hasFormat = layout.rows.contains { row in
-            if case .format = row { return true }
-            return false
-        }
-        #expect(!hasFormat)
+        #expect(!layout.rows.contains { if case .format = $0 { return true }; return false })
     }
 
     @Test("Device ID row is always emitted as the last row")
     func deviceIDAlwaysLast() {
-        let withFormat = InfoGridLayout(info: makeInfo(formatLabel: "24-bit PCM", uid: "abc-123"))
-        #expect(withFormat.rows.last == .deviceID("abc-123"))
-
-        let withoutFormat = InfoGridLayout(info: makeInfo(formatLabel: nil, uid: "def-456"))
-        #expect(withoutFormat.rows.last == .deviceID("def-456"))
+        #expect(InfoGridLayout(info: makeInfo(formatLabel: "24-bit PCM", uid: "abc-123")).rows.last == .deviceID("abc-123"))
+        #expect(InfoGridLayout(info: makeInfo(formatLabel: nil, uid: "def-456")).rows.last == .deviceID("def-456"))
     }
 
     @Test("Format row sits between Sample rate and Device ID when present")
@@ -199,12 +179,10 @@ struct InfoGridLayoutTests {
             Issue.record("Expected at least 3 rows")
             return
         }
-        if case .format("24-bit PCM") = layout.rows[2] {} else {
-            Issue.record("Row 2 should be format(24-bit PCM)")
-        }
+        if case .format("24-bit PCM") = layout.rows[2] {} else { Issue.record("Row 2 should be format(24-bit PCM)") }
     }
 
-    @Test("Row order is Transport → Sample rate → Format → Device ID")
+    @Test("Row order is Transport, Sample rate, Format, Device ID")
     func rowOrder() {
         let layout = InfoGridLayout(info: makeInfo(formatLabel: "16-bit PCM", uid: "uid-xyz"))
         guard layout.rows.count == 4 else {
@@ -217,9 +195,8 @@ struct InfoGridLayoutTests {
         if case .deviceID = layout.rows[3] {} else { Issue.record("Row 3 should be deviceID") }
     }
 
-    @Test("Layout is 3 rows when format is absent (Transport, Sample rate, Device ID)")
+    @Test("Layout is 3 rows when format is absent")
     func threeRowsWithoutFormat() {
-        let layout = InfoGridLayout(info: makeInfo(formatLabel: nil))
-        #expect(layout.rows.count == 3)
+        #expect(InfoGridLayout(info: makeInfo(formatLabel: nil)).rows.count == 3)
     }
 }
