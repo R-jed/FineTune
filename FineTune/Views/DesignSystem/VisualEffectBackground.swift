@@ -23,8 +23,36 @@ struct VisualEffectBackground: NSViewRepresentable {
 }
 
 extension View {
+    /// Restores the upstream FineTune 2285279d light popup surface exactly:
+    /// an inner `.popover` visual-effect layer plus a 50% white wash. In Dark
+    /// appearance this modifier is intentionally a no-op so the native
+    /// `NSGlassEffectView(.regular)` host remains visually untouched.
+    func originalLightPopupBackground() -> some View {
+        modifier(OriginalLightPopupBackgroundModifier())
+    }
+
     func eqCardBackground() -> some View {
         modifier(LiftedCardBackgroundModifier())
+    }
+}
+
+private struct OriginalLightPopupBackgroundModifier: ViewModifier {
+    @Environment(\.colorScheme) private var colorScheme
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if colorScheme == .light {
+            content
+                .background(DesignTokens.Colors.popupLightOverlay)
+                .background(
+                    VisualEffectBackground(
+                        material: .popover,
+                        blendingMode: .behindWindow
+                    )
+                )
+        } else {
+            content
+        }
     }
 }
 

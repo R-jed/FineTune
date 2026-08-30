@@ -162,6 +162,7 @@ struct MenuBarPopupView: View {
             WindowAppearanceBridge(appearance: audioEngine.settingsManager.appSettings.appearance.nsAppearance)
                 .frame(width: 0, height: 0)
         )
+        .originalLightPopupBackground()
         .preferredColorScheme(audioEngine.settingsManager.appSettings.appearance.swiftUIColorScheme)
         .environment(\.appearancePreference, audioEngine.settingsManager.appSettings.appearance)
         .onAppear {
@@ -1086,7 +1087,9 @@ struct MenuBarPopupView: View {
                 : audioEngine.prioritySortedOutputDevices
         }
 
-        withAnimation(structuralExpansionAnimation) {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
             popupPage = transition.page
         }
     }

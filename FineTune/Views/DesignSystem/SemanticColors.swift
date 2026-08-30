@@ -74,6 +74,11 @@ extension DesignTokens {
 
         // MARK: Glass Effects
 
+        /// Exact light-mode popup wash used by upstream FineTune 2285279d.
+        /// Applied only in Light appearance; Dark keeps the native glass surface
+        /// un-tinted so the current dark visual remains unchanged.
+        static let popupLightOverlay = Color(nsColor: NSColor.white.withAlphaComponent(0.50))
+
         /// Recessed panel background (EQ panel). Light mode is nearly flush
         /// with the surrounding glass; opaque cards do the floating instead.
         static let recessedBackground = dynamicColor(

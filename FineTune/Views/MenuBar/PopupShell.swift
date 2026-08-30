@@ -87,9 +87,7 @@ struct PopupShell<Content: View>: View {
 
         return HStack(spacing: 2) {
             Button {
-                withAnimation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.75)) {
-                    onSelectDirection(.output)
-                }
+                onSelectDirection(.output)
             } label: {
                 Image(systemName: "speaker.wave.2.fill")
                     .font(.system(size: iconSize, weight: .medium))
@@ -115,9 +113,7 @@ struct PopupShell<Content: View>: View {
             .help("Output Devices")
 
             Button {
-                withAnimation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.75)) {
-                    onSelectDirection(.input)
-                }
+                onSelectDirection(.input)
             } label: {
                 Image(systemName: "mic.fill")
                     .font(.system(size: iconSize, weight: .medium))
@@ -142,6 +138,10 @@ struct PopupShell<Content: View>: View {
             .accessibilityAddTraits(direction.isInput ? .isSelected : [])
             .help("Input Devices")
         }
+        .animation(
+            reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.75),
+            value: direction
+        )
         .padding(3)
         .background(
             RoundedRectangle(cornerRadius: DesignTokens.Dimensions.buttonRadius + 3)

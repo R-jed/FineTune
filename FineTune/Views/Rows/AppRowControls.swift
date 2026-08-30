@@ -205,7 +205,7 @@ struct AppPinButton: View {
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: isPinned ? "pin.fill" : "pin")
+            Image(systemName: isPinned ? "pin.slash.fill" : "pin")
                 .font(.system(size: 12))
                 .symbolRenderingMode(.hierarchical)
                 .foregroundStyle(foregroundColor)

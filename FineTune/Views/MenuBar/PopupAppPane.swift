@@ -7,6 +7,30 @@ import SwiftUI
 struct PopupAppPane: View {
     static let groupHeaderExtent: CGFloat = 18
 
+    private enum AppPresentationSection: Hashable {
+        case pinned
+        case applications
+    }
+
+    private enum AppPresentationItem: Identifiable {
+        enum ID: Hashable {
+            case header(AppPresentationSection)
+            case app(String)
+        }
+
+        case header(AppPresentationSection)
+        case app(DisplayableApp)
+
+        var id: ID {
+            switch self {
+            case .header(let section):
+                return .header(section)
+            case .app(let displayableApp):
+                return .app(displayableApp.id)
+            }
+        }
+    }
+
     @Bindable var audioEngine: AudioEngine
     @Bindable var deviceVolumeMonitor: DeviceVolumeMonitor
 
@@ -38,18 +62,7 @@ struct PopupAppPane: View {
         HStack(spacing: DesignTokens.Spacing.xs) {
             SectionHeader(title: "Apps")
             Spacer()
-            Button(action: onAddApplications) {
-                Image(systemName: "plus")
-                    .font(.system(size: 12, weight: .semibold))
-                    .frame(
-                        minWidth: DesignTokens.Dimensions.minTouchTarget,
-                        minHeight: DesignTokens.Dimensions.minTouchTarget
-                    )
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Add Applications")
-            .help("Add Applications")
+            AddApplicationsButton(action: onAddApplications)
         }
         .padding(.bottom, DesignTokens.Spacing.xs)
 
@@ -120,15 +133,22 @@ struct PopupAppPane: View {
         let presets = audioEngine.settingsManager.getUserPresets()
         let pinnedApps = apps.filter { pinnedIdentifiers.contains($0.id) }
         let applications = apps.filter { !pinnedIdentifiers.contains($0.id) }
-        return LazyVStack(alignment: .leading, spacing: 0) {
-            appGroupLabel("Pinned")
-            ForEach(pinnedApps) { displayableApp in
-                appRow(displayableApp, userPresets: presets)
-            }
+        let presentationItems: [AppPresentationItem] =
+            [.header(.pinned)]
+            + pinnedApps.map(AppPresentationItem.app)
+            + [.header(.applications)]
+            + applications.map(AppPresentationItem.app)
 
-            appGroupLabel("Applications")
-            ForEach(applications) { displayableApp in
-                appRow(displayableApp, userPresets: presets)
+        return LazyVStack(alignment: .leading, spacing: 0) {
+            ForEach(presentationItems) { item in
+                switch item {
+                case .header(.pinned):
+                    appGroupLabel("Pinned")
+                case .header(.applications):
+                    appGroupLabel("Applications")
+                case .app(let displayableApp):
+                    appRow(displayableApp, userPresets: presets)
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -363,6 +383,74 @@ struct PopupAppPane: View {
                 end tell
                 """)
             script?.executeAndReturnError(nil)
+        }
+    }
+}
+
+private struct AddApplicationsButton: View {
+    let action: () -> Void
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var isHovered = false
+    @State private var isTooltipVisible = false
+    @State private var tooltipTask: Task<Void, Never>?
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "plus")
+                .font(.system(size: 12, weight: .semibold))
+                .frame(
+                    minWidth: DesignTokens.Dimensions.minTouchTarget,
+                    minHeight: DesignTokens.Dimensions.minTouchTarget
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Add Applications")
+        .onHover(perform: updateHover)
+        .overlay(alignment: .bottomTrailing) {
+            Text("Add Applications")
+                .font(DesignTokens.Typography.caption)
+                .foregroundStyle(DesignTokens.Colors.textPrimary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 6))
+                .fixedSize()
+                .opacity(isTooltipVisible ? 1 : 0)
+                .scaleEffect(isTooltipVisible ? 1 : 0.96, anchor: .topTrailing)
+                .blur(radius: isTooltipVisible || reduceMotion ? 0 : 4)
+                .offset(y: 30)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
+        .zIndex(10)
+        .onDisappear {
+            tooltipTask?.cancel()
+        }
+    }
+
+    private func updateHover(_ hovering: Bool) {
+        isHovered = hovering
+        tooltipTask?.cancel()
+
+        if hovering {
+            tooltipTask = Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(450))
+                guard !Task.isCancelled, isHovered else { return }
+                if reduceMotion {
+                    isTooltipVisible = true
+                } else {
+                    withAnimation(.easeOut(duration: 0.15)) {
+                        isTooltipVisible = true
+                    }
+                }
+            }
+        } else {
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                isTooltipVisible = false
+            }
         }
     }
 }
