@@ -180,7 +180,7 @@ final class FluidMenuBarExtraWindow<Content: View>: NSPanel {
         }
 
         DispatchQueue.main.async { [weak self] in
-            self?.statusItem?.setWindowFrame(size: size, animate: true)
+            self?.statusItem?.setWindowFrame(size: size, animate: false)
         }
     }
 }
