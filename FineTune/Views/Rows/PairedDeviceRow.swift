@@ -57,13 +57,14 @@ struct PairedDeviceRow: View {
                 .foregroundStyle(DesignTokens.Colors.textPrimary)
                 .padding(.horizontal, DesignTokens.Spacing.sm)
                 .padding(.vertical, DesignTokens.Spacing.xxs + 1)
+                .frame(minHeight: DesignTokens.Dimensions.minTouchTarget)
                 .background(
                     RoundedRectangle(cornerRadius: DesignTokens.Dimensions.buttonRadius)
-                        .fill(.regularMaterial)
+                        .fill(DesignTokens.Surface.raised)
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: DesignTokens.Dimensions.buttonRadius)
-                        .strokeBorder(DesignTokens.Colors.glassRowBorder, lineWidth: 0.5)
+                        .strokeBorder(DesignTokens.Stroke.resting, lineWidth: 0.5)
                 )
             }
         }

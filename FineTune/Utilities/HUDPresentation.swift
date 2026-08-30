@@ -36,14 +36,19 @@ nonisolated enum HUDPresentation {
     ) -> String {
         let localization = LocalizationContext(language: language, baseLocale: baseLocale)
         let subject = deviceName.isEmpty ? localization.localized(unknownDevice) : deviceName
-        if mute {
+        let presentation = VolumePresentationState(
+            storedFraction: sliderFraction,
+            isMuted: mute,
+            sourceIsActive: false
+        )
+        if presentation.displaysMuted {
             return subject + localization.localized(
                 LocalizedStringResource("hud.accessibility.mutedSuffix", defaultValue: ", muted")
             )
         }
         return volumeAnnouncement(
             subject: subject,
-            sliderFraction: sliderFraction,
+            sliderFraction: presentation.displayFraction,
             localization: localization
         )
     }
@@ -57,7 +62,7 @@ nonisolated enum HUDPresentation {
     ) -> String {
         let localization = LocalizationContext(language: language, baseLocale: baseLocale)
         let subject = deviceName.isEmpty ? localization.localized(unknownDevice) : deviceName
-        let percent = percentage(sliderFraction)
+        let percent = percentage(sliderFraction, isMuted: mute)
         if mute {
             return subject
                 + localization.localized(
@@ -169,7 +174,11 @@ nonisolated enum HUDPresentation {
         )
     }
 
-    private static func percentage(_ sliderFraction: Double) -> Int {
-        Int((max(0, min(1, sliderFraction)) * 100).rounded())
+    private static func percentage(_ sliderFraction: Double, isMuted: Bool = false) -> Int {
+        VolumePresentationState(
+            storedFraction: sliderFraction,
+            isMuted: isMuted,
+            sourceIsActive: false
+        ).displayPercent
     }
 }

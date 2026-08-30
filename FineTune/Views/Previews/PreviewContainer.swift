@@ -19,7 +19,6 @@ struct PreviewContainer<Content: View>: View {
         content
             .frame(width: width)
             .padding(DesignTokens.Spacing.lg)
-            .darkGlassBackground()
             .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Dimensions.cornerRadius))
             .environment(\.colorScheme, .dark)
     }
@@ -36,7 +35,6 @@ struct ComponentPreviewContainer<Content: View>: View {
     var body: some View {
         content
             .padding(DesignTokens.Spacing.lg)
-            .darkGlassBackground()
             .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Dimensions.cornerRadius))
             .environment(\.colorScheme, .dark)
     }

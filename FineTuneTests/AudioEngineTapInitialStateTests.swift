@@ -252,8 +252,8 @@ struct AudioEngineTapInitialStateTests {
         #expect(fix.lastTap()?.app.processObjectIDs == resumedApp.processObjectIDs)
     }
 
-    @Test("Unpinning a quiet running app keeps it visible")
-    func unpinnedQuietRunningAppRemainsVisible() {
+    @Test("A quiet running app remains visible without pinning")
+    func quietRunningAppRemainsVisible() {
         let fix = makeFixture()
         let quietApp = AudioApp(
             id: fix.app.id,
@@ -264,12 +264,162 @@ struct AudioEngineTapInitialStateTests {
             isAudioActive: false
         )
         fix.processMonitor.activeApps = [quietApp]
-        fix.engine.pinApp(quietApp)
-
-        fix.engine.unpinApp(quietApp.persistenceIdentifier)
 
         #expect(fix.engine.displayableApps.map(\.id) == [quietApp.persistenceIdentifier])
-        #expect(!fix.engine.isPinned(identifier: quietApp.persistenceIdentifier))
+    }
+
+    @Test("Pinned app stays visible while inactive and relaunches into the same identity")
+    func pinnedAppLifecyclePreservesRowIdentity() throws {
+        let fix = makeFixture()
+        let identifier = fix.app.persistenceIdentifier
+
+        fix.engine.setPinned(identifier, pinned: true)
+        #expect(fix.engine.isPinned(identifier: identifier))
+        #expect(fix.engine.displayableApps.map(\.id) == [identifier])
+
+        fix.processMonitor.setActiveApps([])
+        let inactive = try #require(fix.engine.displayableApps.first)
+        guard case .pinnedInactive(let info) = inactive else {
+            Issue.record("Expected pinned inactive row after process exit")
+            return
+        }
+        #expect(info.persistenceIdentifier == identifier)
+
+        fix.processMonitor.setActiveApps([fix.app])
+        let relaunched = try #require(fix.engine.displayableApps.first)
+        guard case .active(let app) = relaunched else {
+            Issue.record("Expected active row after relaunch")
+            return
+        }
+        #expect(app.persistenceIdentifier == identifier)
+    }
+
+    @Test("Unpinning an inactive app removes its row but keeps its latent order slot")
+    func unpinInactiveRemovesOnlyDisplayEligibility() {
+        let fix = makeFixture()
+        let identifier = fix.app.persistenceIdentifier
+        fix.engine.setPinned(identifier, pinned: true)
+        fix.processMonitor.setActiveApps([])
+        #expect(fix.engine.displayableApps.map(\.id) == [identifier])
+
+        fix.engine.setPinned(identifier, pinned: false)
+
+        #expect(fix.engine.displayableApps.isEmpty)
+        #expect(!fix.engine.isPinned(identifier: identifier))
+        #expect(fix.settings.appOrder.contains(identifier))
+    }
+
+    @Test("Hidden pinned app remains hidden without losing pin membership")
+    func hiddenPinnedAppStaysHidden() {
+        let fix = makeFixture()
+        let identifier = fix.app.persistenceIdentifier
+        fix.engine.setPinned(identifier, pinned: true)
+
+        fix.engine.ignoreApp(fix.app)
+
+        #expect(fix.engine.displayableApps.isEmpty)
+        #expect(fix.engine.isPinned(identifier: identifier))
+        #expect(fix.engine.isIgnored(identifier: identifier))
+    }
+
+    @Test("Cross-section placement changes membership and preserves the chosen visible position")
+    func crossSectionPlacementCommitsOrderAndMembershipTogether() {
+        let fix = makeFixture()
+        let second = AudioApp(
+            id: 54321,
+            processObjectIDs: [],
+            name: "Second",
+            icon: NSImage(),
+            bundleID: "com.test.second"
+        )
+        fix.processMonitor.setActiveApps([fix.app, second])
+        fix.engine.setPinned(fix.app.persistenceIdentifier, pinned: true)
+        #expect(fix.engine.displayableApps.map(\.id) == [
+            fix.app.persistenceIdentifier,
+            second.persistenceIdentifier,
+        ])
+
+        let changed = fix.engine.placeApp(
+            second.persistenceIdentifier,
+            visibleOrder: [second.persistenceIdentifier, fix.app.persistenceIdentifier],
+            pinned: true
+        )
+
+        #expect(changed)
+        #expect(fix.engine.isPinned(identifier: second.persistenceIdentifier))
+        #expect(fix.engine.displayableApps.map(\.id) == [
+            second.persistenceIdentifier,
+            fix.app.persistenceIdentifier,
+        ])
+    }
+
+    @Test("Pin button defaults place pinned apps at the end and unpinned apps at the beginning")
+    func pinToggleUsesSectionEdgeDefaults() {
+        let fix = makeFixture()
+        let second = AudioApp(
+            id: 54321,
+            processObjectIDs: [],
+            name: "Second",
+            icon: NSImage(),
+            bundleID: "com.test.second"
+        )
+        let third = AudioApp(
+            id: 54322,
+            processObjectIDs: [],
+            name: "Third",
+            icon: NSImage(),
+            bundleID: "com.test.third"
+        )
+        fix.settings.ensureAppsInOrder([
+            fix.app.persistenceIdentifier,
+            second.persistenceIdentifier,
+            third.persistenceIdentifier,
+        ])
+        fix.processMonitor.setActiveApps([fix.app, second, third])
+
+        fix.engine.setPinned(fix.app.persistenceIdentifier, pinned: true)
+        fix.engine.setPinned(third.persistenceIdentifier, pinned: true)
+        #expect(fix.engine.displayableApps.map(\.id) == [
+            fix.app.persistenceIdentifier,
+            third.persistenceIdentifier,
+            second.persistenceIdentifier,
+        ])
+
+        fix.engine.setPinned(fix.app.persistenceIdentifier, pinned: false)
+        #expect(fix.engine.displayableApps.map(\.id) == [
+            third.persistenceIdentifier,
+            fix.app.persistenceIdentifier,
+            second.persistenceIdentifier,
+        ])
+    }
+
+    @Test("Re-adding an already pinned app is idempotent and preserves its position")
+    func repeatedAddApplicationPreservesPinnedPosition() {
+        let fix = makeFixture()
+        let second = AudioApp(
+            id: 54321,
+            processObjectIDs: [],
+            name: "Second",
+            icon: NSImage(),
+            bundleID: "com.test.second"
+        )
+        fix.settings.ensureAppsInOrder([fix.app.persistenceIdentifier, second.persistenceIdentifier])
+        fix.processMonitor.setActiveApps([fix.app, second])
+        fix.settings.ensureAppsInOrder([second.persistenceIdentifier, fix.app.persistenceIdentifier])
+        fix.engine.setPinned(fix.app.persistenceIdentifier, pinned: true)
+
+        let before = fix.engine.displayableApps.map(\.id)
+        let rawBefore = fix.settings.appOrder
+        fix.engine.addSelectedApplication(
+            PinnedAppInfo(
+                persistenceIdentifier: fix.app.persistenceIdentifier,
+                displayName: fix.app.name,
+                bundleID: fix.app.bundleID
+            )
+        )
+
+        #expect(fix.engine.displayableApps.map(\.id) == before)
+        #expect(fix.settings.appOrder == rawBefore)
     }
 
     @Test("Representative PID migration retires the old tap before provisioning the new representative")
@@ -319,26 +469,26 @@ struct AudioEngineTapInitialStateTests {
         #expect(fix.engine.getVolume(for: replacement) == 0.8)
     }
 
-    @Test("Hide and restore preserves a manually added inactive app and its settings")
-    func hideRestorePreservesInactivePinnedApp() {
+    @Test("Unhiding a non-running app preserves settings but does not create a row")
+    func unhideNonRunningAppDoesNotCreateRow() {
         let fix = makeFixture()
+        let identifier = "com.test.manual"
         fix.processMonitor.activeApps = []
-        let info = PinnedAppInfo(
-            persistenceIdentifier: "com.test.manual",
-            displayName: "Manual App",
-            bundleID: "com.test.manual"
+        fix.settings.setVolume(for: identifier, to: 0.42)
+        fix.settings.ignoreApp(
+            identifier,
+            info: IgnoredAppInfo(
+                persistenceIdentifier: identifier,
+                displayName: "Manual App",
+                bundleID: identifier
+            )
         )
-        fix.engine.pinApp(info)
-        fix.settings.setVolume(for: info.persistenceIdentifier, to: 0.42)
 
-        fix.engine.ignoreApp(info)
+        fix.engine.unignoreApp(identifier)
+
         #expect(fix.engine.displayableApps.isEmpty)
-
-        fix.engine.unignoreApp(info.persistenceIdentifier)
-
-        #expect(fix.engine.isPinned(identifier: info.persistenceIdentifier))
-        #expect(fix.engine.displayableApps.map(\.id) == [info.persistenceIdentifier])
-        #expect(fix.settings.getVolume(for: info.persistenceIdentifier) == 0.42)
+        #expect(fix.settings.getVolume(for: identifier) == 0.42)
+        #expect(!fix.settings.isIgnored(identifier))
     }
 
     @Test("Multiple processes for one bundle produce one visible row")
@@ -363,37 +513,108 @@ struct AudioEngineTapInitialStateTests {
         fix.processMonitor.activeApps = [quietProcess, secondProcess]
 
         #expect(fix.engine.displayableApps.map(\.id) == [fix.app.persistenceIdentifier])
-        guard case .active(let merged) = fix.engine.displayableApps.first else {
-            Issue.record("Expected one active merged app")
+        guard let merged = fix.engine.displayableApps.first?.app else {
+            Issue.record("Expected one merged running app")
             return
         }
         #expect(merged.processObjectIDs == [AudioObjectID(999), AudioObjectID(1000)])
         #expect(merged.isAudioActive)
     }
 
-    @Test("Pinned app order is shared by running and inactive apps")
-    func pinnedOrderSpansRunningAndInactiveApps() {
+    @Test("An app exit and relaunch restores its latent global order slot")
+    func relaunchRestoresLatentOrder() {
         let fix = makeFixture()
-        let inactive = PinnedAppInfo(
-            persistenceIdentifier: "com.test.inactive",
-            displayName: "Inactive",
-            bundleID: "com.test.inactive"
+        let second = AudioApp(
+            id: 54321,
+            processObjectIDs: [],
+            name: "Bravo",
+            icon: NSImage(),
+            bundleID: "com.test.bravo"
         )
-        fix.engine.pinApp(fix.app)
-        fix.engine.pinApp(inactive)
-
-        fix.engine.moveApp(inactive.persistenceIdentifier, to: fix.app.persistenceIdentifier)
-
-        #expect(
-            fix.engine.displayableApps.map(\.id) == [
-                inactive.persistenceIdentifier,
-                fix.app.persistenceIdentifier,
-            ]
+        let third = AudioApp(
+            id: 54322,
+            processObjectIDs: [],
+            name: "Charlie",
+            icon: NSImage(),
+            bundleID: "com.test.charlie"
         )
+        fix.settings.ensureAppsInOrder([
+            fix.app.persistenceIdentifier,
+            second.persistenceIdentifier,
+            third.persistenceIdentifier,
+        ])
+        fix.processMonitor.setActiveApps([fix.app, second, third])
+        fix.engine.moveApp(third.persistenceIdentifier, to: fix.app.persistenceIdentifier)
+        #expect(fix.engine.displayableApps.map(\.id) == [
+            third.persistenceIdentifier,
+            fix.app.persistenceIdentifier,
+            second.persistenceIdentifier,
+        ])
+
+        fix.processMonitor.setActiveApps([fix.app, third])
+        fix.engine.moveApp(fix.app.persistenceIdentifier, to: third.persistenceIdentifier)
+        #expect(fix.engine.displayableApps.map(\.id) == [
+            fix.app.persistenceIdentifier,
+            third.persistenceIdentifier,
+        ])
+
+        fix.processMonitor.setActiveApps([fix.app, second, third])
+        #expect(fix.engine.displayableApps.map(\.id) == [
+            fix.app.persistenceIdentifier,
+            second.persistenceIdentifier,
+            third.persistenceIdentifier,
+        ])
     }
 
-    @Test("Every recognized app can be moved in the visible order")
-    func unpinnedAppsCanBeReordered() {
+    @Test("Hidden app keeps its latent anchor while visible apps reorder and returns on unhide")
+    func hiddenAppRestoresLatentOrderAfterVisibleReorder() {
+        let fix = makeFixture()
+        let hidden = AudioApp(
+            id: 54321,
+            processObjectIDs: [],
+            name: "Bravo",
+            icon: NSImage(),
+            bundleID: "com.test.bravo"
+        )
+        let third = AudioApp(
+            id: 54322,
+            processObjectIDs: [],
+            name: "Charlie",
+            icon: NSImage(),
+            bundleID: "com.test.charlie"
+        )
+        fix.settings.ensureAppsInOrder([
+            fix.app.persistenceIdentifier,
+            hidden.persistenceIdentifier,
+            third.persistenceIdentifier,
+        ])
+        fix.processMonitor.setActiveApps([fix.app, hidden, third])
+        fix.engine.setVolume(for: hidden, to: 0.42)
+
+        fix.engine.ignoreApp(hidden)
+        #expect(fix.engine.displayableApps.map(\.id) == [
+            fix.app.persistenceIdentifier,
+            third.persistenceIdentifier,
+        ])
+
+        fix.engine.moveApp(fix.app.persistenceIdentifier, to: third.persistenceIdentifier)
+        #expect(fix.engine.displayableApps.map(\.id) == [
+            third.persistenceIdentifier,
+            fix.app.persistenceIdentifier,
+        ])
+
+        fix.engine.unignoreApp(hidden.persistenceIdentifier)
+
+        #expect(fix.engine.displayableApps.map(\.id) == [
+            third.persistenceIdentifier,
+            fix.app.persistenceIdentifier,
+            hidden.persistenceIdentifier,
+        ])
+        #expect(fix.settings.getVolume(for: hidden.persistenceIdentifier) == 0.42)
+    }
+
+    @Test("Applications preserve user-defined order within their section")
+    func applicationsCanBeReordered() {
         let fix = makeFixture()
         let second = AudioApp(
             id: 54321,
@@ -402,39 +623,15 @@ struct AudioEngineTapInitialStateTests {
             icon: NSImage(),
             bundleID: "com.test.zulu"
         )
-        fix.processMonitor.activeApps = [fix.app, second]
+        fix.settings.ensureAppsInOrder([fix.app.persistenceIdentifier, second.persistenceIdentifier])
+        fix.processMonitor.setActiveApps([fix.app, second])
 
         fix.engine.moveApp(second.persistenceIdentifier, to: fix.app.persistenceIdentifier)
 
-        #expect(
-            fix.engine.displayableApps.map(\.id) == [
-                second.persistenceIdentifier,
-                fix.app.persistenceIdentifier,
-            ]
-        )
-    }
-
-    @Test("Pinned and unpinned apps share one movable order")
-    func appOrderCrossesPinBoundary() {
-        let fix = makeFixture()
-        let unpinned = AudioApp(
-            id: 54321,
-            processObjectIDs: [],
-            name: "Unpinned",
-            icon: NSImage(),
-            bundleID: "com.test.unpinned"
-        )
-        fix.processMonitor.activeApps = [fix.app, unpinned]
-        fix.engine.pinApp(fix.app)
-
-        fix.engine.moveApp(unpinned.persistenceIdentifier, to: fix.app.persistenceIdentifier)
-
-        #expect(
-            fix.engine.displayableApps.map(\.id) == [
-                unpinned.persistenceIdentifier,
-                fix.app.persistenceIdentifier,
-            ]
-        )
+        #expect(fix.engine.displayableApps.map(\.id) == [
+            second.persistenceIdentifier,
+            fix.app.persistenceIdentifier,
+        ])
     }
 
     @Test("One-click mute updates live audio and persistence")

@@ -106,11 +106,24 @@ struct LocalizedPresentationTests {
         #expect(english.localized("devices") == "devices")
         #expect(chinese.localized("devices") == "个设备")
         #expect(chinese.localized("System Audio") == "系统音频")
-        #expect(chinese.localized("Reorder devices") == "调整设备顺序")
-        #expect(chinese.localized("No Output") == "无输出设备")
-        #expect(chinese.localized("No Input") == "无输入设备")
+        #expect(chinese.localized("Audio direction") == "音频方向")
+        #expect(chinese.localized("Output") == "输出")
+        #expect(chinese.localized("Input") == "输入")
+        #expect(chinese.localized("Manage Output") == "管理输出")
+        #expect(chinese.localized("Manage Input") == "管理输入")
+        #expect(chinese.localized("Done managing") == "完成管理")
         #expect(chinese.localized("Output Devices") == "输出设备")
-        #expect(chinese.localized("Input Devices") == "输入设备")
+        #expect(chinese.localized("Pinned") == "已置顶")
+        #expect(chinese.localized("Applications") == "应用程序")
+        #expect(chinese.localized("Add Applications") == "添加应用程序")
+        #expect(chinese.localized("Choose one or more applications to add.") == "选择一个或多个要添加的应用程序。")
+        #expect(chinese.localized("Pin app") == "置顶应用")
+        #expect(chinese.localized("Unpin app") == "取消置顶")
+        #expect(chinese.localized("Move device up") == "向上移动设备")
+        #expect(chinese.localized("Move device down") == "向下移动设备")
+        #expect(chinese.localized("Move Up") == "向上移动")
+        #expect(chinese.localized("Move Down") == "向下移动")
+        #expect(chinese.localized("Drag to reorder") == "拖动以重新排序")
         #expect(chinese.localized("Quit FineTune") == "退出 FineTune")
     }
 
@@ -214,11 +227,8 @@ struct LocalizedPresentationTests {
             ("Unmute microphone", "取消麦克风静音"),
             ("Default device", "默认设备"),
             ("Set as default", "设为默认设备"),
-            ("Pin app", "固定应用"),
-            ("Unpin app", "取消固定应用"),
             ("Hide app", "隐藏应用"),
             ("Hidden apps", "隐藏的应用"),
-            ("Add Applications", "添加应用程序"),
             ("Close Equalizer", "关闭均衡器"),
             ("Connect", "连接"),
             ("Couldn't connect", "无法连接"),

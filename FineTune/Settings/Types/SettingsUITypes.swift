@@ -130,6 +130,7 @@ enum MenuBarPopupSize: String, Codable, CaseIterable, Identifiable, CustomString
 struct PopupDimensions: Equatable {
     let width: CGFloat
     let contentPadding: CGFloat
+    let appSliderWidth: CGFloat
     /// Ceiling on the scrollable body. Sized to stay within a 13" MacBook Air's
     /// usable height after the menu bar, since FluidMenuBarExtra does not clamp
     /// the popup against `screen.visibleFrame` vertically.
@@ -143,18 +144,21 @@ extension MenuBarPopupSize {
             return PopupDimensions(
                 width: 470,
                 contentPadding: 12,
+                appSliderWidth: 100,
                 maxContentHeight: 560
             )
         case .comfortable:
             return PopupDimensions(
                 width: 510,
                 contentPadding: 16,
+                appSliderWidth: 120,
                 maxContentHeight: 660
             )
         case .spacious:
             return PopupDimensions(
                 width: 560,
                 contentPadding: 20,
+                appSliderWidth: 140,
                 maxContentHeight: 760
             )
         }

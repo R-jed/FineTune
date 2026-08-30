@@ -15,6 +15,104 @@ enum VolumeControlTier: String, Codable, Equatable {
     }
 }
 
+enum OutputVolumeWriteOrder: Equatable {
+    case volumeThenMute
+    case muteThenVolume
+}
+
+/// Backend-aware mutation plan for output-device volume commands.
+/// DDC unmute restores its saved volume, so muted DDC adjustments must unmute
+/// before writing the requested target. Software does the inverse so unmute
+/// cannot restore an older saved value over a fresh user adjustment.
+struct OutputVolumeCommandPlan: Equatable {
+    let fraction: Double
+    let gain: Float
+    let muted: Bool
+    let shouldWriteVolume: Bool
+    let shouldWriteMute: Bool
+    let writeOrder: OutputVolumeWriteOrder
+
+    static func adjustment(
+        currentFraction: Double,
+        isMuted: Bool,
+        tier: VolumeControlTier,
+        requestedFraction: Double
+    ) -> Self {
+        let adjustment = VolumePresentationState(
+            storedFraction: currentFraction,
+            isMuted: isMuted,
+            sourceIsActive: false
+        ).planAdjustment(to: requestedFraction)
+        let targetMuted = adjustment.shouldUnmute ? false : isMuted
+        let order: OutputVolumeWriteOrder =
+            isMuted && !targetMuted && tier == .ddc
+                ? .muteThenVolume
+                : .volumeThenMute
+
+        return Self(
+            fraction: adjustment.fraction,
+            gain: VolumeMapping.systemGain(forSliderFraction: adjustment.fraction, tier: tier),
+            muted: targetMuted,
+            shouldWriteVolume: true,
+            shouldWriteMute: targetMuted != isMuted,
+            writeOrder: order
+        )
+    }
+
+    static func step(
+        currentGain: Float,
+        isMuted: Bool,
+        tier: VolumeControlTier,
+        delta: Double
+    ) -> Self {
+        let currentFraction = VolumeMapping.sliderFraction(
+            forSystemGain: currentGain,
+            tier: tier
+        )
+        return adjustment(
+            currentFraction: currentFraction,
+            isMuted: isMuted,
+            tier: tier,
+            requestedFraction: currentFraction + delta
+        )
+    }
+
+    static func muteToggle(
+        currentFraction: Double,
+        isMuted: Bool,
+        tier: VolumeControlTier
+    ) -> Self {
+        let toggle = VolumePresentationState(
+            storedFraction: currentFraction,
+            isMuted: isMuted,
+            sourceIsActive: false
+        ).planMuteToggle()
+        let order: OutputVolumeWriteOrder =
+            isMuted && !toggle.muted && tier == .ddc
+                ? .muteThenVolume
+                : .volumeThenMute
+        return Self(
+            fraction: toggle.fraction,
+            gain: VolumeMapping.systemGain(forSliderFraction: toggle.fraction, tier: tier),
+            muted: toggle.muted,
+            shouldWriteVolume: !toggle.muted && toggle.fraction != currentFraction,
+            shouldWriteMute: toggle.muted != isMuted,
+            writeOrder: order
+        )
+    }
+
+    func apply(setVolume: (Float) -> Void, setMute: (Bool) -> Void) {
+        switch writeOrder {
+        case .volumeThenMute:
+            if shouldWriteVolume { setVolume(gain) }
+            if shouldWriteMute { setMute(muted) }
+        case .muteThenVolume:
+            if shouldWriteMute { setMute(muted) }
+            if shouldWriteVolume { setVolume(gain) }
+        }
+    }
+}
+
 @MainActor
 protocol DeviceVolumeProviding: AnyObject {
     var defaultDeviceID: AudioDeviceID { get }
@@ -39,6 +137,15 @@ protocol DeviceVolumeProviding: AnyObject {
     /// Writes a mute state through whichever backend this device uses.
     func setMute(for deviceID: AudioDeviceID, to muted: Bool)
 
+    /// Applies one normalized user command with backend-specific mutation order.
+    func applyOutputCommand(_ command: OutputVolumeCommandPlan, for deviceID: AudioDeviceID)
+
+    /// Returns the non-presentation output volume that user adjustments should
+    /// continue from. Software and DDC mute store their pre-mute values separately
+    /// while exposing zero through their backend, so callers must not treat that
+    /// visible zero as the user's stored volume.
+    func storedOutputVolume(for deviceID: AudioDeviceID) -> Float
+
     func outputVolumeBackend(for deviceID: AudioDeviceID) -> VolumeControlTier
 
     /// Returns the tier that auto-detection would pick, ignoring any saved override.
@@ -61,6 +168,24 @@ protocol DeviceVolumeProviding: AnyObject {
 }
 
 extension DeviceVolumeProviding {
+    func storedOutputVolume(for deviceID: AudioDeviceID) -> Float {
+        volumes[deviceID] ?? 0
+    }
+
+    func toggleUserOutputMute(for deviceID: AudioDeviceID) {
+        let tier = outputVolumeBackend(for: deviceID)
+        let currentFraction = VolumeMapping.sliderFraction(
+            forSystemGain: storedOutputVolume(for: deviceID),
+            tier: tier
+        )
+        let command = OutputVolumeCommandPlan.muteToggle(
+            currentFraction: currentFraction,
+            isMuted: muteStates[deviceID] ?? false,
+            tier: tier
+        )
+        applyOutputCommand(command, for: deviceID)
+    }
+
     func outputProcessingGain(for deviceID: AudioDeviceID) -> Float {
         1.0
     }

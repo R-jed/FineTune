@@ -71,7 +71,7 @@ struct AboutLinkChip: View {
         }
         .buttonStyle(.plain)
         .onHover { hovering in
-            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.12)) {
+            withAnimation(reduceMotion ? nil : DesignTokens.Animation.micro) {
                 isHovered = hovering
             }
         }
@@ -101,6 +101,5 @@ struct AboutLinkChip: View {
     }
     .padding(24)
     .frame(width: 520, height: 80)
-    .darkGlassBackground()
     .environment(\.colorScheme, .dark)
 }

@@ -69,6 +69,5 @@ private struct IconOption: View {
     }
     .padding()
     .frame(width: 300)
-    .darkGlassBackground()
     .environment(\.colorScheme, .dark)
 }

@@ -107,8 +107,8 @@ struct ShortcutsRegistryTests {
         #expect(engine.setMuteCalls.first?.mute == false)
     }
 
-    @Test("dispatch(.targetAppVolumeDown) auto-mutes an unmuted app when volume hits zero")
-    func dispatchVolumeDownAutoMutesAtZero() {
+    @Test("dispatch(.targetAppVolumeDown) preserves explicit mute state when volume hits zero")
+    func dispatchVolumeDownKeepsZeroAsMutedEquivalent() {
         let app = makeAudioApp(id: 1, bundleID: "com.test.app")
         let engine = RecordingAudioEngine(apps: [app], initialVolume: 0.001, initialMuted: false)
         let registry = makeRegistry(
@@ -119,8 +119,8 @@ struct ShortcutsRegistryTests {
 
         registry.dispatch(.targetAppVolumeDown)
 
-        #expect(engine.setMuteCalls.count == 1)
-        #expect(engine.setMuteCalls.first?.mute == true)
+        #expect(engine.setMuteCalls.isEmpty)
+        #expect(engine.setVolumeCalls.last?.volume == 0)
     }
 
     @Test("dispatch(.targetAppVolumeDown) unmutes a muted app when next volume is still audible")

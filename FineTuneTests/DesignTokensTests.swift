@@ -90,9 +90,9 @@ struct DesignTokensDimensionTests {
         #expect(DesignTokens.Dimensions.iconSizeSmall < DesignTokens.Dimensions.iconSize)
     }
 
-    @Test("Min touch target is at least 16pt (Apple HIG minimum)")
+    @Test("Min touch target meets macOS accessibility floor")
     func minTouchTarget() {
-        #expect(DesignTokens.Dimensions.minTouchTarget >= 16)
+        #expect(DesignTokens.Dimensions.minTouchTarget >= 20)
     }
 }
 

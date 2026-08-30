@@ -103,12 +103,12 @@ struct AutoEQPicker: View {
                 selectedProfileID: selection?.profileID,
                 onSelect: { profile in
                     onSelect(profile)
-                    withAnimation(.easeOut(duration: 0.15)) {
+                    withAnimation(DesignTokens.Animation.selection) {
                         isExpanded = false
                     }
                 },
                 onDismiss: {
-                    withAnimation(.easeOut(duration: 0.15)) {
+                    withAnimation(DesignTokens.Animation.selection) {
                         isExpanded = false
                     }
                 },

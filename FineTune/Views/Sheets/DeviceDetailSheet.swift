@@ -69,7 +69,7 @@ struct DeviceDetailSheet: View {
         .padding(.vertical, 10)
         .background {
             RoundedRectangle(cornerRadius: 10)
-                .fill(DesignTokens.Colors.recessedBackground)
+                .fill(DesignTokens.Surface.recessed)
         }
         .padding(.horizontal, 2)
         .padding(.top, DesignTokens.Spacing.xs)
@@ -80,11 +80,11 @@ struct DeviceDetailSheet: View {
 
     private var autoBadge: some View {
         (Text("Auto") + Text(verbatim: ": ") + Text(Self.tierDisplayName(autoDetectedTier)))
-            .font(.system(size: 9, weight: .semibold))
+            .font(.system(size: 10, weight: .semibold))
             .foregroundStyle(DesignTokens.Colors.textSecondary)
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
-            .background(Capsule().fill(DesignTokens.Colors.glassFillStrong))
+            .background(Capsule().fill(DesignTokens.Surface.emphasized))
             .accessibilityLabel(
                 Text("Auto-detected volume control")
                     + Text(verbatim: ": ")
@@ -147,7 +147,7 @@ struct DeviceDetailSheet: View {
 
             Toggle("Use FineTune's software volume", isOn: useSoftwareBinding)
                 .toggleStyle(.switch)
-                .scaleEffect(0.8)
+                .controlSize(.small)
                 .labelsHidden()
         }
     }

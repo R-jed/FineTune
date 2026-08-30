@@ -97,7 +97,9 @@ final class HUDWindowController: MediaKeyHUDPresenting {
         panel.ignoresMouseEvents = (style == .classic)
 
         let scheme = appearance.swiftUIColorScheme
-        let displayFraction = Float(max(0, min(1, sliderFraction)))
+        // TahoeStyleHUD / ClassicStyleHUD own clamping and muted presentation
+        // through VolumePresentationState. Keep the controller transport-only.
+        let displayFraction = Float(sliderFraction)
         let root: AnyView
         let size: NSSize
         switch style {
@@ -166,7 +168,7 @@ final class HUDWindowController: MediaKeyHUDPresenting {
         presentPerApp(
             icon: app.icon,
             title: app.name,
-            content: .volume(sliderFraction: max(0, min(1, sliderFraction)))
+            content: .volume(sliderFraction: sliderFraction)
         )
     }
 
@@ -479,22 +481,38 @@ private struct PerAppHUD: View {
     private static let iconSize: CGFloat = 28
     private static let barHeight: CGFloat = 4
 
+    /// Keep per-App HUD volume presentation on the same pure seam as rows,
+    /// device HUDs, and menu-icon state. Volume-only HUDs have no explicit mute
+    /// flag, so a rounded visible 0% is the shared muted-equivalent state.
+    private var volumePresentationState: VolumePresentationState? {
+        guard case .volume(let sliderFraction) = content else { return nil }
+        return VolumePresentationState(
+            storedFraction: sliderFraction,
+            isMuted: false,
+            sourceIsActive: false
+        )
+    }
+
     private var displayLevel: Double {
         switch content {
-        case .volume(let sliderFraction): return max(0, min(1, sliderFraction))
+        case .volume: return volumePresentationState?.displayFraction ?? 0
         case .mute(let isMuted): return isMuted ? 0 : 1
         case .notControlled: return 0
         }
     }
 
     private var displayedPercent: Int {
-        Int((displayLevel * 100).rounded())
+        switch content {
+        case .volume: return volumePresentationState?.displayPercent ?? 0
+        case .mute(let isMuted): return isMuted ? 0 : 100
+        case .notControlled: return 0
+        }
     }
 
     private var isMutedDisplay: Bool {
         switch content {
         case .mute(let isMuted): return isMuted
-        case .volume: return displayedPercent == 0
+        case .volume: return volumePresentationState?.displaysMuted ?? true
         case .notControlled: return false
         }
     }

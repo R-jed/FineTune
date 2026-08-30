@@ -153,7 +153,7 @@ struct DevicePicker: View {
         deviceIcon(firstDevice)
             .overlay(alignment: .bottomTrailing) {
                 Text("\(count)")
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(.white)
                     .padding(.horizontal, 4)
                     .padding(.vertical, 0.5)
@@ -201,9 +201,7 @@ struct DevicePicker: View {
 
     private var fullTriggerButton: some View {
         Button {
-            withAnimation(reduceMotion ? nil : .snappy(duration: 0.2)) {
-                isExpanded.toggle()
-            }
+            setExpanded(!isExpanded)
         } label: {
             HStack(spacing: DesignTokens.Spacing.xs) {
                 HStack(spacing: DesignTokens.Spacing.xs) {
@@ -218,7 +216,6 @@ struct DevicePicker: View {
                     .font(.system(size: 8, weight: .semibold))
                     .foregroundStyle(.secondary)
                     .rotationEffect(.degrees(isExpanded ? -180 : 0))
-                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: isExpanded)
             }
             .padding(.horizontal, DesignTokens.Spacing.sm)
             .padding(.vertical, 4)
@@ -228,12 +225,12 @@ struct DevicePicker: View {
         .buttonStyle(.plain)
         .background {
             RoundedRectangle(cornerRadius: DesignTokens.Dimensions.buttonRadius)
-                .fill(.regularMaterial)
+                .fill(DesignTokens.Surface.raised)
         }
         .overlay {
             RoundedRectangle(cornerRadius: DesignTokens.Dimensions.buttonRadius)
                 .strokeBorder(
-                    isButtonHovered ? DesignTokens.Colors.glassRowBorderHover : DesignTokens.Colors.glassRowBorder,
+                    isButtonHovered ? DesignTokens.Stroke.hover : DesignTokens.Stroke.resting,
                     lineWidth: 0.5
                 )
         }
@@ -246,9 +243,7 @@ struct DevicePicker: View {
 
     private var iconOnlyTriggerButton: some View {
         Button {
-            withAnimation(reduceMotion ? nil : .snappy(duration: 0.2)) {
-                isExpanded.toggle()
-            }
+            setExpanded(!isExpanded)
         } label: {
             triggerIcon
                 .frame(width: 28, height: 28)
@@ -367,6 +362,13 @@ struct DevicePicker: View {
         }
     }
 
+    private func setExpanded(_ expanded: Bool) {
+        guard isExpanded != expanded else { return }
+        withAnimation(reduceMotion ? nil : DesignTokens.Animation.selection) {
+            isExpanded = expanded
+        }
+    }
+
     private func handleItemTap(_ item: MenuItem) {
         switch currentMode {
         case .single:
@@ -376,9 +378,7 @@ struct DevicePicker: View {
             case .device(let device):
                 onDeviceSelected(device.uid)
             }
-            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.15)) {
-                isExpanded = false
-            }
+            setExpanded(false)
 
         case .multi:
             guard case .device(let device) = item else { return }

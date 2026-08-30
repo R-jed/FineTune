@@ -105,10 +105,10 @@ private struct SampleRatePickerValue: View {
         .menuIndicator(.hidden)
         .buttonStyle(.plain)
         .fixedSize()
-        .background(RoundedRectangle(cornerRadius: DesignTokens.Dimensions.buttonRadius).fill(.regularMaterial))
+        .background(RoundedRectangle(cornerRadius: DesignTokens.Dimensions.buttonRadius).fill(DesignTokens.Surface.raised))
         .overlay(
             RoundedRectangle(cornerRadius: DesignTokens.Dimensions.buttonRadius)
-                .strokeBorder(isHovered ? DesignTokens.Colors.glassRowBorderHover : DesignTokens.Colors.glassRowBorder, lineWidth: 0.5)
+                .strokeBorder(isHovered ? DesignTokens.Stroke.hover : DesignTokens.Stroke.resting, lineWidth: 0.5)
         )
         .onHover { isHovered = $0 }
         .animation(DesignTokens.Animation.hover, value: isHovered)
@@ -137,7 +137,10 @@ private struct DeviceIDValueCell: View {
                     .font(.system(size: 10))
                     .foregroundStyle(copied ? DesignTokens.Colors.accentPrimary : DesignTokens.Colors.textTertiary)
                     .contentTransition(.symbolEffect(.replace))
-                    .frame(width: 14, height: 14)
+                    .frame(
+                        minWidth: DesignTokens.Dimensions.minTouchTarget,
+                        minHeight: DesignTokens.Dimensions.minTouchTarget
+                    )
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)

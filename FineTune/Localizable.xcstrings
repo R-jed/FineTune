@@ -15,6 +15,12 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加应用程序" } }
       }
     },
+    "Applications" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "应用程序" } }
+      }
+    },
     "App Mute" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -688,22 +694,40 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "跟随 macOS 默认设置" } }
       }
     },
-    "Drag or type a number to set priority" : {
+    "Audio direction" : {
       "extractionState" : "manual",
       "localizations" : {
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "拖动或输入数字设置优先级" } }
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "音频方向" } }
       }
     },
-    "Done reordering" : {
+    "Output" : {
       "extractionState" : "manual",
       "localizations" : {
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "完成排序" } }
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "输出" } }
       }
     },
-    "Reorder devices" : {
+    "Input" : {
       "extractionState" : "manual",
       "localizations" : {
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "调整设备顺序" } }
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "输入" } }
+      }
+    },
+    "Manage Output" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "管理输出" } }
+      }
+    },
+    "Manage Input" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "管理输入" } }
+      }
+    },
+    "Done managing" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "完成管理" } }
       }
     },
     "Settings" : {
@@ -736,28 +760,10 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "退出 FineTune (⌘Q)" } }
       }
     },
-    "No Output" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无输出设备" } }
-      }
-    },
-    "No Input" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无输入设备" } }
-      }
-    },
     "Output Devices" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "输出设备" } }
-      }
-    },
-    "Input Devices" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "输入设备" } }
       }
     },
     "Turn on Bluetooth to connect devices" : {
@@ -1278,12 +1284,6 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "更改图标" } }
       }
     },
-    "Edit priority position" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "调整优先级" } }
-      }
-    },
     "DEFAULT" : {
       "extractionState" : "manual",
       "generatesSymbol" : false,
@@ -1616,13 +1616,49 @@
     "Pin app" : {
       "extractionState" : "manual",
       "localizations" : {
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "固定应用" } }
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "置顶应用" } }
       }
     },
     "Unpin app" : {
       "extractionState" : "manual",
       "localizations" : {
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "取消固定应用" } }
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "取消置顶" } }
+      }
+    },
+    "Pinned" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已置顶" } }
+      }
+    },
+    "Drag to reorder" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "拖动以重新排序" } }
+      }
+    },
+    "Move Up" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "向上移动" } }
+      }
+    },
+    "Move Down" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "向下移动" } }
+      }
+    },
+    "Move device up" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "向上移动设备" } }
+      }
+    },
+    "Move device down" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "向下移动设备" } }
       }
     },
     "Hide app" : {

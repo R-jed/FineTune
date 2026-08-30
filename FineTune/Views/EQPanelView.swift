@@ -70,7 +70,7 @@ struct EQPanelView: View {
                 HStack(spacing: 6) {
                     Toggle("Equalizer", isOn: $settings.isEnabled)
                         .toggleStyle(.switch)
-                        .scaleEffect(0.7)
+                        .controlSize(.small)
                         .labelsHidden()
                         .onChange(of: settings.isEnabled) { _, _ in
                             onSettingsChanged(settings)
@@ -140,7 +140,7 @@ struct EQPanelView: View {
         .padding(.vertical, 10)
         .background {
             RoundedRectangle(cornerRadius: 10)
-                .fill(DesignTokens.Colors.recessedBackground)
+                .fill(DesignTokens.Surface.recessed)
         }
         .padding(.horizontal, 2)
         .padding(.top, DesignTokens.Spacing.xs)
@@ -181,6 +181,11 @@ struct EQPanelView: View {
                 .font(.system(size: 13))
                 .symbolRenderingMode(.hierarchical)
                 .foregroundStyle(DesignTokens.Colors.interactiveDefault)
+                .frame(
+                    minWidth: DesignTokens.Dimensions.minTouchTarget,
+                    minHeight: DesignTokens.Dimensions.minTouchTarget
+                )
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .help("Save current EQ as preset")
@@ -202,12 +207,17 @@ struct EQPanelView: View {
                 commitSave()
             } label: {
                 Image(systemName: "checkmark")
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(
                         savePresetName.trimmingCharacters(in: .whitespaces).isEmpty
                             ? DesignTokens.Colors.textTertiary
                             : DesignTokens.Colors.accentPrimary
                     )
+                    .frame(
+                        minWidth: DesignTokens.Dimensions.minTouchTarget,
+                        minHeight: DesignTokens.Dimensions.minTouchTarget
+                    )
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .disabled(savePresetName.trimmingCharacters(in: .whitespaces).isEmpty)
@@ -218,8 +228,13 @@ struct EQPanelView: View {
                 cancelSave()
             } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(DesignTokens.Colors.textTertiary)
+                    .frame(
+                        minWidth: DesignTokens.Dimensions.minTouchTarget,
+                        minHeight: DesignTokens.Dimensions.minTouchTarget
+                    )
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .help("Cancel")
@@ -229,7 +244,7 @@ struct EQPanelView: View {
         .padding(.vertical, 4)
         .background {
             RoundedRectangle(cornerRadius: DesignTokens.Dimensions.buttonRadius)
-                .fill(.regularMaterial)
+                .fill(DesignTokens.Surface.raised)
         }
         .overlay {
             RoundedRectangle(cornerRadius: DesignTokens.Dimensions.buttonRadius)
@@ -271,6 +286,11 @@ struct EQPanelView: View {
                 .font(.system(size: 12))
                 .symbolRenderingMode(.hierarchical)
                 .foregroundStyle(DesignTokens.Colors.interactiveDefault)
+                .frame(
+                    minWidth: DesignTokens.Dimensions.minTouchTarget,
+                    minHeight: DesignTokens.Dimensions.minTouchTarget
+                )
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .help("Rename preset")
@@ -282,9 +302,14 @@ struct EQPanelView: View {
             pendingDeletion = currentUserPreset
         } label: {
             Image(systemName: "trash")
-                .font(.system(size: 11))
+                .font(.system(size: 12))
                 .symbolRenderingMode(.hierarchical)
                 .foregroundStyle(DesignTokens.Colors.mutedIndicator)
+                .frame(
+                    minWidth: DesignTokens.Dimensions.minTouchTarget,
+                    minHeight: DesignTokens.Dimensions.minTouchTarget
+                )
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .help("Delete preset")
@@ -306,12 +331,17 @@ struct EQPanelView: View {
                 commitRename()
             } label: {
                 Image(systemName: "checkmark")
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(
                         renamePresetName.trimmingCharacters(in: .whitespaces).isEmpty
                             ? DesignTokens.Colors.textTertiary
                             : DesignTokens.Colors.accentPrimary
                     )
+                    .frame(
+                        minWidth: DesignTokens.Dimensions.minTouchTarget,
+                        minHeight: DesignTokens.Dimensions.minTouchTarget
+                    )
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .disabled(renamePresetName.trimmingCharacters(in: .whitespaces).isEmpty)
@@ -322,8 +352,13 @@ struct EQPanelView: View {
                 cancelRename()
             } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(DesignTokens.Colors.textTertiary)
+                    .frame(
+                        minWidth: DesignTokens.Dimensions.minTouchTarget,
+                        minHeight: DesignTokens.Dimensions.minTouchTarget
+                    )
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .help("Cancel")
@@ -333,7 +368,7 @@ struct EQPanelView: View {
         .padding(.vertical, 4)
         .background {
             RoundedRectangle(cornerRadius: DesignTokens.Dimensions.buttonRadius)
-                .fill(.regularMaterial)
+                .fill(DesignTokens.Surface.raised)
         }
         .overlay {
             RoundedRectangle(cornerRadius: DesignTokens.Dimensions.buttonRadius)

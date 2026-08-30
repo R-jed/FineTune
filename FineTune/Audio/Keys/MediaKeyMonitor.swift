@@ -236,7 +236,7 @@ final class MediaKeyMonitor {
             deviceID: deviceID,
             tier: tier,
             deviceName: deviceName,
-            currentVolume: volumeMonitor.volumes[deviceID] ?? 0,
+            currentVolume: volumeMonitor.storedOutputVolume(for: deviceID),
             currentMute: volumeMonitor.muteStates[deviceID] ?? false,
             setVolume: { id, vol in volumeMonitor.setVolume(for: id, to: vol) },
             setMute:   { id, mute in volumeMonitor.setMute(for: id, to: mute) },
@@ -266,24 +266,25 @@ final class MediaKeyMonitor {
     ) {
         let shouldShowHUD = !popupVisibility.isVisible
         let sliderDelta = settingsManager.appSettings.volumeHotkeyStep.sliderDelta
-        let currentSlider = VolumeMapping.sliderFraction(forSystemGain: currentVolume, tier: tier)
-
         switch event {
         case .volumeUp(let isRepeat):
             if isRepeat && tier == .ddc && isDDCRepeatCoalesced() {
                 logger.debug("DDC repeat coalesced")
                 return
             }
-            let nextSlider = min(1.0, currentSlider + sliderDelta)
-            let newVolume = VolumeMapping.systemGain(forSliderFraction: nextSlider, tier: tier)
-            // Volume-up from muted unmutes (system HUD parity).
-            if currentMute {
-                setMute(deviceID, false)
-            }
-            setVolume(deviceID, newVolume)
-            playFeedback(VolumeFeedback.gain(tier: tier, sliderFraction: nextSlider))
+            let plan = OutputVolumeCommandPlan.step(
+                currentGain: currentVolume,
+                isMuted: currentMute,
+                tier: tier,
+                delta: sliderDelta
+            )
+            plan.apply(
+                setVolume: { setVolume(deviceID, $0) },
+                setMute: { setMute(deviceID, $0) }
+            )
+            playFeedback(VolumeFeedback.gain(tier: tier, sliderFraction: plan.fraction))
             if shouldShowHUD {
-                hudController.show(sliderFraction: nextSlider, mute: false, deviceName: deviceName)
+                hudController.show(sliderFraction: plan.fraction, mute: plan.muted, deviceName: deviceName)
             }
             iconCoordinator?.flashDevice()
 
@@ -292,27 +293,35 @@ final class MediaKeyMonitor {
                 logger.debug("DDC repeat coalesced")
                 return
             }
-            let nextSlider = max(0, currentSlider - sliderDelta)
-            let newVolume = VolumeMapping.systemGain(forSliderFraction: nextSlider, tier: tier)
-            let willBeSilent = nextSlider <= 0.001
-            // muted+audible → unmute; unmuted+silent → auto-mute (system HUD parity).
-            if currentMute && !willBeSilent {
-                setMute(deviceID, false)
-            } else if !currentMute && willBeSilent {
-                setMute(deviceID, true)
-            }
-            setVolume(deviceID, newVolume)
-            playFeedback(VolumeFeedback.gain(tier: tier, sliderFraction: nextSlider))
+            let plan = OutputVolumeCommandPlan.step(
+                currentGain: currentVolume,
+                isMuted: currentMute,
+                tier: tier,
+                delta: -sliderDelta
+            )
+            plan.apply(
+                setVolume: { setVolume(deviceID, $0) },
+                setMute: { setMute(deviceID, $0) }
+            )
+            playFeedback(VolumeFeedback.gain(tier: tier, sliderFraction: plan.fraction))
             if shouldShowHUD {
-                hudController.show(sliderFraction: nextSlider, mute: willBeSilent, deviceName: deviceName)
+                hudController.show(sliderFraction: plan.fraction, mute: plan.muted, deviceName: deviceName)
             }
             iconCoordinator?.flashDevice()
 
         case .muteToggle:
-            let newMute = !currentMute
-            setMute(deviceID, newMute)
+            let currentSlider = VolumeMapping.sliderFraction(forSystemGain: currentVolume, tier: tier)
+            let plan = OutputVolumeCommandPlan.muteToggle(
+                currentFraction: currentSlider,
+                isMuted: currentMute,
+                tier: tier
+            )
+            plan.apply(
+                setVolume: { setVolume(deviceID, $0) },
+                setMute: { setMute(deviceID, $0) }
+            )
             if shouldShowHUD {
-                hudController.show(sliderFraction: currentSlider, mute: newMute, deviceName: deviceName)
+                hudController.show(sliderFraction: plan.fraction, mute: plan.muted, deviceName: deviceName)
             }
             iconCoordinator?.flashDevice()
         }

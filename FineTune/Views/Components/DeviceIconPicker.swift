@@ -51,6 +51,7 @@ struct DeviceIconPicker: View {
                     }
                 }
             }
+            .contentMargins(.trailing, DesignTokens.Spacing.sm, for: .scrollContent)
             .frame(height: 300)
             .scrollIndicators(.never)
 
@@ -178,7 +179,7 @@ struct DeviceIconPicker: View {
         .padding(.vertical, 5)
         .background(
             RoundedRectangle(cornerRadius: 7)
-                .fill(DesignTokens.Colors.recessedBackground)
+                .fill(DesignTokens.Surface.recessed)
         )
     }
 
@@ -271,8 +272,8 @@ private struct IconCell: View {
     }
 
     private var fill: Color {
-        if isHighlighted { return DesignTokens.Colors.glassFillStrong }
-        if isHovered { return DesignTokens.Colors.hoverSurface }
+        if isHighlighted { return DesignTokens.Surface.emphasized }
+        if isHovered { return DesignTokens.Surface.hover }
         return .clear
     }
 }

@@ -360,6 +360,24 @@ final class DeviceVolumeMonitor: DeviceVolumeProviding {
         }
     }
 
+    /// Resolves the user's stored output volume from the backend's visible value.
+    /// Software and DDC mute expose zero while keeping the pre-mute value in
+    /// backend-specific settings; hardware retains its usable value in `volumes`.
+    nonisolated static func storedOutputVolume(
+        visibleVolume: Float,
+        isMuted: Bool,
+        tier: VolumeControlTier,
+        rememberedNonZeroVolume: Float?
+    ) -> Float {
+        guard isMuted else { return visibleVolume }
+        switch tier {
+        case .software, .ddc:
+            return rememberedNonZeroVolume ?? visibleVolume
+        case .hardware:
+            return visibleVolume
+        }
+    }
+
     /// Sets the volume for a specific device
     func setVolume(for deviceID: AudioDeviceID, to volume: Float) {
         guard deviceID.isValid else {
@@ -384,6 +402,7 @@ final class DeviceVolumeMonitor: DeviceVolumeProviding {
                 let ddcVolume = Int(round(clamped * 100))
                 ddcController.setVolume(for: deviceID, to: ddcVolume)
                 volumes[deviceID] = clamped
+                onVolumeChanged?(deviceID, clamped)
             } else {
                 logger.warning("Failed to set DDC volume on device \(deviceID)")
             }
@@ -420,6 +439,39 @@ final class DeviceVolumeMonitor: DeviceVolumeProviding {
         }
     }
 
+    func storedOutputVolume(for deviceID: AudioDeviceID) -> Float {
+        let visibleVolume = volumes[deviceID] ?? 0
+        let tier = outputVolumeBackend(for: deviceID)
+        let remembered: Float? = outputDeviceUID(for: deviceID).flatMap { uid in
+            switch tier {
+            case .software:
+                return settingsManager.getSoftwareDeviceSavedVolume(for: uid)
+            case .ddc:
+                return settingsManager.getDDCSavedVolume(for: uid).map { Float($0) / 100.0 }
+            case .hardware:
+                return nil
+            }
+        }
+        return Self.storedOutputVolume(
+            visibleVolume: visibleVolume,
+            isMuted: muteStates[deviceID] ?? false,
+            tier: tier,
+            rememberedNonZeroVolume: remembered
+        )
+    }
+
+    func applyOutputCommand(_ command: OutputVolumeCommandPlan, for deviceID: AudioDeviceID) {
+        guard deviceID.isValid else {
+            logger.warning("Cannot apply output command: invalid device ID")
+            return
+        }
+
+        command.apply(
+            setVolume: { self.setVolume(for: deviceID, to: $0) },
+            setMute: { self.setMute(for: deviceID, to: $0) }
+        )
+    }
+
     /// Sets the mute state for a specific device
     func setMute(for deviceID: AudioDeviceID, to muted: Bool) {
         guard deviceID.isValid else {
@@ -441,10 +493,18 @@ final class DeviceVolumeMonitor: DeviceVolumeProviding {
             if let ddcController {
                 if muted {
                     ddcController.mute(for: deviceID)
+                    volumes[deviceID] = 0
+                    onVolumeChanged?(deviceID, 0)
                 } else {
                     ddcController.unmute(for: deviceID)
+                    if let restoredVolume = ddcController.getVolume(for: deviceID) {
+                        let restoredFraction = Float(restoredVolume) / 100.0
+                        volumes[deviceID] = restoredFraction
+                        onVolumeChanged?(deviceID, restoredFraction)
+                    }
                 }
                 muteStates[deviceID] = muted
+                onMuteChanged?(deviceID, muted)
             } else {
                 logger.warning("Failed to set DDC mute on device \(deviceID)")
             }
@@ -483,6 +543,38 @@ final class DeviceVolumeMonitor: DeviceVolumeProviding {
                 muteStates[deviceID] = false
                 onMuteChanged?(deviceID, false)
             }
+        }
+    }
+
+    func applyUserInputVolume(for deviceID: AudioDeviceID, to requestedVolume: Float) {
+        let currentVolume = Double(inputVolumes[deviceID] ?? 0)
+        let currentMute = inputMuteStates[deviceID] ?? false
+        let adjustment = VolumePresentationState(
+            storedFraction: currentVolume,
+            isMuted: currentMute,
+            sourceIsActive: false
+        ).planAdjustment(to: Double(requestedVolume))
+
+        setInputVolume(for: deviceID, to: Float(adjustment.fraction))
+        if adjustment.shouldUnmute {
+            setInputMute(for: deviceID, to: false)
+        }
+    }
+
+    func toggleUserInputMute(for deviceID: AudioDeviceID) {
+        let currentVolume = Double(inputVolumes[deviceID] ?? 0)
+        let currentMute = inputMuteStates[deviceID] ?? false
+        let plan = VolumePresentationState(
+            storedFraction: currentVolume,
+            isMuted: currentMute,
+            sourceIsActive: false
+        ).planMuteToggle()
+
+        if !plan.muted, plan.fraction != currentVolume {
+            setInputVolume(for: deviceID, to: Float(plan.fraction))
+        }
+        if plan.muted != currentMute {
+            setInputMute(for: deviceID, to: plan.muted)
         }
     }
 

@@ -257,12 +257,15 @@ final class AudioEngine {
             self.restoreLockedInputDevice()
         }
 
-        // Wire callbacks — needed for both test and production mode
+        // Wire callbacks — needed for both test and production mode. Seed any
+        // pre-populated process snapshot as well; later changes stay callback-driven.
         wireCallbacks()
+        appListCoordinator.registerVisibleApps(self.processMonitor.activeApps)
 
         if startMonitorsAutomatically {
-            Task { @MainActor in
+            Task { @MainActor [self] in
                 self.processMonitor.start()
+                self.appListCoordinator.registerVisibleApps(self.processMonitor.activeApps)
                 self.deviceMonitor.start()
                 self.bluetoothDeviceMonitor.start()
 
@@ -347,6 +350,7 @@ final class AudioEngine {
         }
 
         processMonitor.onAppsChanged = { [weak self] apps in
+            self?.appListCoordinator.registerVisibleApps(apps)
             self?.reconcileTapsWithChangedProcesses(apps)
             self?.applyPersistedSettings()
             self?.scheduleStaleCleanup()
@@ -403,14 +407,12 @@ final class AudioEngine {
         processMonitor.activeApps
     }
 
-    // MARK: - Displayable Apps (Active + Pinned Inactive)
+    // MARK: - Displayable Apps
 
-    /// Combined list of apps producing audio and pinned apps whose process is unavailable.
-    /// Every app follows the same user-defined order; unseen apps follow alphabetically.
+    /// Running non-hidden apps plus pinned non-hidden apps whose process is unavailable.
+    /// The raw persisted rank remains global; pinning is applied only as a stable
+    /// presentation partition. Multiple processes for one identity collapse to one row.
     var displayableApps: [DisplayableApp] {
-        let orderRank = Dictionary(
-            uniqueKeysWithValues: settingsManager.appOrder.enumerated().map { ($1, $0) }
-        )
         let activeApps = apps
             .filter { !appListCoordinator.isIgnored(identifier: $0.persistenceIdentifier) }
         let activeAppsByIdentifier = Dictionary(
@@ -422,35 +424,17 @@ final class AudioEngine {
             .filter { !activeIdentifiers.contains($0.persistenceIdentifier) }
             .filter { !appListCoordinator.isIgnored(identifier: $0.persistenceIdentifier) }
             .map { DisplayableApp.pinnedInactive($0) }
-
-        return (activeAppsByIdentifier.values.map { DisplayableApp.active($0) } + inactivePinned)
-            .sorted { lhs, rhs in
-                let lhsRank = orderRank[lhs.id]
-                let rhsRank = orderRank[rhs.id]
-                if let lhsRank, let rhsRank { return lhsRank < rhsRank }
-                if lhsRank != nil { return true }
-                if rhsRank != nil { return false }
-                return lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName) == .orderedAscending
-            }
-    }
-
-    // MARK: - Pinning
-
-    /// Pin an active app so it remains visible when inactive.
-    func pinApp(_ app: AudioApp) {
-        appListCoordinator.pinApp(app)
-    }
-
-    /// Add an app selected from disk and immediately apply its saved settings if running.
-    func pinApp(_ info: PinnedAppInfo) {
-        appListCoordinator.pinApp(info)
-        applyPersistedSettings()
-    }
-
-    /// Unpin an app by its persistence identifier. Running apps remain visible.
-    /// Pinning only controls whether the row persists after the process exits.
-    func unpinApp(_ identifier: String) {
-        appListCoordinator.unpinApp(identifier)
+        let visibleApps = activeAppsByIdentifier.values.map { DisplayableApp.active($0) } + inactivePinned
+        let pinnedIdentifiers = Set(
+            visibleApps.lazy
+                .filter { self.appListCoordinator.isPinned(identifier: $0.id) }
+                .map(\.id)
+        )
+        return AppListPresentationOrder.ordered(
+            visibleApps,
+            pinnedIdentifiers: pinnedIdentifiers,
+            persistedOrder: settingsManager.appOrder
+        )
     }
 
     func moveApp(_ identifier: String, to targetIdentifier: String) {
@@ -461,14 +445,108 @@ final class AudioEngine {
         )
     }
 
-    /// Check if an app is pinned.
-    func isPinned(_ app: AudioApp) -> Bool {
-        appListCoordinator.isPinned(app)
+    // MARK: - Pinning / app-list placement
+
+    func pinApp(_ app: AudioApp) {
+        appListCoordinator.pinApp(app)
     }
 
-    /// Check if an identifier is pinned (for inactive apps).
+    func pinApp(_ info: PinnedAppInfo) {
+        appListCoordinator.pinApp(info)
+        applyPersistedSettings()
+    }
+
+    func unpinApp(_ identifier: String) {
+        appListCoordinator.unpinApp(identifier)
+    }
+
+    func isPinned(_ app: AudioApp) -> Bool {
+        appListCoordinator.isPinned(identifier: app.persistenceIdentifier)
+    }
+
     func isPinned(identifier: String) -> Bool {
         appListCoordinator.isPinned(identifier: identifier)
+    }
+
+    /// Commits order and pin membership together. Pointer drag, accessibility
+    /// reorder, and direct Pin/Unpin actions all converge on this mutation path.
+    @discardableResult
+    func placeApp(
+        _ identifier: String,
+        visibleOrder: [String],
+        pinned: Bool
+    ) -> Bool {
+        let info: PinnedAppInfo?
+        if pinned {
+            info = displayableApps.first(where: { $0.id == identifier })?.pinInfo
+                ?? appListCoordinator.pinnedAppInfo(identifier: identifier)
+        } else {
+            info = nil
+        }
+
+        return appListCoordinator.placeApp(
+            identifier,
+            visibleOrder: visibleOrder,
+            pinned: pinned,
+            info: info
+        )
+    }
+
+    /// Direct Pin/Unpin button semantics. Pin moves to the end of Pinned;
+    /// unpinning an active app moves to the beginning of Applications. An
+    /// inactive unpinned app simply loses display eligibility.
+    func setPinned(_ identifier: String, pinned: Bool) {
+        let current = displayableApps
+        guard let displayable = current.first(where: { $0.id == identifier }) else { return }
+
+        var finalOrder = current.map(\.id)
+        finalOrder.removeAll { $0 == identifier }
+        let remainingPinnedCount = current.reduce(into: 0) { count, item in
+            guard item.id != identifier,
+                  appListCoordinator.isPinned(identifier: item.id) else { return }
+            count += 1
+        }
+
+        if pinned {
+            finalOrder.insert(identifier, at: min(remainingPinnedCount, finalOrder.count))
+            _ = appListCoordinator.placeApp(
+                identifier,
+                visibleOrder: finalOrder,
+                pinned: true,
+                info: displayable.pinInfo
+            )
+        } else if displayable.app != nil {
+            finalOrder.insert(identifier, at: min(remainingPinnedCount, finalOrder.count))
+            _ = appListCoordinator.placeApp(
+                identifier,
+                visibleOrder: finalOrder,
+                pinned: false,
+                info: nil
+            )
+        } else {
+            appListCoordinator.unpinApp(identifier)
+        }
+    }
+
+    /// Explicit Add Applications action. Selection means "show and pin"; hidden
+    /// state is therefore cleared here, not as a side effect of low-level pinning.
+    func addSelectedApplication(_ info: PinnedAppInfo) {
+        let current = displayableApps
+        var finalOrder = current.map(\.id)
+        let alreadyPinned = appListCoordinator.isPinned(identifier: info.persistenceIdentifier)
+
+        if !alreadyPinned {
+            finalOrder.removeAll { $0 == info.persistenceIdentifier }
+            let pinnedCount = current.reduce(into: 0) { count, item in
+                guard item.id != info.persistenceIdentifier,
+                      appListCoordinator.isPinned(identifier: item.id) else { return }
+                count += 1
+            }
+            finalOrder.insert(info.persistenceIdentifier, at: min(pinnedCount, finalOrder.count))
+        }
+
+        appListCoordinator.addSelectedPinnedApp(info, visibleOrder: finalOrder)
+        applyPersistedSettings()
     }
 
     // MARK: - Ignored Apps
@@ -476,6 +554,7 @@ final class AudioEngine {
     /// Hide an active app so FineTune ignores it entirely. Persists the ignore,
     /// then tears down the live tap so audio returns to natural volume.
     func ignoreApp(_ app: AudioApp) {
+        settingsManager.ensureAppsInOrder([app.persistenceIdentifier])
         appListCoordinator.recordIgnore(app)
         retireTap(for: app.id, resetRuntimeState: true)
     }
@@ -488,6 +567,9 @@ final class AudioEngine {
     /// Immediately creates a tap if the app is currently running.
     func unignoreApp(_ identifier: String) {
         appListCoordinator.clearIgnore(identifier)
+        if apps.contains(where: { $0.persistenceIdentifier == identifier }) {
+            settingsManager.ensureAppsInOrder([identifier])
+        }
         applyPersistedSettings()
     }
 
@@ -723,8 +805,14 @@ final class AudioEngine {
     }
 
     func toggleMute(for app: AudioApp) {
-        let current = volumeState.getMute(for: app.id)
-        setMute(for: app, to: !current)
+        let currentMute = volumeState.getMute(for: app.id)
+        AppVolumeCommandPlan.muteToggle(
+            currentGain: volumeState.getVolume(for: app.id),
+            isMuted: currentMute
+        ).apply(
+            setVolume: { setVolume(for: app, to: $0) },
+            setMute: { setMute(for: app, to: $0) }
+        )
     }
 
     func currentVolume(for app: AudioApp) -> Float {

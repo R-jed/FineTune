@@ -1,9 +1,3 @@
-// FineTune/Views/MenuBar/MenuBarIconCoordinator.swift
-// Owns NSStatusBarButton.image mutation. FluidMenuBarExtra sets the image
-// once at init and never touches it again, so we locate the button by
-// walking NSApp.windows for the NSStatusBarButton whose accessibilityTitle
-// was set to "FineTune" by the library, and crossfade images directly.
-
 import AppKit
 import AudioToolbox
 import Observation
@@ -32,8 +26,6 @@ final class MenuBarIconCoordinator: MediaKeyIconFlashing {
         self.settings = settings
     }
 
-    /// Begin observing volume / mute / style and apply state to the menu bar button.
-    /// Idempotent; safe to call from the app-init path even before the status item exists.
     func start() {
         guard !started else { return }
         started = true
@@ -43,47 +35,44 @@ final class MenuBarIconCoordinator: MediaKeyIconFlashing {
         scheduleDeviceChangeTracking()
     }
 
-    /// Cancel pending work and drop references. Called on app termination.
     func stop() {
         flashWorkItem?.cancel()
         flashWorkItem = nil
         cachedButton = nil
     }
 
-    /// Transient device-icon flash. Applies to every style; fires on media keys and device changes.
-    /// If the same symbol is already flashing, extends the timer rather than restarting the fade —
-    /// prevents mid-fade pops when device-change and media-key triggers coincide.
     func flashDevice() {
         let symbol = currentDeviceSymbol()
-        let alreadyShowingSame = (flashActiveSymbol == symbol)
+        let alreadyShowingSame = flashActiveSymbol == symbol
         flashActiveSymbol = symbol
         if !alreadyShowingSame {
             apply()
         }
 
         flashWorkItem?.cancel()
-        let duration = flashDuration()
         let item = DispatchWorkItem { [weak self] in
             guard let self else { return }
             self.flashActiveSymbol = nil
             self.apply()
         }
         flashWorkItem = item
-        DispatchQueue.main.asyncAfter(deadline: .now() + duration, execute: item)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.1, execute: item)
     }
-
-    // MARK: - State
 
     private func computeState() -> MenuBarIconState {
         if let symbol = flashActiveSymbol {
             return .deviceFlash(symbol: symbol)
         }
         let id = deviceVolumeMonitor.defaultDeviceID
-        let volume = deviceVolumeMonitor.volumes[id] ?? 0
+        let storedVolume = deviceVolumeMonitor.storedOutputVolume(for: id)
+        let tier = deviceVolumeMonitor.outputVolumeBackend(for: id)
+        let displayFraction = Float(
+            VolumeMapping.sliderFraction(forSystemGain: storedVolume, tier: tier)
+        )
         let muted = deviceVolumeMonitor.muteStates[id] ?? false
         return MenuBarIconState.baseline(
             style: settings.appSettings.menuBarIconStyle,
-            volume: volume,
+            volume: displayFraction,
             muted: muted,
             deviceSymbol: currentDeviceSymbol()
         )
@@ -97,13 +86,6 @@ final class MenuBarIconCoordinator: MediaKeyIconFlashing {
             overrideForUID: { [settings] in settings.getDeviceIconOverride(for: $0) }
         )
     }
-
-    private func flashDuration() -> TimeInterval {
-        // Matches HUDWindowController.hideDelay so the icon and HUD fade in lockstep.
-        return 1.1
-    }
-
-    // MARK: - Apply
 
     private func apply() {
         guard let button = resolveButton() else { return }
@@ -119,7 +101,7 @@ final class MenuBarIconCoordinator: MediaKeyIconFlashing {
             return
         }
         guard retriesLeft > 0 else {
-            logger.error("Menu bar button not found after 20 tries (1s); icon will remain at FluidMenuBarExtra placeholder until next state change")
+            logger.error("Menu bar button not found after 20 tries; keeping the launch icon until the next state change")
             return
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
@@ -127,56 +109,8 @@ final class MenuBarIconCoordinator: MediaKeyIconFlashing {
         }
     }
 
-    private func scheduleApplyTracking() {
-        withObservationTracking {
-            let id = deviceVolumeMonitor.defaultDeviceID
-            _ = deviceVolumeMonitor.volumes[id]
-            _ = deviceVolumeMonitor.muteStates[id]
-            _ = settings.appSettings.menuBarIconStyle
-            _ = settings.appSettings.hudStyle
-            _ = settings.devicePriorityOrder
-            // Deliberate dependency so the device-style icon refreshes when the user picks a new symbol; explicit because observation granularity is per stored property.
-            _ = settings.deviceIconOverrides
-            _ = deviceProvider.outputDevices
-        } onChange: { [weak self] in
-            // onChange fires in willSet — the tracked properties are still at their
-            // pre-change values inside this closure. Re-register synchronously so the
-            // next mutation isn't dropped, then defer apply() to a Task so it reads
-            // committed (post-setter) values.
-            MainActor.assumeIsolated { [weak self] in
-                self?.scheduleApplyTracking()
-            }
-            Task { @MainActor [weak self] in
-                self?.apply()
-            }
-        }
-    }
-
-    private func scheduleDeviceChangeTracking() {
-        withObservationTracking {
-            _ = deviceVolumeMonitor.defaultDeviceID
-        } onChange: { [weak self] in
-            // See scheduleApplyTracking — deferred read so flashDevice sees the NEW
-            // defaultDeviceID, not the pre-change value. Otherwise the flash shows
-            // the old device's icon (e.g. AirPods while we just switched to MacBook).
-            MainActor.assumeIsolated { [weak self] in
-                self?.scheduleDeviceChangeTracking()
-            }
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                let newID = self.deviceVolumeMonitor.defaultDeviceID
-                if let prev = self.lastObservedDeviceID, prev != newID, newID.isValid {
-                    self.flashDevice()
-                }
-                self.lastObservedDeviceID = newID
-            }
-        }
-    }
-
-    // MARK: - Button + image
-
     private func resolveButton() -> NSStatusBarButton? {
-        if let cached = cachedButton { return cached }
+        if let cachedButton { return cachedButton }
         for window in NSApp.windows {
             guard let contentView = window.contentView else { continue }
             if let button = findStatusBarButton(in: contentView, matching: "FineTune") {
@@ -198,6 +132,46 @@ final class MenuBarIconCoordinator: MediaKeyIconFlashing {
             }
         }
         return nil
+    }
+
+    private func scheduleApplyTracking() {
+        withObservationTracking {
+            let id = deviceVolumeMonitor.defaultDeviceID
+            _ = deviceVolumeMonitor.volumes[id]
+            _ = deviceVolumeMonitor.muteStates[id]
+            _ = settings.appSettings.menuBarIconStyle
+            _ = settings.appSettings.hudStyle
+            _ = settings.devicePriorityOrder
+            _ = settings.deviceIconOverrides
+            _ = deviceProvider.outputDevices
+        } onChange: { [weak self] in
+            MainActor.assumeIsolated { [weak self] in
+                self?.scheduleApplyTracking()
+            }
+            Task { @MainActor [weak self] in
+                self?.apply()
+            }
+        }
+    }
+
+    private func scheduleDeviceChangeTracking() {
+        withObservationTracking {
+            _ = deviceVolumeMonitor.defaultDeviceID
+        } onChange: { [weak self] in
+            MainActor.assumeIsolated { [weak self] in
+                self?.scheduleDeviceChangeTracking()
+            }
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                let newID = self.deviceVolumeMonitor.defaultDeviceID
+                if let previous = self.lastObservedDeviceID,
+                   previous != newID,
+                   newID.isValid {
+                    self.flashDevice()
+                }
+                self.lastObservedDeviceID = newID
+            }
+        }
     }
 
     private func addFadeTransition(to button: NSStatusBarButton) {

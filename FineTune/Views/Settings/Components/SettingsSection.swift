@@ -19,13 +19,9 @@ struct SettingsSection<Content: View>: View {
                     .foregroundStyle(DesignTokens.Colors.textPrimary)
                     .padding(.horizontal, 4)
             }
+
             VStack(spacing: 0) {
                 content()
-            }
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5)
             }
         }
     }

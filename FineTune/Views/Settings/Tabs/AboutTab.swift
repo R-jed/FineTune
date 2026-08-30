@@ -70,6 +70,8 @@ struct AboutTab: View {
                 NSWorkspace.shared.open(DesignTokens.Links.license)
             } label: {
                 Text("GPL-3.0")
+                    .frame(minHeight: DesignTokens.Dimensions.minTouchTarget)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
 

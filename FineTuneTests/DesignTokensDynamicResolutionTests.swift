@@ -57,18 +57,6 @@ struct DesignTokensDynamicResolutionTests {
 
     // MARK: Per-token resolution
 
-    @Test("popupOverlay resolves correctly in light and dark")
-    func popupOverlay() {
-        // Light bumped from 0.10 → 0.50: lifts the popup from muddy gray
-        // to crisp white-tilted glass over the .popover material.
-        expectColor(DesignTokens.Colors.popupOverlay,
-                    equals: NSColor.white.withAlphaComponent(0.50),
-                    in: Self.aqua)
-        expectColor(DesignTokens.Colors.popupOverlay,
-                    equals: NSColor.black.withAlphaComponent(0.4),
-                    in: Self.darkAqua)
-    }
-
     @Test("recessedBackground resolves correctly in light and dark")
     func recessedBackground() {
         expectColor(DesignTokens.Colors.recessedBackground,
@@ -182,18 +170,6 @@ struct DesignTokensDynamicResolutionTests {
                     in: Self.aqua)
         expectColor(DesignTokens.Colors.hudBorder,
                     equals: NSColor.white.withAlphaComponent(0.08),
-                    in: Self.darkAqua)
-    }
-
-    @Test("sectionHeaderText resolves correctly in light and dark")
-    func sectionHeaderText() {
-        // Light bumped from 0.55 → 0.65: stronger section anchor on
-        // whiter glass without changing tracking or weight.
-        expectColor(DesignTokens.Colors.sectionHeaderText,
-                    equals: NSColor.black.withAlphaComponent(0.65),
-                    in: Self.aqua)
-        expectColor(DesignTokens.Colors.sectionHeaderText,
-                    equals: NSColor.white.withAlphaComponent(0.40),
                     in: Self.darkAqua)
     }
 
